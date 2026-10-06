@@ -78,7 +78,7 @@ jobs:
           pathlib.Path('/tmp/native-body.json').write_text(json.dumps({'body':body}),encoding='utf-8')
           keep={os.environ['FULL'],os.environ['FULL']+'.sha256',os.environ['PATCH'],os.environ['PATCH']+'.sha256'}
           old=[str(a['id']) for a in release['assets'] if a['name'].startswith(('Meltype-Native-Google-windows-x64-','Meltype-Native-AutoStart-')) and a['name'] not in keep]
-          pathlib.Path('/tmp/old-assets.txt').write_text('\n'.join(old))
+          pathlib.Path('/tmp/old-assets.txt').write_text('\n'.join(old)+'\n')
           PY
           release_id=$(python3 -c 'import json; print(json.load(open("/tmp/native-release.json"))["id"])')
           gh api "repos/$GH_REPO/releases/$release_id" --method PATCH --input /tmp/native-body.json >/dev/null

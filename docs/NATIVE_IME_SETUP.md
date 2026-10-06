@@ -10,6 +10,8 @@
 
 移行用ZIPの`Stop-NativeIme.cmd`は通常のGoogle日本語入力に戻す。元のMeltype常駐版は起動しない。Windowsへサインインした後は`Start-NativeIme.cmd`を通常権限で実行する。句読点設定と学習設定はGoogle側で別途設定する。
 
+起動時はBrokerの準備を最大60秒待つ。起動済みなら再起動せず有効化する。起動失敗時は通常のGoogleへ戻し、この起動操作で開始したプロセスを終了する。画面には`native-broker-errors.txt`と`native-broker-output.txt`の末尾を表示する。従来の約4秒の待機では、初回のコンパイルに時間がかかるPCで正常な起動を拒否していた。
+
 必要な環境はWindows 10/11の64ビット、インストール済みGoogle日本語入力、MinGW-w64のg++、Roslynと.NET参照アセンブリ、Windows Formsを含むPowerShellランタイム。この試作はCodexの同梱PowerShellランタイムとw64devkitで検証した。通常のPowerShell 5.1だけではビルドできない。Googleの変換サービスを一度起動しておく。
 
 1. リポジトリのルートで次を実行する。パスは自分の環境に合わせる。

@@ -24,7 +24,7 @@ foreach ($file in $manifest.Files) { Copy-Item -LiteralPath (Join-Path $package 
     ConvertTo-Json -Depth 4 | Set-Content (Join-Path $stagePackage 'manifest.json') -Encoding UTF8
 $scripts = Join-Path $stage 'tools/native-ime'
 New-Item -ItemType Directory -Path $scripts -Force | Out-Null
-foreach ($script in @('Install-NativeIme.ps1','Start-NativeIme.ps1','Stop-NativeIme.ps1','Uninstall-NativeIme.ps1','Host-NativeBroker.ps1','Backup-State.ps1','Start-Resident.ps1','Host-Resident.ps1')) {
+foreach ($script in @('Install-NativeIme.ps1','Start-NativeIme.ps1','Wait-NativeBroker.ps1','Stop-NativeIme.ps1','Uninstall-NativeIme.ps1','Host-NativeBroker.ps1','Backup-State.ps1','Start-Resident.ps1','Host-Resident.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $script) -Destination (Join-Path $scripts $script)
 }
 foreach ($launcher in @('Install-NativeIme.cmd','Start-NativeIme.cmd','Stop-NativeIme.cmd','Uninstall-NativeIme.cmd')) {

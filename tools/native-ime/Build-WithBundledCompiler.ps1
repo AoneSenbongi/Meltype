@@ -25,7 +25,10 @@ function Build-Project([string]$project, [string[]]$dependencies, [string[]]$fri
     $generated = 'global using System; global using System.Collections.Generic; global using System.IO; global using System.Linq; global using System.Net.Http; global using System.Threading; global using System.Threading.Tasks;'
     if ($forms) { $generated += 'global using System.Drawing; global using System.Windows.Forms;' }
     foreach ($friend in $friends) { $generated += "[assembly: System.Runtime.CompilerServices.InternalsVisibleTo(`"$friend`")]" }
-    $generated += '[assembly: System.Reflection.AssemblyVersion("1.0.0.0")]'
+    $projectFile = [xml](Get-Content (Join-Path $projectDir ($project + '.csproj')) -Raw)
+    $version = @($projectFile.Project.PropertyGroup.Version | Where-Object { $_ })[0]
+    if (-not $version) { $version = '1.0.1' }
+    $generated += '[assembly: System.Reflection.AssemblyVersion("' + $version + '.0")]'
     if ($project -eq 'Meltype') {
         $generated += 'namespace Meltype { internal static class ApplicationConfiguration { internal static void Initialize() { Application.SetHighDpiMode(HighDpiMode.PerMonitorV2); Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false); } } }'
     }

@@ -164,6 +164,10 @@ public sealed class Settings
      Description("Keyboard モードの英数 (直接入力) 状態でも単語の打ち始めを判定し、ローマ字 (日本語) なら自動で日本語入力に戻します。")]
     public bool DirectModeAutoDetect { get; set; } = true;
 
+    [Category("1. 全般"), DisplayName("英単語の前後に半角スペース"),
+     Description("確定するときに、日本語と英単語の間に半角スペースを入れます (今日はGitHubにpushした → 今日は GitHub に push した)。数字だけの語 (3時) には入れません。")]
+    public bool SpaceAroundEnglish { get; set; }
+
     [Category("1. 全般"), DisplayName("ライブ変換"),
      Description("Keyboard モードで、Space を押さなくても打ったそばから漢字に変換して表示します。")]
     public bool LiveConversion { get; set; } = true;
@@ -400,6 +404,15 @@ public sealed class Settings
 
     [Category("6. IME"), DisplayName("IME 操作のタイムアウト (ms)")]
     public int ImeTimeoutMs { get; set; } = 300;
+
+    [Category("7. アプリ"), DisplayName("貼り付けで入力するアプリ"),
+     Description("確定した文字を 1 文字ずつ送ると取り違えるアプリ (DaVinci Resolve で「あいうえお」→「あああああ」)。ここに書いたアプリ (プロセス名、カンマ区切り) では、クリップボードを使って貼り付けで入れます (元のクリップボードの中身は戻します)。")]
+    public string PasteApps { get; set; } = "Resolve.exe";
+
+    /// <summary>このアプリでは確定した文字を貼り付けで入れるか (<see cref="PasteApps"/>)。</summary>
+    public bool UsesPaste(string? processName) =>
+        !string.IsNullOrEmpty(processName) &&
+        (PasteApps ?? "").Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries).Any(app => string.Equals(app.Trim(), processName, StringComparison.OrdinalIgnoreCase));
 
     [Category("7. アプリ"), DisplayName("全画面アプリでは無効"), Description("ゲームや動画など全画面のウィンドウではキーを保留しません。")]
     public bool ExcludeFullscreen { get; set; } = true;

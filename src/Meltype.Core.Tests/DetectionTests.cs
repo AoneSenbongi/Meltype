@@ -199,4 +199,24 @@ internal static class DetectionTests
         var typo = result.Contributions.Where(c => c.Source == "Typo").Sum(c => c.Japanese);
         Assert.True(typo > 0 && typo < withoutTypo.JapaneseThreshold, $"Typo の加点は閾値未満であるべき: {result.Describe()}");
     }
+
+    [Test]
+    public static void Describe_HidesTypedText_UnlessRecordTextIsOn()
+    {
+        // ログに出す判定の説明に、打った文字 (「kyouha」や、理由の中の「kyou」と一致 など) を出さない (入力した文字をログに出す設定が OFF のとき)
+        var result = Engine.Evaluate(new DetectionInput("kyouha", "KYOUHA".Select(c => (int)c).ToArray(), true));
+        var before = Diagnostics.Log.RecordText;
+        try
+        {
+            Diagnostics.Log.RecordText = false;
+            var hidden = result.Describe();
+            Assert.True(!hidden.Contains("kyou") && hidden.Contains("(6 文字)"), $"打った文字を出さない: {hidden}");
+            Diagnostics.Log.RecordText = true;
+            Assert.True(result.Describe().Contains("kyouha"), "ON なら出す");
+        }
+        finally
+        {
+            Diagnostics.Log.RecordText = before;
+        }
+    }
 }

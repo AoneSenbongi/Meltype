@@ -18,12 +18,12 @@ Windows 版のほか、Mac 版・Linux 版のプレビュー版があります (
 
 ## インストール
 
-1. [Releases](https://github.com/yksr-melt/Meltype/releases) から `Meltype-<版>-windows.zip` をダウンロードして展開する
-   (Mac 版は `Meltype-<版>-mac.zip`、Linux 版は `Meltype-<版>-linux.zip`。どちらもプレビュー版)
+1. [Releases](https://github.com/yksr-melt/Meltype/releases) から `Meltype-<version>-windows.zip` をダウンロードして展開する
+   (Mac 版は `Meltype-<version>-mac.zip`、Linux 版は `Meltype-<version>-linux.zip`。どちらもプレビュー版)
 2. `Install.cmd` をダブルクリックする (管理者権限は不要)
    - Meltype はコード署名をしていないので、「Windows によって PC が保護されました」と出ることがあります。「詳細情報」→「実行」で入れられます。
    - キーボードの入力を受け持つソフトなので、ウイルス対策ソフトが誤って止めることがあります。そのときは、お使いのウイルス対策ソフトで Meltype のフォルダーを許可してください。
-   - ダウンロードした zip が本物か確かめたいときは、リリースのページに出ている SHA-256 と比べてください (PowerShell: `Get-FileHash .\Meltype-<版>-windows.zip`)。
+   - ダウンロードした zip が本物か確かめたいときは、リリースのページに出ている SHA-256 と比べてください (PowerShell: `Get-FileHash .\Meltype-<version>-windows.zip`)。
 3. タスクトレイに「あ」のアイコンが出れば動いています。Windows の起動時にも自動で起動します。
 
 1.0.0 以降は、新しい版が出ると自動で更新します (トレイのアイコンを右クリック →「更新」→「自動で更新する」で止められます)。

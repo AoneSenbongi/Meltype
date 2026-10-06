@@ -9,9 +9,27 @@ import KanaKanjiConverterModuleWithDefaultDictionary
 final class MeltypeConverter {
     static let shared = MeltypeConverter()
 
-    // 同梱の辞書 (KanaKanjiConverterModuleWithDefaultDictionary) を使う変換エンジン
-    private let converter = KanaKanjiConverter.withDefaultDictionary()
+    // 同梱の辞書 (KanaKanjiConverterModuleWithDefaultDictionary) を使う変換エンジン。
+    // azooKey の withDefaultDictionary() は辞書を Bundle.module で探すが、Bundle.module は Meltype.app の直下か
+    // ビルドしたマシンのフォルダーしか見ない。辞書のバンドルは Contents/Resources に入れているので、見つからずに落ちていた (#26)。
+    // (Meltype.app の直下には置けない: 署名が通らない)。なので、辞書の場所をこちらで渡す。
+    private let converter = KanaKanjiConverter(dicdataStore: DicdataStore(dictionaryURL: MeltypeConverter.resource("Dictionary")))
     private let options: ConvertRequestOptions
+
+    /// 同梱の辞書のバンドル (Contents/Resources に入れている) の中のフォルダー。
+    private static func resource(_ name: String) -> URL {
+        let bundleName = "AzooKeyKanaKanjiConverter_KanaKanjiConverterModuleWithDefaultDictionary.bundle"
+        let url = (Bundle.main.resourceURL ?? Bundle.main.bundleURL).appendingPathComponent(bundleName, isDirectory: true)
+        return (Bundle(url: url)?.resourceURL ?? url).appendingPathComponent(name, isDirectory: true)
+    }
+
+    /// 絵文字の辞書 (azooKey の withDefaultEmojiDictionary() と同じ選び方。こちらも Bundle.module を使わない)。
+    private static func emojiDictionary() -> URL {
+        let directory = resource("EmojiDictionary")
+        if #available(macOS 15.3, *) { return directory.appendingPathComponent("emoji_all_E16.0.txt", isDirectory: false) }
+        if #available(macOS 14.4, *) { return directory.appendingPathComponent("emoji_all_E15.1.txt", isDirectory: false) }
+        return directory.appendingPathComponent("emoji_all_E15.0.txt", isDirectory: false)
+    }
 
     private init() {
         // azooKey の学習データ・ユーザー辞書の置き場所 (Meltype では学習しない設定にしているので、ほぼ使わない)。
@@ -25,9 +43,9 @@ final class MeltypeConverter {
             learningType: .nothing,
             memoryDirectoryURL: directory,
             sharedContainerURL: directory,
-            textReplacer: .withDefaultEmojiDictionary(),
+            textReplacer: TextReplacer(emojiDataProvider: { MeltypeConverter.emojiDictionary() }),
             specialCandidateProviders: KanaKanjiConverter.defaultSpecialCandidateProviders,
-            metadata: .init(versionString: "Meltype 1.0.0")
+            metadata: .init(versionString: "Meltype 1.0.1")
         )
     }
 

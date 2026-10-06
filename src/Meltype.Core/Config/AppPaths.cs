@@ -41,6 +41,9 @@ internal static class AppPaths
     public static string UserDictionaryFile => Path.Combine(DataDirectory, "userdict.txt");
     public static string LogFile => Path.Combine(DataDirectory, "meltype.log");
 
+    /// <summary>落ちたときの例外 (ファイルへのログが OFF でも書く)。</summary>
+    public static string CrashLogFile => Path.Combine(DataDirectory, "crash.log");
+
     /// <summary>ユーザー辞書 (japanese.txt / english.txt) を置くと組み込み辞書に追加される。</summary>
     public static string UserDictionaryDirectory => Path.Combine(DataDirectory, "dictionaries");
 }

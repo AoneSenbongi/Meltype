@@ -12,6 +12,18 @@ if [[ ! -d Meltype.app ]]; then
     exit 1
 fi
 
+# 入力ソースの「+」の一覧に Meltype が出ない Mac がある (macOS 26、#21)。
+# ことえりと同じ形で、有効な入力ソースの一覧 (AppleEnabledInputSources) に入れておく。もう入っていれば何もしない。
+enable_input_source() {
+    local id=io.github.yksr-melt.inputmethod.Meltype
+    defaults read com.apple.HIToolbox AppleEnabledInputSources 2>/dev/null | grep -q "$id" && return 0
+    defaults write com.apple.HIToolbox AppleEnabledInputSources -array-add \
+        "<dict><key>Bundle ID</key><string>$id</string><key>InputSourceKind</key><string>Keyboard Input Method</string></dict>" \
+        "<dict><key>Bundle ID</key><string>$id</string><key>Input Mode</key><string>$id.Japanese</string><key>InputSourceKind</key><string>Input Mode</string></dict>"
+    killall TextInputMenuAgent 2>/dev/null || true
+    echo "入力ソースに Meltype を追加しました"
+}
+
 TARGET="$HOME/Library/Input Methods"
 mkdir -p "$TARGET"
 pkill -x Meltype 2>/dev/null || true
@@ -21,8 +33,9 @@ cp -R Meltype.app "$TARGET/"
 xattr -dr com.apple.quarantine "$TARGET/Meltype.app" 2>/dev/null || true
 
 echo "インストールしました: $TARGET/Meltype.app"
+enable_input_source
 echo
 echo "初めてのときは:"
 echo "  1. いったんログアウトしてログインし直す"
-echo "  2. システム設定 → キーボード → 入力ソース →「編集…」→「+」→ 日本語 → Meltype を追加"
-echo "  3. メニューバーの入力メニューで Meltype を選ぶ"
+echo "  2. メニューバーの入力メニューで Meltype を選ぶ"
+echo "     (出ていなければ、システム設定 → キーボード → 入力ソース →「編集…」→「+」→ 日本語 → Meltype を追加)"

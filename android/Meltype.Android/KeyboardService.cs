@@ -68,7 +68,7 @@ public sealed class KeyboardService : InputMethodService
         var controls = new LinearLayout(this);
         _mode = AddKey(controls, "日英切替", () =>
         {
-            if (_restricted) return;
+            if (_restricted || !_ready) return;
             _english = !_english;
             var english = _english;
             Queue(() => _session?.SetEnglish(english)); Status();

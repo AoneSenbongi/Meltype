@@ -10,7 +10,7 @@ using Meltype.AndroidCore;
 
 namespace Meltype.Mobile;
 
-[Activity(Label = "Meltype Android 試作版", MainLauncher = true, Exported = true)]
+[Activity(Name = "jp.aonesenbongi.meltype.MainActivity", Label = "Meltype Android 試作版", MainLauncher = true, Exported = true)]
 public sealed class MainActivity : Activity
 {
     protected override void OnCreate(Bundle? savedInstanceState)

@@ -73,6 +73,26 @@ jobs:
           git archive --format=zip --output=android-distribution/corresponding-source.zip HEAD
           cd android-distribution
           sha256sum Meltype-Android-prototype.apk > Meltype-Android-prototype.apk.sha256
+      - name: Test JNI and editor on Android
+        timeout-minutes: 15
+        run: |
+          sdkmanager "system-images;android-35;google_apis;x86_64"
+          echo no | avdmanager create avd --force --name meltype-test --package "system-images;android-35;google_apis;x86_64" --device pixel_6
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd meltype-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot >/tmp/meltype-emulator.log 2>&1 &
+          timeout 180 adb wait-for-device
+          for attempt in $(seq 1 120); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi
+            sleep 2
+          done
+          adb install android-distribution/Meltype-Android-prototype.apk
+          adb shell am start -n jp.aonesenbongi.meltype/jp.aonesenbongi.meltype.MainActivity --ez selftest true
+          for attempt in $(seq 1 60); do
+            if adb shell run-as jp.aonesenbongi.meltype cat files/selftest.txt > android-distribution/ANDROID_TEST_RESULT.txt 2>/dev/null; then break; fi
+            sleep 2
+          done
+          cat android-distribution/ANDROID_TEST_RESULT.txt
+          grep -q '^PASS:' android-distribution/ANDROID_TEST_RESULT.txt
       - uses: actions/upload-artifact@v4
         with:
           name: Meltype-Android-prototype

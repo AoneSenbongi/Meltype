@@ -33,7 +33,8 @@ foreach ($launcher in @('Install-NativeIme.cmd','Start-NativeIme.cmd','Stop-Nati
 Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination (Join-Path $stage 'LICENSE')
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_IME_TRANSFER.md') -Destination (Join-Path $stage 'README.md')
 Set-Content (Join-Path $stage 'SOURCE_VERSION.txt') $version -Encoding ASCII
-& git -C $workspace archive --format=zip --output=(Join-Path $stage 'corresponding-source.zip') HEAD
+$sourceArchive = Join-Path $stage 'corresponding-source.zip'
+& git -C $workspace archive --format=zip --output $sourceArchive HEAD
 if ($LASTEXITCODE -ne 0) { throw 'Corresponding source archive failed' }
 $runtimeTarget = Join-Path $stage 'runtime'
 New-Item -ItemType Directory -Path $runtimeTarget -Force | Out-Null

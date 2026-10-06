@@ -19,7 +19,7 @@
     <AndroidJavaSource Include="Java/**/*.java" />
     <AndroidNativeLibrary Include="Native/arm64-v8a/libmozc.so" />
     <AndroidNativeLibrary Include="Native/x86_64/libmozc.so" />
-    <AndroidAsset Include="../../../LICENSE" Link="LICENSE.txt" />
+    <AndroidAsset Include="../../LICENSE" Link="LICENSE.txt" />
   </ItemGroup>
   <Target Name="RequireMozc" BeforeTargets="Build">
     <Error Condition="!Exists('Native/arm64-v8a/libmozc.so') Or !Exists('Native/x86_64/libmozc.so') Or !Exists('Assets/mozc.data')" Text="Build and package the pinned Mozc libraries and OSS dictionary first. See docs/ANDROID_PROTOTYPE.md." />

@@ -18,10 +18,12 @@ DLLの更新では別の保存先へ配置して管理者確認付きで登録�
 
 ソース・ビルド・配布物は`E:/Prog/Meltype/Windows`、参考Forkは`E:/Prog/Meltype/Reference`へ移動済み。導入済みIMEの登録先は元のCドライブの作業フォルダーに残し、稼働中のDLLは移動しない。Androidは専用リポジトリへソースを公開済みで、APKの移転を進行中。
 
-残作業は1.0.2の配布ZIP作成、通常Release公開、本家の新規Issue投稿と公開先の確認。公開結果に合わせてこの資料を更新する。
+1.0.2の通常Releaseと本家への新規Issue投稿は完了した。配布先は`https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.2`、紹介Issueは`https://github.com/yksr-melt/Meltype/issues/84`。対応ソースは`bbfe6b2`。ZIPのSHA-256は`A23D29BC3280BB3AA54ED25F90A353A08A8E11E2E718131DF4E89247D791CFF1`で、GitHubのdigestとも一致する。
+
+PC版READMEへ管理画面の画像を埋め込んだ。AndroidのREADMEにも4画面を表示し、専用Releaseへの移転は完了した。今後の未完了課題はWindows検索対応とAndroid実機検証。状態資料はこのチャットで更新しながら開発を続ける。
 
 ## 検証日・方法と制限
 
-2026年10月7日、既存198件のテスト、TSF文書とGoogle接続、秘密入力欄・通信先確認、同名パイプ拒否、管理画面、自動起動と常駐メニューの試験が通過した。更新後もDLL→起動中の変換サービス→Google→TSF文書の試験と管理画面の試験を実行し、通過した。配布ZIPの検証は作成後に行う。
+2026年10月7日、既存198件のテスト、TSF文書とGoogle接続、秘密入力欄・通信先確認、同名パイプ拒否、管理画面、自動起動と常駐メニューの試験が通過した。更新後もDLL→起動中の変換サービス→Google→TSF文書の試験と管理画面の試験を実行し、通過した。配布ZIPの必須ファイル、対応ソースのコミット、ペイロードのハッシュと個人データの除外を確認した。
 
 Windows検索で日本語を入力できない報告は未解決。通常Releaseの対象はWindows 10／11 x64デスクトップアプリ。AppContainer・ストアアプリ・32ビット・ARM64・署名必須の入力先は対象外。全アプリでの実機確認や第三者のセキュリティ監査は未実施。詳細は`NATIVE_RELEASE.md`と`SECURITY.md`を参照する。

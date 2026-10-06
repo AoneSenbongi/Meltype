@@ -4,6 +4,9 @@
 
 本家Meltype 1.0.1の判定・辞書・ログ修正を取り込んでいます。PC版は`Meltype-Settings.exe`の管理画面からインストール、起動、停止、単語登録、辞書管理を操作できます。
 
+## 管理画面
+
+![Meltype 1.0.2の管理画面。導入・起動・停止・自動起動・単語登録・辞書管理を操作できます](docs/images/native-settings.png)
 ## できること
 
 Meltypeの日英判別を使い、`kyouhagoogledekensaku`を「今日はgoogleで検索」のように入力できます。日本語の読みが4文字以上になると、Spaceを押す前からGoogleの変換結果で表示を更新します。途中では確定しません。

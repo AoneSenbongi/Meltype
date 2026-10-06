@@ -67,13 +67,20 @@ public sealed class GoogleImeConverter : IKanjiConverter, ILearningConverter
             var output = Call(3, Proto.Blob(3, Proto.Number(3, 4)).Concat(surrounding).ToArray()); // SPACE
             var clauses = output.Message(5).Groups(2)
                 .Select(p => new ConversionClause(p.Text(6), p.Text(4))).ToList();
-            if (clauses.Count == 0 || string.Concat(clauses.Select(c => c.Reading)) != hiragana) return null;
+            if (clauses.Count == 0 || !SameReading(string.Concat(clauses.Select(c => c.Reading)), hiragana)) return null;
+            var offset = 0;
+            for (var i = 0; i < clauses.Count; i++)
+            {
+                var original = hiragana.Substring(offset, clauses[i].Reading.Length);
+                clauses[i] = new ConversionClause(original, RestoreSymbolWidth(clauses[i].Text, original));
+                offset += original.Length;
+            }
             for (var index = 0; index < clauses.Count; index++)
             {
                 if (index > 0) output = Call(3, Proto.Blob(3, Proto.Number(3, 7))); // RIGHT: focus next clause
                 var words = output.Message(14).Messages(2).Select(p => p.Text(4)).Where(t => t.Length > 0).ToList();
                 if (words.Count == 0) words = output.Message(6).Groups(3).Select(p => p.Text(5)).Where(t => t.Length > 0).ToList();
-                _candidates[clauses[index].Reading] = words.Prepend(clauses[index].Text).Distinct().ToArray();
+                _candidates[clauses[index].Reading] = words.Select(w => RestoreSymbolWidth(w, clauses[index].Reading)).Prepend(clauses[index].Text).Distinct().ToArray();
             }
             return clauses;
         }
@@ -92,6 +99,13 @@ public sealed class GoogleImeConverter : IKanjiConverter, ILearningConverter
             }
         }
     }
+
+    private static char FoldSymbol(char c) => c is >= '！' and <= '～' && !char.IsLetterOrDigit(c) ? (char)(c - 0xFEE0) : c;
+    private static bool SameReading(string returned, string requested) => returned.Length == requested.Length &&
+        returned.Zip(requested).All(pair => FoldSymbol(pair.First) == FoldSymbol(pair.Second));
+    private static string RestoreSymbolWidth(string text, string reading) =>
+        reading.Length > 0 && reading.All(c => FoldSymbol(c) is >= '!' and <= '~' && !char.IsLetterOrDigit(c)) && SameReading(text, reading)
+            ? reading : text;
 
     public void Learn(string? context, IReadOnlyList<ConversionClause> clauses) => TryLearn(context, clauses);
 

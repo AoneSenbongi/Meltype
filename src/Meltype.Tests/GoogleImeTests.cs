@@ -7,6 +7,29 @@ namespace Meltype.Tests;
 internal static class GoogleImeTests
 {
     [Test]
+    public static void GooglePunctuation_RestoresWidthAndRejectsDifferentReadings()
+    {
+        foreach (var returned in new[] { "にほんご?", "にほんこ?", "ｎほんご?" })
+        {
+            var converter = new GoogleImeConverter(request => {
+                var kind = P.Parse(request).Int(1);
+                if (kind == 1) return P.Number(1, 12345);
+                if (kind != 3) return [];
+                var first = new byte[] { 19 }.Concat(P.String(4, "日本語")).Concat(P.String(6, returned[..^1])).Concat(new byte[] { 20 });
+                var mark = new byte[] { 19 }.Concat(P.String(4, "?")).Concat(P.String(6, "?")).Concat(new byte[] { 20 });
+                return P.Blob(5, first.Concat(mark).ToArray()).Concat(P.Blob(14, P.Blob(2, P.String(4, "?")))).ToArray();
+            });
+            var clauses = converter.ConvertClauses("にほんご？");
+            if (returned == "にほんご?")
+            {
+                Assert.Equal("日本語？", string.Concat(clauses!.Select(c => c.Text)));
+                Assert.Equal("にほんご？", string.Concat(clauses.Select(c => c.Reading)));
+                Assert.Equal("？", converter.Candidates("？").Single());
+            }
+            else Assert.True(clauses is null, "記号の幅以外の読みの違いは拒否する");
+        }
+    }
+    [Test]
     public static void GoogleProto_ReadsLargeSessionIdAndGroups()
     {
         var session = (1UL << 63) + 43;
@@ -153,6 +176,27 @@ internal static class GoogleImeTests
         var bridge = converter.Candidates("はし");
         Assert.True(bridge.Contains("橋") && bridge.Contains("箸") && bridge.Contains("端"), "Google alternative candidates");
         Assert.Equal("3時", converter.Convert("3じ"), "Numbers mixed with Japanese");
+        foreach (var (key, mark, fullWidth) in new[] { (",", "、", false), (".", "。", false), (",", "，", true), (".", "．", true), ("?", "？", true), ("!", "！", true), ("?!?", "？！？", true) })
+        foreach (var space in new[] { false, true })
+        {
+            var live = new CompositionTests.Keyboard(live: true, converter: converter, moreCandidates: converter.Candidates, fullWidthCommaPeriod: fullWidth);
+            live.Type("kyouhaiitenki");
+            var before = live.Showing;
+            Assert.Equal("今日はいい天気", before);
+            live.Type(key);
+            Assert.Equal(before + mark, live.Showing, "Punctuation must preserve live conversion");
+            Assert.Equal(0, live.Host.Output.Count, "Punctuation must not commit");
+            if (space) { live.Type(" "); Assert.Equal(before + mark, live.Showing, "Space preserves converted text and punctuation"); }
+            live.Type("\n");
+            Assert.Equal(before + mark, live.Host.Document, "Enter preserves converted text and punctuation");
+        }
+        var mixedLive = new CompositionTests.Keyboard(live: true, converter: converter, moreCandidates: converter.Candidates, fullWidthCommaPeriod: true);
+        mixedLive.Type("kyouhagoogledekensaku");
+        var mixedBefore = mixedLive.Showing;
+        mixedLive.Type("?");
+        Assert.Equal(mixedBefore + "？", mixedLive.Showing, "日英混在のライブ変換も保持する");
+        mixedLive.Type("\n");
+        Assert.Equal(mixedBefore + "？", mixedLive.Host.Document);
         var keyboard = new CompositionTests.Keyboard(live: false, converter: converter, moreCandidates: converter.Candidates);
         keyboard.Type("kyouhagithubnipushshita ");
         keyboard.Type("\n");

@@ -288,6 +288,11 @@ int main(int argc, char** argv) {
         for (char c : std::string("kyouhagoogledekensaku")) key(c - 'a' + 'A');
         Expect(f.document->text == L"prefix 今日はgoogleで検索suffix", "actual key sink -> broker -> native document");
         Expect(f.document->starts == startsBefore + 1 && f.document->finishes == startsBefore, "live text still uncommitted");
+        key(VK_OEM_PERIOD);
+        Expect(f.document->text == L"prefix 今日はgoogleで検索．suffix", "punctuation keeps live conversion without committing");
+        Expect(f.document->finishes == startsBefore, "punctuation remains uncommitted");
+        key(VK_BACK);
+        Expect(f.document->text == L"prefix 今日はgoogleで検索suffix", "backspace removes only live punctuation");
         key(VK_SPACE);
         key(VK_RETURN);
         Expect(f.document->text == L"prefix 今日はgoogleで検索suffix", "Space and Enter preserve visible converted text");

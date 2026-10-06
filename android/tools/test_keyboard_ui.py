@@ -1,5 +1,6 @@
 """Exercise the real keyboard in the Android emulator and capture its screens."""
 import pathlib
+import atexit
 import subprocess
 import sys
 import time
@@ -14,8 +15,13 @@ def adb(*args):
 
 
 def tree():
-    adb("shell", "uiautomator", "dump", "/sdcard/meltype-window.xml")
-    return ET.fromstring(adb("shell", "cat", "/sdcard/meltype-window.xml"))
+    for _ in range(4):
+        try:
+            adb("shell", "uiautomator", "dump", "/sdcard/meltype-window.xml")
+            return ET.fromstring(adb("shell", "cat", "/sdcard/meltype-window.xml"))
+        except (subprocess.CalledProcessError, ET.ParseError):
+            time.sleep(1)
+    raise AssertionError("Android accessibility tree is unavailable after waking the emulator")
 
 
 def find(attribute, value):
@@ -39,6 +45,14 @@ def capture(name):
         subprocess.run(["adb", "exec-out", "screencap", "-p"], stdout=file, check=True)
 
 
+def capture_final_state():
+    capture("android-latest.png")
+    (output / "ANDROID_UI_LOGCAT.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
+
+
+atexit.register(capture_final_state)
+
+
 package = "jp.aonesenbongi.meltype"
 activity = package + "/" + package + ".MainActivity"
 methods = [line.strip() for line in adb("shell", "ime", "list", "-a", "-s").splitlines()]
@@ -46,11 +60,14 @@ method = next((line for line in methods if line.startswith(package + "/")), None
 assert method, f"Installed Meltype IME is missing: {methods}"
 adb("shell", "ime", "enable", method)
 adb("shell", "ime", "set", method)
+adb("shell", "input", "keyevent", "224")
+adb("shell", "wm", "dismiss-keyguard")
+adb("shell", "input", "keyevent", "82")
 adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", activity)
 time.sleep(2)
-find("content-desc", "Meltypeのアイコン")
 capture("android-setup.png")
+find("content-desc", "Meltypeのアイコン")
 editor_id = package + ":id/test_editor"
 tap(find("resource-id", editor_id))
 find("content-desc", "英語専用モードに切り替える")

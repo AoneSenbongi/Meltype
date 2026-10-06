@@ -113,6 +113,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          name: Meltype-Android-screens
+          path: |
+            android-distribution/*.png
+            android-distribution/*TEST_RESULT.txt
+            android-distribution/ANDROID_UI_LOGCAT.txt
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
           name: Meltype-Android-prototype
           path: android-distribution
           if-no-files-found: error

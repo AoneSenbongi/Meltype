@@ -26,7 +26,8 @@ jobs:
           chmod +x /tmp/bazelisk
           cd mozc/src
           python3 build_tools/update_deps.py
-          /tmp/bazelisk build --config oss_android --config release_build //android/jni:mozc.arm64 //android/jni:mozc.x86_64 //data_manager/oss:mozc.data
+          /tmp/bazelisk build --config oss_linux --config release_build //data_manager/oss:mozc.data
+          /tmp/bazelisk build --config oss_android --config release_build //android/jni:mozc.arm64 //android/jni:mozc.x86_64
           mkdir -p ../../engine/Native/arm64-v8a ../../engine/Native/x86_64 ../../engine/Assets
           arm64=$(/tmp/bazelisk cquery --config oss_android --config release_build //android/jni:mozc.arm64 --output=files | tail -n 1)
           x64=$(/tmp/bazelisk cquery --config oss_android --config release_build //android/jni:mozc.x86_64 --output=files | tail -n 1)

@@ -30,7 +30,7 @@ foreach ($file in $manifest.Files) { Copy-Item -LiteralPath (Join-Path $stage $f
 $dll = Join-Path $package 'MeltypeNative64.dll'
 & (Join-Path $package 'native-ime-control.exe') --register $dll
 if ($LASTEXITCODE -ne 0) { throw 'Windows rejected IME registration. Original Google IME remains selected.' }
-@{ PackageRoot = $package; Installed = (Get-Date).ToString('o'); UserSid = $identity.User.Value; Portable = [bool]$manifest.Portable } |
+@{ PackageRoot = $package; Installed = (Get-Date).ToString('o'); UserSid = $identity.User.Value; Portable = [bool]$manifest.Portable; NativeVersion = '1.0.1.1'; BaseVersion = '1.0.1' } |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'native-ime-install.json') -Encoding UTF8
 & (Join-Path $PSScriptRoot 'Set-NativeAutoStart.ps1')
 & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -WorkspaceRoot $workspace

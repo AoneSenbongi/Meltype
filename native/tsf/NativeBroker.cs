@@ -14,6 +14,9 @@ using Meltype.Input;
 public static class MeltypeNativeBroker
 {
     public static string PipeName => "Meltype.NativeComposition." + WindowsIdentity.GetCurrent().User.Value;
+    public static NamedPipeServerStream CreateListener(string name, bool first)
+        => new NamedPipeServerStream(name, PipeDirection.InOut, 16, PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | (first ? PipeOptions.FirstPipeInstance : 0));
     private sealed class Host : ICompositionHost
     {
         public readonly List<(int Kind, string Text)> Actions = new();
@@ -110,12 +113,13 @@ public static class MeltypeNativeBroker
     private static async Task RunAsync(bool learning, CancellationToken stop)
     {
         var connections = new List<Task>();
+        var first = true;
         try
         {
             while (!stop.IsCancellationRequested)
             {
-                var pipe = new NamedPipeServerStream(PipeName, PipeDirection.InOut, 16, PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                var pipe = CreateListener(PipeName, first);
+                first = false;
                 try { await pipe.WaitForConnectionAsync(stop); }
                 catch { pipe.Dispose(); throw; }
                 connections.RemoveAll(t => t.IsCompleted);

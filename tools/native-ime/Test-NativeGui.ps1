@@ -23,6 +23,16 @@ $files = foreach ($name in @('Meltype.Core.dll','Meltype.dll','NativeBroker.cs')
     Set-Content -LiteralPath $path -Value 'fixture' -Encoding ASCII
     @{ Name = $name; SHA256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($path))) }
 }
+$installedFixture = Join-Path $fixture 'installed'
+New-Item -ItemType Directory -Path $installedFixture | Out-Null
+[IO.File]::WriteAllText((Join-Path $fixture 'MeltypeNative64.dll'),'new native DLL')
+[IO.File]::WriteAllText((Join-Path $installedFixture 'MeltypeNative64.dll'),'old native DLL')
+if (-not (Test-NativeDllUpdateRequired $fixture $installedFixture)) { throw 'Changed native DLL would not be registered.' }
+[IO.File]::Copy((Join-Path $fixture 'MeltypeNative64.dll'),(Join-Path $installedFixture 'MeltypeNative64.dll'),$true)
+if (Test-NativeDllUpdateRequired $fixture $installedFixture) { throw 'Unchanged native DLL requires re-registration.' }
+Remove-Item -LiteralPath (Join-Path $installedFixture 'MeltypeNative64.dll')
+Remove-Item -LiteralPath $installedFixture
+Remove-Item -LiteralPath (Join-Path $fixture 'MeltypeNative64.dll')
 @{ Files = @($files) } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $fixture 'manifest.json') -Encoding UTF8
 function Get-FileHash { throw 'Get-FileHash is unavailable in this runtime.' }
 Assert-NativeUpdatePackage $fixture | Out-Null

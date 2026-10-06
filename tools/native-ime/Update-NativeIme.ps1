@@ -6,6 +6,9 @@ if (-not $context.Installed) { throw 'Install the native IME first.' }
 $stage = Join-Path $workspace 'experimental-build/native-ime-package'
 $manifest = Assert-NativeUpdatePackage $stage
 $package = $context.State.PackageRoot
+$nativeChanged = Test-NativeDllUpdateRequired $stage $package
+$updatedPackage = $package
+$registrationChanged = $false
 $launcher = Join-Path $workspace 'Meltype-Settings.exe'
 if (-not (Test-Path -LiteralPath $launcher)) { throw 'Management launcher is missing from package.' }
 $stateFile = Join-Path $context.Root 'experimental-build/native-ime-install.json'
@@ -33,7 +36,17 @@ if (Test-Path -LiteralPath $pidFile) {
     }
 }
 try {
-    foreach ($name in $updates) { Copy-Item -LiteralPath (Join-Path $stage $name) -Destination (Join-Path $package $name) -Force }
+    if ($nativeChanged) {
+        $updatedPackage = Join-Path $context.Root ('experimental-build/native-ime-update-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $updatedPackage | Out-Null
+        foreach ($file in $manifest.Files) { Copy-Item -LiteralPath (Join-Path $stage $file.Name) -Destination (Join-Path $updatedPackage $file.Name) }
+        $registration = Start-Process -FilePath (Join-Path $updatedPackage 'native-ime-control.exe') -ArgumentList @('--register',(ConvertTo-NativeGuiArgument (Join-Path $updatedPackage 'MeltypeNative64.dll'))) -Verb RunAs -WindowStyle Hidden -PassThru -Wait
+        $registrationChanged = $true
+        if ($registration.ExitCode -ne 0) { throw 'Windows rejected the new native IME registration.' }
+        $context.State.PackageRoot = $updatedPackage
+    } else {
+        foreach ($name in $updates) { Copy-Item -LiteralPath (Join-Path $stage $name) -Destination (Join-Path $package $name) -Force }
+    }
     $scripts = Join-Path $context.Root 'tools/native-ime'
     New-Item -ItemType Directory -Path $scripts -Force | Out-Null
     foreach ($file in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1') {
@@ -49,13 +62,18 @@ try {
         Copy-Item -LiteralPath $launcher -Destination $targetLauncher -Force
     }
     $context.State | Add-Member NoteProperty BaseVersion '1.0.1' -Force
+    $context.State | Add-Member NoteProperty NativeVersion '1.0.1.1' -Force
     $context.State | ConvertTo-Json | Set-Content (Join-Path $context.Root 'experimental-build/native-ime-install.json') -Encoding UTF8
     if ($autoEnabled) { & (Join-Path $PSScriptRoot 'Set-InstalledNativeAutoStart.ps1') }
     & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -WorkspaceRoot $context.Root
     & (Join-Path $context.Scripts 'Start-NativeIme.ps1')
-    Write-Output 'Updated to Meltype 1.0.1. Google dictionaries and learning data were preserved.'
+    Write-Output 'Updated to Meltype Native Google 1.0.1.1. Google dictionaries and learning data were preserved. Reopen input applications to load the new native DLL.'
 } catch {
     $failure = $_
+    if ($registrationChanged) {
+        $restore = Start-Process -FilePath (Join-Path $package 'native-ime-control.exe') -ArgumentList @('--register',(ConvertTo-NativeGuiArgument (Join-Path $package 'MeltypeNative64.dll'))) -Verb RunAs -WindowStyle Hidden -PassThru -Wait
+        if ($restore.ExitCode -ne 0) { throw 'Could not restore the previous IME registration. Keep the backup and reinstall from the previous package.' }
+    }
     foreach ($name in $updates) { Copy-Item -LiteralPath (Join-Path $backup $name) -Destination (Join-Path $package $name) -Force }
     Set-Content -LiteralPath $stateFile -Value $previousState -Encoding UTF8
     & (Join-Path $context.Scripts 'Start-NativeIme.ps1')

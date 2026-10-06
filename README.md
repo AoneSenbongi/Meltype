@@ -17,7 +17,7 @@ Googleの既存辞書・学習履歴を使います。学習が有効なら、�
 必要なものはWindows 10／11のx64版と、インストール済みのGoogle日本語入力です。ARM版と32ビット版にはこのパッケージを使わないでください。ランタイムはZIPに同梱しているので、Codex・開発環境・別途の.NETインストールは不要です。
 
 1. Google日本語入力をインストールし、一度日本語を入力して動作を確認します。
-2. [このForkの1.0.1 Release](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.1)のAssetsから、`Meltype-Native-Google-windows-x64-<日時>.zip`をダウンロードして全部展開します。`C:\MeltypeNative`など、移動しない場所へ置いてください。ZIPのプロパティに「ブロックの解除」がある場合は、展開前に解除します。
+2. [このForkのNative Google 1.0.1.1 Release](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.1.1)のAssetsから、`Meltype-Native-Google-windows-x64-<日時>.zip`をダウンロードして全部展開します。`C:\MeltypeNative`など、移動しない場所へ置いてください。ZIPのプロパティに「ブロックの解除」がある場合は、展開前に解除します。
 3. `Meltype-Settings.exe`を開き、「インストール」を押します。普段使うWindowsアカウントで管理者確認を承認してください。Googleの設定と学習データをバックアップしてからIMEを登録します。
 4. 「起動」を押します。初回は最大60秒待ちます。スタートメニューにも「Meltypeの管理画面」を追加します。
 
@@ -43,7 +43,7 @@ Google本体でも全角の「，」「．」を使う場合は、Google日本�
 
 管理画面の「停止してGoogleに戻る」で通常のGoogle日本語入力へ戻します。登録の削除は「削除」です。バックアップとGoogleの辞書・学習履歴は残ります。導入済みの場合は、新しいZIPを別の場所へ展開して管理画面を開き、「この版に更新」を押します。再登録は不要です。詳しくは[管理画面の説明](docs/NATIVE_GUI.md)を参照してください。
 
-現在の1.0.1用ZIPには、句読点・疑問符でライブ変換がかなへ戻る問題と、起動待ち時間が短すぎる問題への修正を含めています。古い版からも上記の管理画面で更新でき、個別の修正ZIPを適用する必要はありません。
+現在のNative Google 1.0.1.1用ZIPには、句読点・疑問符でライブ変換がかなへ戻る問題と、起動待ち時間が短すぎる問題への修正を含めています。古い版からも上記の管理画面で更新でき、個別の修正ZIPを適用する必要はありません。
 
 ## Android版
 
@@ -63,6 +63,8 @@ Native版では、前後の確定文字の取得やMeltype独自の永続学習�
 
 Googleへの接続は非公式IPCを使っています。Googleの更新によって接続できなくなる可能性があります。Google本体のプログラムやシステム辞書は改造・同梱していません。
 
+Windows検索欄では日本語を入力できない事例を確認しています。現在の通常Releaseの対応範囲はx64のデスクトップアプリです。検索欄・ストアアプリではWin＋SpaceでGoogle日本語入力へ切り替えてください。対応に向けた設計と公開条件は[通常Releaseの説明](docs/NATIVE_RELEASE.md)に記載しています。
+
 不具合を報告する際は、アプリ名、入力した操作、期待した動作、実際の動作を記載してください。起動失敗時は画面のメッセージと、`experimental-build`内の`native-broker-errors.txt`・`native-broker-output.txt`も確認できます。
 
 ## プライバシー
@@ -74,6 +76,8 @@ PC版・Android版の権限、学習データの保存と削除、ログ、パ�
 ## 元のMeltypeとライセンス
 
 日英判別と入力処理は、元のMeltypeの成果を基にしています。元作者と協力者への謝意を含む[元のREADME](README.UPSTREAM.md)を保存しています。この文書は元の常駐版の説明であり、上記のNative版の導入手順とは異なります。
+
+[lnkiai氏のIME化Fork](https://github.com/lnkiai/Meltype/releases/tag/ime-1.0.1-2)の入力スコープ保護と通信先確認を参考にし、Google連携用のNative実装へ反映しています。参考にした実装の著作権とGPL表記をコード内に記載しています。
 
 MeltypeとこのForkの改良は[GNU GPL](LICENSE)に従って公開しています。配布ZIPには対応するソースを同梱しています。同梱ランタイムのライセンスと第三者の通知は、ZIP内の`runtime/LICENSE.txt`と`runtime/ThirdPartyNotices.txt`を参照してください。
 

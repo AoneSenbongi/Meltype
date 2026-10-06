@@ -17,6 +17,15 @@ DEFINE_GUID(GUID_MeltypeNativeProfile, 0x825c8537, 0x9fc0, 0x4951, 0xa1,0x97,0x1
 namespace {
 HINSTANCE module;
 LONG liveObjects = 0;
+// Input scope protections also used by lnkiai's Meltype IME (GPL-3.0-or-later).
+// Keep PIN and private fields out of conversion and Google learning.
+bool ProtectedInputScope(InputScope scope) {
+  switch (scope) {
+    case IS_PASSWORD: case IS_NUMERIC_PASSWORD: case IS_NUMERIC_PIN:
+    case IS_ALPHANUMERIC_PIN: case IS_ALPHANUMERIC_PIN_SET: case IS_PRIVATE: return true;
+    default: return false;
+  }
+}
 template<class T> struct Ptr {
   T* p = nullptr;
   ~Ptr() { if (p) p->Release(); }
@@ -36,6 +45,36 @@ std::wstring PipeName() {
   std::wstring name = L"\\\\.\\pipe\\Meltype.NativeComposition." + std::wstring(sid);
   LocalFree(sid);
   return name;
+}
+// Based on the local pipe peer checks in lnkiai/Meltype native/tip/Pipe.cpp.
+// Copyright (C) 2026 lnkiai, GPL-3.0-or-later.
+bool TrustedServer(HANDLE pipe) {
+  ULONG serverId = 0;
+  if (!GetNamedPipeServerProcessId(pipe, &serverId)) return false;
+  HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, serverId);
+  if (!process) return false;
+  HANDLE server = nullptr, self = nullptr;
+  bool trusted = false;
+  if (OpenProcessToken(process, TOKEN_QUERY, &server) && OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &self)) {
+    auto tokenInfo = [](HANDLE token, TOKEN_INFORMATION_CLASS kind) {
+      DWORD size = 0; GetTokenInformation(token, kind, nullptr, 0, &size);
+      std::vector<BYTE> info(size);
+      if (!size || !GetTokenInformation(token, kind, info.data(), size, &size)) info.clear();
+      return info;
+    };
+    auto serverUser = tokenInfo(server, TokenUser), ownUser = tokenInfo(self, TokenUser);
+    auto integrity = tokenInfo(server, TokenIntegrityLevel);
+    if (!serverUser.empty() && !ownUser.empty() && !integrity.empty()) {
+      auto sid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(integrity.data())->Label.Sid;
+      trusted = EqualSid(reinterpret_cast<TOKEN_USER*>(serverUser.data())->User.Sid,
+                         reinterpret_cast<TOKEN_USER*>(ownUser.data())->User.Sid) &&
+          *GetSidSubAuthority(sid, *GetSidSubAuthorityCount(sid) - 1) >= SECURITY_MANDATORY_MEDIUM_RID;
+    }
+  }
+  if (self) CloseHandle(self);
+  if (server) CloseHandle(server);
+  CloseHandle(process);
+  return trusted;
 }
 bool Transfer(HANDLE pipe, void* data, DWORD size, bool write) {
   auto* next = static_cast<BYTE*>(data);
@@ -71,8 +110,11 @@ class Channel {
     if (pipe != INVALID_HANDLE_VALUE) return true;
     auto name = PipeName();
     if (name.empty() || !WaitNamedPipeW(name.c_str(), 30)) return false;
-    pipe = CreateFileW(name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-    return pipe != INVALID_HANDLE_VALUE;
+    pipe = CreateFileW(name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+                       FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr);
+    if (pipe == INVALID_HANDLE_VALUE) return false;
+    if (!TrustedServer(pipe)) { Close(); return false; }
+    return true;
   }
   bool Call(int operation, int vk, int scan, WCHAR character, int flags, Reply& reply) {
     if (!Connect()) return false;
@@ -241,7 +283,7 @@ class TextService final : public ITfTextInputProcessor, public ITfKeyEventSink, 
         if (SUCCEEDED(value.punkVal->QueryInterface(IID_ITfInputScope, reinterpret_cast<void**>(&scope.p)))) {
           InputScope* values = nullptr; UINT count = 0;
           if (SUCCEEDED(scope->GetInputScopes(&values, &count))) {
-            for (UINT i = 0; i < count; ++i) if (values[i] == IS_PASSWORD) protectedInput = true;
+            for (UINT i = 0; i < count; ++i) if (ProtectedInputScope(values[i])) protectedInput = true;
           }
           CoTaskMemFree(values);
         }
@@ -384,6 +426,8 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) { if (r
 extern "C" __declspec(dllexport) HRESULT WINAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void** value) { if (clsid != CLSID_MeltypeNative) return CLASS_E_CLASSNOTAVAILABLE; auto* factory = new(std::nothrow) Factory; if (!factory) return E_OUTOFMEMORY; auto hr = factory->QueryInterface(iid, value); factory->Release(); return hr; }
 extern "C" __declspec(dllexport) HRESULT WINAPI DllCanUnloadNow() { return liveObjects == 0 ? S_OK : S_FALSE; }
 extern "C" __declspec(dllexport) HRESULT WINAPI CreateMeltypeNativeForTest(ITfTextInputProcessor** service) { if (!service) return E_POINTER; *service = new(std::nothrow) TextService(true); return *service ? S_OK : E_OUTOFMEMORY; }
+extern "C" __declspec(dllexport) BOOL WINAPI MeltypeProtectedInputScopeForTest(InputScope scope) { return ProtectedInputScope(scope); }
+extern "C" __declspec(dllexport) BOOL WINAPI MeltypeTrustedServerForTest(HANDLE pipe) { return TrustedServer(pipe); }
 
 namespace {
 constexpr WCHAR comKey[] = L"Software\\Classes\\CLSID\\{F2D11628-2679-4DCC-9327-657EF2C1A450}";

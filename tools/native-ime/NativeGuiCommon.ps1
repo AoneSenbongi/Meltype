@@ -51,6 +51,10 @@ function Get-NativeFileSha256([string]$Path) {
     try { return [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-', '') }
     finally { $hash.Dispose(); $stream.Dispose() }
 }
+function Test-NativeDllUpdateRequired([string]$Stage, [string]$InstalledPackage) {
+    return (Get-NativeFileSha256 (Join-Path $Stage 'MeltypeNative64.dll')) -ne
+        (Get-NativeFileSha256 (Join-Path $InstalledPackage 'MeltypeNative64.dll'))
+}
 function Receive-NativeGuiActionCompletion([ref]$Process, [ref]$ResultFile) {
     if (-not $Process.Value -or -not $Process.Value.HasExited) { return $null }
     # A modal dialog pumps timer events. Consume the action before returning its result.

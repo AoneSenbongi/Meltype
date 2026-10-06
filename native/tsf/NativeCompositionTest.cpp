@@ -10,6 +10,7 @@
 #include <functional>
 #include <fstream>
 #include <stdexcept>
+#include <inputscope.h>
 
 static void Check(HRESULT hr, const char* operation) {
   if (FAILED(hr)) { std::fprintf(stderr, "%s: 0x%08lx\n", operation, static_cast<unsigned long>(hr)); throw std::runtime_error(operation); }
@@ -262,6 +263,24 @@ int main(int argc, char** argv) {
       Expect(create && canUnload, "native text service exports");
       ITfTextInputProcessor* service = nullptr;
       Check(create(&service), "create native service");
+      auto protectedScope = Export<BOOL (WINAPI*)(InputScope)>(library, "MeltypeProtectedInputScopeForTest");
+      Expect(protectedScope != nullptr, "protected input scope export exists");
+      for (auto scope : {IS_PASSWORD, IS_NUMERIC_PASSWORD, IS_NUMERIC_PIN, IS_ALPHANUMERIC_PIN, IS_ALPHANUMERIC_PIN_SET, IS_PRIVATE}) {
+        Expect(protectedScope(scope), "password, PIN and private scopes are protected");
+      }
+      for (auto scope : {IS_DEFAULT, IS_SEARCH, IS_EMAIL_SMTPEMAILADDRESS, IS_URL}) {
+        Expect(!protectedScope(scope), "ordinary search, email and URL scopes remain eligible");
+      }
+      auto trustedServer = Export<BOOL (WINAPI*)(HANDLE)>(library, "MeltypeTrustedServerForTest");
+      Expect(trustedServer != nullptr, "trusted server export exists");
+      Expect(!trustedServer(INVALID_HANDLE_VALUE), "invalid pipe cannot be trusted");
+      auto testPipeName = L"\\\\.\\pipe\\Meltype.NativePeer.Test." + std::to_wstring(GetCurrentProcessId());
+      HANDLE testServer = CreateNamedPipeW(testPipeName.c_str(), PIPE_ACCESS_DUPLEX, PIPE_TYPE_BYTE, 1, 0, 0, 0, nullptr);
+      Expect(testServer != INVALID_HANDLE_VALUE, "peer test pipe created");
+      HANDLE testClient = CreateFileW(testPipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+      Expect(testClient != INVALID_HANDLE_VALUE, "peer test client connected");
+      Expect(trustedServer(testClient), "same-user medium integrity server trusted");
+      CloseHandle(testClient); CloseHandle(testServer);
       Check(service->Activate(thread, client), "activate service on test thread");
       ITfKeyEventSink* keys = nullptr;
       Check(service->QueryInterface(IID_ITfKeyEventSink, reinterpret_cast<void**>(&keys)), "native key sink");

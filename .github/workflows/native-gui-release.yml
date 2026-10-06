@@ -56,6 +56,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { gh release create native-google-1.0.1 --target $env:GITHUB_SHA --prerelease --title 'Meltype 1.0.1 · Google日本語入力と管理画面' --notes-file docs/NATIVE_GUI_RELEASE.md }
           gh release upload native-google-1.0.1 $zip.FullName ($zip.FullName+'.sha256') gui-preview.png --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Release upload failed' }
+          gh release edit native-google-1.0.1 --notes-file docs/NATIVE_GUI_RELEASE.md
+          if ($LASTEXITCODE -ne 0) { throw 'Release notes update failed' }
           $release = gh api "repos/$env:GH_REPO/releases/tags/native-google-1.0.1" | ConvertFrom-Json
           foreach ($asset in $release.assets) {
             if ($asset.name -like 'Meltype-Native-Google-windows-x64-*' -and $asset.name -notin @($zip.Name,($zip.Name+'.sha256'))) {

@@ -37,7 +37,9 @@ jobs:
       - name: Package current Windows startup scripts
         run: |
           mkdir -p native-distribution
-          gh release download native-google-20261006 --pattern 'Meltype-Native-Google-windows-x64-20261006-180930.zip' -D native-distribution
+          base_zip=$(gh api "repos/$GH_REPO/releases/tags/native-google-20261006" --jq '.assets[] | select(.name | startswith("Meltype-Native-Google-windows-x64-")) | select(.name | endswith(".zip")) | .name' | head -n 1)
+          test -n "$base_zip"
+          gh release download native-google-20261006 --pattern "$base_zip" -D native-distribution
           unzip -q native-distribution/*.zip -d native-stage
           package=native-stage/Meltype-Native-Google-windows-x64
           cp tools/native-ime/*.ps1 "$package/tools/native-ime/"

@@ -33,7 +33,11 @@ public sealed class MainActivity : Activity
         {
             var text = ReadAsset("LICENSE.txt") + "\n\n" + ReadAsset("THIRD_PARTY_NOTICES.txt");
             var scroll = new ScrollView(this); scroll.AddView(new TextView(this) { Text = text, TextSize = 12 });
-            new AlertDialog.Builder(this).SetTitle("Meltype / Mozc / 同梱ライブラリ").SetView(scroll).SetPositiveButton("閉じる", (_, _) => { }).Show();
+            using var dialog = new AlertDialog.Builder(this);
+            dialog.SetTitle("Meltype / Mozc / 同梱ライブラリ");
+            dialog.SetView(scroll);
+            dialog.SetPositiveButton("閉じる", (_, _) => { });
+            dialog.Show();
         });
         layout.AddView(new TextView(this) { Text = "雪代／Yukishiro氏のMeltypeを基にした非公式Forkです。変換にはOSS版Mozcを使用し、入力は端末内で処理します。" });
         SetContentView(layout);

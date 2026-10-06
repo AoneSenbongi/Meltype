@@ -13,7 +13,7 @@ for directory in sys.argv[2:]:
         raise SystemExit(f"Notice source does not exist: {root}")
     for path in root.rglob("*"):
         name = path.name.lower()
-        if not path.is_file() or not (name.startswith(("license", "licence", "copying", "copyright", "notice", "thirdpartynotices")) or
+        if not path.is_file() or not (name.startswith(("license", "licence", "copying", "copyright", "notice", "thirdpartynotices", "third-party-notices")) or
                                      name == "readme.txt" and "dictionary_oss" in path.parts):
             continue
         if path.stat().st_size > 2_000_000:

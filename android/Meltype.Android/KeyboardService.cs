@@ -99,7 +99,8 @@ public sealed class KeyboardService : InputMethodService
         _restricted = inputClass is InputTypes.ClassNumber or InputTypes.ClassPhone or InputTypes.ClassDatetime ||
             variation is InputTypes.TextVariationPassword or InputTypes.TextVariationVisiblePassword or InputTypes.TextVariationWebPassword;
         _candidates?.RemoveAllViews();
-        _worker?.Post(() => _session?.Reset()); Status();
+        var english = _english;
+        _worker?.Post(() => { _session?.Reset(); _session?.SetEnglish(english); }); Status();
     }
     public override void OnFinishInput()
     {

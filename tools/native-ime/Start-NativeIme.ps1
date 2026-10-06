@@ -6,7 +6,11 @@ $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if ($state.UserSid -ne $identity.User.Value) { throw 'Start the native IME from the Windows account that installed it.' }
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Run Start-NativeIme.cmd normally, without administrator privileges.' }
-& (Join-Path $PSScriptRoot 'Start-Resident.ps1') -Stop
+if (-not $state.Portable) { & (Join-Path $PSScriptRoot 'Start-Resident.ps1') -Stop }
+else {
+    try { $original = [Threading.Mutex]::OpenExisting('Local\Meltype.SingleInstance'); $original.Dispose(); throw 'Stop the original Meltype resident before starting the native IME.' }
+    catch [Threading.WaitHandleCannotBeOpenedException] { }
+}
 $pidFile = Join-Path $build 'resident.pid'
 if (Test-Path -LiteralPath $pidFile) {
     $residentId = [int](Get-Content $pidFile -Raw)

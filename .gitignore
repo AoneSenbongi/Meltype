@@ -32,3 +32,4 @@ tools/data/
 # Native IME local packages, settings backups, and logs
 experimental-build/
 backups/
+distributions/

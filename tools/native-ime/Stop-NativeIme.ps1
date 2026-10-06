@@ -11,5 +11,5 @@ try {
     $stop.Set() | Out-Null
     $stop.Dispose()
 } catch [Threading.WaitHandleCannotBeOpenedException] { }
-if (-not $NoStartOriginal) { & (Join-Path $PSScriptRoot 'Start-Resident.ps1') }
+if (-not $NoStartOriginal -and -not $state.Portable) { & (Join-Path $PSScriptRoot 'Start-Resident.ps1') }
 Write-Output 'Restored Google profile. Original resident starts only in normal mode.'

@@ -6,6 +6,10 @@
 
 ## ビルドと起動
 
+別のPCへ移す場合は、`Build-TransferPackage.ps1`で作るWindows x64用ZIPを使う。ZIPには必要なPowerShellランタイム、試作IME、対応するソースを含める。個人の設定・学習履歴・インストール先のパス・Windowsアカウント情報は含めない。移行先のPCではGoogle日本語入力を別途インストールし、ZIPを固定した場所へ展開してから管理者権限で登録する。展開先は登録後に移動しない。
+
+移行用ZIPの`Stop-NativeIme.cmd`は通常のGoogle日本語入力に戻す。元のMeltype常駐版は起動しない。Windowsへサインインした後は`Start-NativeIme.cmd`を通常権限で実行する。句読点設定と学習設定はGoogle側で別途設定する。
+
 必要な環境はWindows 10/11の64ビット、インストール済みGoogle日本語入力、MinGW-w64のg++、Roslynと.NET参照アセンブリ、Windows Formsを含むPowerShellランタイム。この試作はCodexの同梱PowerShellランタイムとw64devkitで検証した。通常のPowerShell 5.1だけではビルドできない。Googleの変換サービスを一度起動しておく。
 
 1. リポジトリのルートで次を実行する。パスは自分の環境に合わせる。

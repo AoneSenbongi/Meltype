@@ -49,7 +49,12 @@ foreach ($registryPath in @('HKCU\Software\Google\Google Japanese Input','HKCU\K
 $snapshotDir = Join-Path $backupDir 'source'
 New-Item -ItemType Directory -Path $snapshotDir -Force | Out-Null
 $sourceRoot = $workspace
-$changed = @(& git -C $sourceRoot diff --name-only) + @(& git -C $sourceRoot ls-files --others --exclude-standard)
+$sourceCommit = $null
+$changed = @()
+if ((Test-Path (Join-Path $sourceRoot '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
+    $sourceCommit = (& git -C $sourceRoot rev-parse HEAD)
+    $changed = @(& git -C $sourceRoot diff --name-only) + @(& git -C $sourceRoot ls-files --others --exclude-standard)
+} elseif (Test-Path (Join-Path $sourceRoot 'SOURCE_VERSION.txt')) { $sourceCommit = (Get-Content (Join-Path $sourceRoot 'SOURCE_VERSION.txt') -Raw).Trim() }
 foreach ($relative in $changed | Select-Object -Unique) {
     $source = Join-Path $sourceRoot $relative
     if (Test-Path -LiteralPath $source -PathType Leaf) {
@@ -58,6 +63,6 @@ foreach ($relative in $changed | Select-Object -Unique) {
         Copy-Item -LiteralPath $source -Destination $target
     }
 }
-@{ Created = (Get-Date).ToString('o'); SourceCommit = (& git -C $sourceRoot rev-parse HEAD); Files = $manifest } |
+@{ Created = (Get-Date).ToString('o'); SourceCommit = $sourceCommit; Files = $manifest } |
     ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $backupDir 'manifest.json') -Encoding utf8
 $backupDir

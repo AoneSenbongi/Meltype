@@ -80,7 +80,9 @@ jobs:
       - name: Test JNI and editor on Android
         timeout-minutes: 15
         run: |
-          sdkmanager "system-images;android-35;google_apis;x86_64"
+          sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          export PATH="$(dirname "$sdkmanager"):$ANDROID_HOME/platform-tools:$PATH"
+          sdkmanager "emulator" "system-images;android-35;google_apis;x86_64"
           echo no | avdmanager create avd --force --name meltype-test --package "system-images;android-35;google_apis;x86_64" --device pixel_6
           sudo chmod 666 /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -avd meltype-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot >/tmp/meltype-emulator.log 2>&1 &

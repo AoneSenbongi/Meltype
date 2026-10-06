@@ -45,6 +45,24 @@ function Get-NativeGoogleTool {
     foreach ($root in $roots) { $tool = Join-Path $root 'GoogleIMEJaTool.exe'; if (Test-Path -LiteralPath $tool) { return $tool } }
     throw 'Google日本語入力を先にインストールしてください。'
 }
+function Get-NativeFileSha256([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-', '') }
+    finally { $hash.Dispose(); $stream.Dispose() }
+}
+function Receive-NativeGuiActionCompletion([ref]$Process, [ref]$ResultFile) {
+    if (-not $Process.Value -or -not $Process.Value.HasExited) { return $null }
+    # A modal dialog pumps timer events. Consume the action before returning its result.
+    $completed = $Process.Value; $path = $ResultFile.Value
+    $Process.Value = $null; $ResultFile.Value = $null
+    $completed.Dispose()
+    if (-not (Test-Path -LiteralPath $path)) {
+        return @{ Success = $false; Output = '処理を完了できませんでした。管理者確認をキャンセルした場合は、再度操作してください。' }
+    }
+    try { return Get-Content -LiteralPath $path -Raw | ConvertFrom-Json }
+    finally { Remove-Item -LiteralPath $path }
+}
 function Assert-NativeUpdatePackage([string]$Stage) {
     $manifest = Get-Content (Join-Path $Stage 'manifest.json') -Raw | ConvertFrom-Json
     foreach ($name in @('Meltype.Core.dll','Meltype.dll','NativeBroker.cs')) {
@@ -52,7 +70,7 @@ function Assert-NativeUpdatePackage([string]$Stage) {
     }
     foreach ($file in $manifest.Files) {
         if ($file.Name -ne [IO.Path]::GetFileName($file.Name)) { throw 'Invalid package filename.' }
-        if ((Get-FileHash -LiteralPath (Join-Path $Stage $file.Name)).Hash -ne $file.SHA256) { throw ('Package checksum mismatch: '+$file.Name) }
+        if ((Get-NativeFileSha256 (Join-Path $Stage $file.Name)) -ne $file.SHA256) { throw ('Package checksum mismatch: '+$file.Name) }
     }
     return $manifest
 }

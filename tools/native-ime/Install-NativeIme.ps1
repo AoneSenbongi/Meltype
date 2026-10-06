@@ -1,5 +1,6 @@
 ﻿$ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+. (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'IME registration needs administrator privileges. Run Install-NativeIme.cmd as administrator.'
@@ -12,7 +13,7 @@ if ($manifest.Architecture -ne 'x64' -or [IntPtr]::Size -ne 8) { throw 'This pac
 if (-not $manifest.Portable -and $manifest.UserSid -ne $identity.User.Value) { throw 'Install from the same Windows account that prepared this package.' }
 foreach ($file in $manifest.Files) {
     $path = Join-Path $stage $file.Name
-    if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $file.SHA256) { throw "Package checksum mismatch: $($file.Name)" }
+    if ((Get-NativeFileSha256 $path) -ne $file.SHA256) { throw "Package checksum mismatch: $($file.Name)" }
 }
 if (Test-Path -LiteralPath 'Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{F2D11628-2679-4DCC-9327-657EF2C1A450}') {
     throw 'Native IME is already registered. Stop and uninstall the previous native trial before installing again.'

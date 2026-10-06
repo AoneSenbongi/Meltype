@@ -31,6 +31,7 @@ foreach ($launcher in @('Enable-NativeAutoStart.cmd','Disable-NativeAutoStart.cm
     Copy-Item -LiteralPath (Join-Path $workspace $launcher) -Destination (Join-Path $stage $launcher)
 }
 Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination (Join-Path $stage 'LICENSE')
+Copy-Item -LiteralPath (Join-Path $workspace 'SECURITY.md') -Destination (Join-Path $stage 'SECURITY.md')
 Copy-Item -LiteralPath (Join-Path $workspace 'Meltype-Settings.exe') -Destination (Join-Path $stage 'Meltype-Settings.exe')
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_IME_TRANSFER.md') -Destination (Join-Path $stage 'README.md')
 Set-Content (Join-Path $stage 'SOURCE_VERSION.txt') $version -Encoding ASCII

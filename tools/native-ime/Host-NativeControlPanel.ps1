@@ -113,13 +113,11 @@ $timer = [Windows.Forms.Timer]::new(); $timer.Interval = 1000
 $timer.Add_Tick({
     if ($showEvent.WaitOne(0)) { $form.Show(); $form.Activate() }
     if ($script:actionProcess -and $script:actionProcess.HasExited) {
-        if (Test-Path -LiteralPath $script:resultFile) {
-            $result = Get-Content -LiteralPath $script:resultFile -Raw | ConvertFrom-Json
+        try {
+            $result = Receive-NativeGuiActionCompletion ([ref]$script:actionProcess) ([ref]$script:resultFile)
             $message.Text = if ($result.Success) { '完了しました。' } else { '処理に失敗しました。' }
             if (-not $result.Success) { [Windows.Forms.MessageBox]::Show($result.Output,'Meltype') | Out-Null }
-            Remove-Item -LiteralPath $script:resultFile
-        } else { $message.Text = '処理を完了できませんでした。管理者確認をキャンセルした場合は、再度操作してください。' }
-        $script:actionProcess.Dispose(); $script:actionProcess = $null
+        } catch { $message.Text = '結果を確認できません：' + $_.Exception.Message }
     }
     if (-not $script:actionProcess) {
         try {

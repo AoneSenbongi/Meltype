@@ -2,6 +2,8 @@
 
 対象はWindows 10／11の64ビット版。ARM版と32ビット版にはこのZIPを使わない。Google日本語入力は別途インストールする。開発環境やCodexは不要。
 
+入力データの保存、権限、署名、報告先は[このForkのセキュリティ説明](https://github.com/AoneSenbongi/Meltype/blob/google-native-ime/SECURITY.md)を確認してください。新しい配布ZIPには`SECURITY.md`も同梱しています。
+
 1. Google日本語入力をインストールし、一度日本語を入力して動作を確認する。
 2. ZIPを`C:\MeltypeNative`など、移動しない場所へすべて展開する。ZIP内から直接起動しない。ダウンロードしたZIPに「ブロックの解除」がある場合は、展開前にプロパティで解除する。
 3. `Meltype-Settings.exe`を開き、「インストール」を押す。普段使うWindowsアカウントで管理者確認を承認する。Googleの設定と学習データをバックアップしてからIMEを登録する。

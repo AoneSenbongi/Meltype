@@ -33,7 +33,7 @@ foreach ($profile in $profileRoots) {
             $bytes = Read-SharedBytes $file.FullName
             $before = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes))
             [IO.File]::WriteAllBytes($target, $bytes)
-            $copyHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+            $copyHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($target)))
             $after = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData((Read-SharedBytes $file.FullName)))
             if ($before -eq $copyHash -and $copyHash -eq $after) { $verified = $true; break }
         }

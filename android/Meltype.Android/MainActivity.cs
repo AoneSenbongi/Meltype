@@ -1,34 +1,60 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 using Android.App;
 using Android.Content;
+using Android.Graphics;
+using Path = System.IO.Path;
+using Resource = Meltype.Android.Resource;
 using Android.OS;
 using Android.Provider;
 using Android.Text;
+using Android.Views;
 using Android.Views.InputMethods;
 using Android.Widget;
 using Meltype.AndroidCore;
 
 namespace Meltype.Mobile;
 
-[Activity(Name = "jp.aonesenbongi.meltype.MainActivity", Label = "Meltype Android 試作版", MainLauncher = true, Exported = true)]
+[Activity(Name = "jp.aonesenbongi.meltype.MainActivity", Label = "Meltype", MainLauncher = true, Exported = true)]
 public sealed class MainActivity : Activity
 {
+    private TextView? _setupStatus;
+    private int Dp(float value) => MobileStyle.Dp(this, value);
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
         var layout = new LinearLayout(this) { Orientation = Orientation.Vertical };
-        layout.SetPadding(24, 24, 24, 24);
-        layout.AddView(new TextView(this) { Text = "Meltype Android 試作版", TextSize = 24 });
-        layout.AddView(new TextView(this) { Text = "QWERTYで日本語と英語を混ぜて入力できます。日英切替ボタンで英語だけの入力にも切り替えられます。" });
-        Button Add(string text, Action action)
+        layout.SetPadding(Dp(24), Dp(28), Dp(24), Dp(24));
+        layout.SetBackgroundColor(MobileStyle.Background);
+        var header = new LinearLayout(this); header.SetGravity(GravityFlags.CenterVertical);
+        var mark = new ImageView(this); mark.SetImageResource(Resource.Drawable.ic_meltype_mark);
+        mark.ContentDescription = "Meltypeのアイコン";
+        header.AddView(mark, new LinearLayout.LayoutParams(Dp(64), Dp(64)));
+        var title = new LinearLayout(this) { Orientation = Orientation.Vertical };
+        title.AddView(Label("Meltype", 28, MobileStyle.Ink));
+        title.AddView(Label("ローマ字で、日英をそのまま。", 13, MobileStyle.Muted));
+        header.AddView(title); layout.AddView(header);
+        var intro = Label("日本語はライブ変換。英語は英字のまま。\n日英ボタンで英語専用モードにも切り替えられます。", 14, MobileStyle.Muted);
+        intro.SetPadding(0, Dp(16), 0, Dp(20)); layout.AddView(intro);
+        _setupStatus = Label("設定を確認しています…", 14, MobileStyle.Accent);
+        _setupStatus.SetPadding(Dp(16), Dp(14), Dp(16), Dp(14));
+        _setupStatus.Background = MobileStyle.Rounded(this, MobileStyle.Soft); layout.AddView(_setupStatus);
+        Button Add(string text, Action action, bool primary = false)
         {
-            var button = new Button(this) { Text = text };
-            button.Click += (_, _) => action(); layout.AddView(button); return button;
+            var button = new Button(this) { Text = text, TextSize = 15 };
+            MobileStyle.Button(button, primary);
+            button.Click += (_, _) => action();
+            layout.AddView(button, new LinearLayout.LayoutParams(-1, Dp(52)) { TopMargin = Dp(12) }); return button;
         }
-        Add("1. キーボードを有効にする", () => StartActivity(new Intent(Settings.ActionInputMethodSettings)));
+        Add("1. キーボードを有効にする", () => StartActivity(new Intent(Settings.ActionInputMethodSettings)), true);
         Add("2. キーボードを選ぶ", () => ((InputMethodManager)GetSystemService(InputMethodService)!).ShowInputMethodPicker());
-        var editor = new EditText(this) { Hint = "試し書き：kyouhagoogledekensaku", InputType = InputTypes.ClassText | InputTypes.TextFlagMultiLine };
-        layout.AddView(editor, new LinearLayout.LayoutParams(-1, 200));
+        var trial = Label("試し書き", 16, MobileStyle.Ink); trial.SetPadding(0, Dp(24), 0, Dp(8)); layout.AddView(trial);
+        var editor = new EditText(this) { Id = Resource.Id.test_editor, Hint = "kyouhagoogledekensaku", TextSize = 17, InputType = InputTypes.ClassText | InputTypes.TextFlagMultiLine, Gravity = GravityFlags.Top };
+        editor.SetTextColor(MobileStyle.Ink); editor.SetHintTextColor(MobileStyle.Muted);
+        editor.Background = MobileStyle.Rounded(this, Color.White);
+        editor.SetPadding(Dp(16), Dp(16), Dp(16), Dp(16));
+        layout.AddView(editor, new LinearLayout.LayoutParams(-1, Dp(120)));
+        var tip = Label("Spaceで変換 · Enterで確定\n日英 → 自動判別 ／ ABC → 英語専用", 12, MobileStyle.Muted);
+        tip.SetPadding(0, Dp(10), 0, Dp(6)); layout.AddView(tip);
         Add("ライセンス", () =>
         {
             var text = ReadAsset("LICENSE.txt") + "\n\n" + ReadAsset("THIRD_PARTY_NOTICES.txt");
@@ -39,9 +65,22 @@ public sealed class MainActivity : Activity
             dialog.SetPositiveButton("閉じる", (_, _) => { });
             dialog.Show();
         });
-        layout.AddView(new TextView(this) { Text = "雪代／Yukishiro氏のMeltypeを基にした非公式Forkです。変換にはOSS版Mozcを使用し、入力は端末内で処理します。" });
-        SetContentView(layout);
+        var about = Label("Android試作版 0.2.0\n雪代／Yukishiro氏のMeltypeを基にした非公式Forkです。変換にはOSS版Mozcを使用し、入力は端末内で処理します。", 12, MobileStyle.Muted);
+        about.SetPadding(0, Dp(18), 0, 0); layout.AddView(about);
+        var page = new ScrollView(this) { FillViewport = true }; page.AddView(layout); SetContentView(page);
         if (Intent?.GetBooleanExtra("selftest", false) == true) RunSelfTest(editor);
+    }
+    private TextView Label(string text, int size, Color color)
+    {
+        var label = new TextView(this) { Text = text, TextSize = size }; label.SetTextColor(color); return label;
+    }
+    protected override void OnResume()
+    {
+        base.OnResume();
+        var manager = (InputMethodManager)GetSystemService(InputMethodService)!;
+        var enabled = manager.EnabledInputMethodList?.Any(method => method.PackageName == PackageName) == true;
+        var selected = Settings.Secure.GetString(ContentResolver, Settings.Secure.DefaultInputMethod)?.StartsWith(PackageName + "/", StringComparison.Ordinal) == true;
+        if (_setupStatus != null) _setupStatus.Text = selected ? "準備完了 · Meltypeを選択しています" : enabled ? "あと1つ · キーボードを選んでください" : "まずはキーボードを有効にしてください";
     }
     private string ReadAsset(string name)
     {

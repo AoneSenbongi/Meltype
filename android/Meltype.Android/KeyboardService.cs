@@ -24,6 +24,10 @@ public sealed class KeyboardService : InputMethodService
     private LinearLayout? _candidates;
     private TextView? _status;
     private Button? _mode;
+    private Button? _shift;
+    private LinearLayout? _keyRows;
+    private bool _symbols;
+    private readonly List<(Button Key, char Letter)> _letters = [];
     private bool _english, _restricted, _caps, _ready;
     private bool _preeditActive;
     private int _generation;
@@ -48,44 +52,70 @@ public sealed class KeyboardService : InputMethodService
     }
     public override View OnCreateInputView()
     {
+        _letters.Clear();
         var root = new LinearLayout(this) { Orientation = Orientation.Vertical };
-        root.SetBackgroundColor(Color.Rgb(242, 242, 242));
-        _status = new TextView(this) { TextSize = 12 }; root.AddView(_status);
-        var scroll = new HorizontalScrollView(this);
+        root.SetBackgroundColor(MobileStyle.KeyboardBackground);
+        root.SetPadding(Dp(4), Dp(4), Dp(4), Dp(6));
+        var header = new LinearLayout(this); header.SetGravity(GravityFlags.CenterVertical);
+        _status = new TextView(this) { TextSize = 11 };
+        _status.SetTextColor(MobileStyle.Muted); _status.SetPadding(Dp(8), Dp(2), Dp(8), Dp(2));
+        header.AddView(_status, new LinearLayout.LayoutParams(0, Dp(28), 1));
+        var picker = new Button(this) { Text = "⌨", TextSize = 18, ContentDescription = "他のキーボードを選ぶ" };
+        MobileStyle.Button(picker); picker.SetPadding(0, 0, 0, 0);
+        picker.Click += (_, _) => ((InputMethodManager)GetSystemService(InputMethodService)!).ShowInputMethodPicker();
+        header.AddView(picker, new LinearLayout.LayoutParams(Dp(40), Dp(28))); root.AddView(header);
+        var scroll = new HorizontalScrollView(this) { HorizontalScrollBarEnabled = false };
         _candidates = new LinearLayout(this) { Orientation = Orientation.Horizontal };
-        _candidates.SetBackgroundColor(Color.White); scroll.AddView(_candidates);
-        root.AddView(scroll, new LinearLayout.LayoutParams(-1, Dp(48)));
-        foreach (var row in new[] { "1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm" })
+        _candidates.SetGravity(GravityFlags.CenterVertical); scroll.AddView(_candidates);
+        scroll.Background = MobileStyle.Rounded(this, Color.White);
+        root.AddView(scroll, new LinearLayout.LayoutParams(-1, Dp(42)) { BottomMargin = Dp(4) });
+        _keyRows = new LinearLayout(this) { Orientation = Orientation.Vertical }; root.AddView(_keyRows);
+        BuildKeyRows(); Status(); return root;
+    }
+    private void BuildKeyRows()
+    {
+        if (_keyRows == null) return;
+        _keyRows.RemoveAllViews(); _letters.Clear(); _shift = null;
+        foreach (var row in _symbols ? new[] { "1234567890", "@#¥%&-+()/", ".,?!:;\"" } : new[] { "qwertyuiop", "asdfghjkl-", "zxcvbnm" })
         {
             var line = new LinearLayout(this);
-            foreach (var c in row) AddKey(line, c.ToString(), () => Input(_caps ? char.ToUpperInvariant(c) : c));
-            root.AddView(line);
+            var shortRow = row.Length == 7;
+            if (shortRow)
+            {
+                if (_symbols) AddKey(line, "ABC", () => { _symbols = false; BuildKeyRows(); Status(); }, 1.5f, description: "英字配列に戻る");
+                else _shift = AddKey(line, "⇧", () => { _caps = !_caps; Status(); }, 1.5f, description: "大文字・小文字を切り替える");
+            }
+            foreach (var c in row)
+            {
+                var key = AddKey(line, c.ToString(), () => Input(_caps ? char.ToUpperInvariant(c) : c));
+                if (char.IsLetter(c)) _letters.Add((key, c));
+            }
+            if (shortRow) AddKey(line, "⌫", () => Special(0x08), 1.5f, description: "1文字削除");
+            _keyRows.AddView(line);
         }
-        var symbols = new LinearLayout(this);
-        AddKey(symbols, "Shift", () => { _caps = !_caps; Status(); });
-        foreach (var c in new[] { ',', '.', '?', '!', '-', '@', '/' }) AddKey(symbols, c.ToString(), () => Input(c));
-        AddKey(symbols, "⌫", () => Special(0x08)); root.AddView(symbols);
         var controls = new LinearLayout(this);
-        _mode = AddKey(controls, "日英切替", () =>
+        AddKey(controls, _symbols ? "ABC" : "123", () => { _symbols = !_symbols; BuildKeyRows(); Status(); }, description: "数字・記号と英字配列を切り替える");
+        _mode = AddKey(controls, "日英", () =>
         {
             if (_restricted || !_ready) return;
             _english = !_english;
             var english = _english;
             Queue(() => _session?.SetEnglish(english)); Status();
-        });
-        AddKey(controls, "入力方法", () => ((InputMethodManager)GetSystemService(InputMethodService)!).ShowInputMethodPicker());
-        AddKey(controls, "Space / 変換", () => Input(' '), 2);
-        AddKey(controls, "←", () => Special(0x25));
-        AddKey(controls, "→", () => Special(0x27));
-        AddKey(controls, "Enter", () => Special(0x0D)); root.AddView(controls);
-        Status(); return root;
+        }, description: "英語専用モードに切り替える");
+        var punctuation = AddKey(controls, ",", () => Input(','));
+        punctuation.ContentDescription = "コンマ、長押しでピリオド";
+        punctuation.LongClick += (_, e) => { Input('.'); e.Handled = true; };
+        AddKey(controls, "空白", () => Input(' '), 3, description: "空白・変換");
+        AddKey(controls, "←", () => Special(0x25), description: "左へ移動");
+        AddKey(controls, "→", () => Special(0x27), description: "右へ移動");
+        var enter = AddKey(controls, "↵", () => Special(0x0D), 2, description: "確定・改行"); MobileStyle.Button(enter, true); _keyRows.AddView(controls);
     }
-    private int Dp(int pixels) => (int)(pixels * Resources!.DisplayMetrics!.Density);
-    private Button AddKey(LinearLayout row, string label, Action action, int weight = 1)
+    private int Dp(int pixels) => MobileStyle.Dp(this, pixels);
+    private Button AddKey(LinearLayout row, string label, Action action, float weight = 1, int height = 48, string? description = null)
     {
-        var key = new Button(this) { Text = label, TextSize = label.Length > 3 ? 11 : 18 };
-        key.SetPadding(0, 0, 0, 0); key.Click += (_, _) => action();
-        row.AddView(key, new LinearLayout.LayoutParams(0, Dp(48), weight)); return key;
+        var key = new Button(this) { Text = label, TextSize = label.Length > 3 ? 13 : 18, ContentDescription = description ?? label };
+        MobileStyle.Button(key); key.SetPadding(0, 0, 0, 0); key.Click += (_, _) => action();
+        row.AddView(key, new LinearLayout.LayoutParams(0, Dp(height), weight) { MarginStart = Dp(2), MarginEnd = Dp(2), TopMargin = Dp(3), BottomMargin = Dp(3) }); return key;
     }
     public override bool OnEvaluateFullscreenMode() => false;
     public override void OnStartInput(EditorInfo? attribute, bool restarting)
@@ -163,12 +193,13 @@ public sealed class KeyboardService : InputMethodService
             else if (operation == 3) editor.DeleteSurroundingTextInCodePoints(int.Parse(text), 0);
             else if (operation == 4) Enter();
             _candidates?.RemoveAllViews();
-            if (view is { Converting: true } && _candidates != null)
+            if (view is { Candidates.Count: > 0 } && _candidates != null)
                 for (var i = 0; i < Math.Min(view.Candidates.Count, 24); i++)
                 {
-                    var index = i; var button = new Button(this) { Text = view.Candidates[index] };
+                    var index = i; var button = new Button(this) { Text = view.Candidates[index], ContentDescription = "候補 " + index };
+                    MobileStyle.Button(button); button.TextSize = 17;
                     button.Click += (_, _) => Queue(() => _session?.Select(index));
-                    _candidates.AddView(button);
+                    _candidates.AddView(button, new LinearLayout.LayoutParams(-2, Dp(38)) { MarginStart = Dp(4), MarginEnd = Dp(4) });
                 }
         });
     }
@@ -176,7 +207,15 @@ public sealed class KeyboardService : InputMethodService
     private void Status()
     {
         if (_status != null) _status.Text = !_ready ? "変換エンジンを準備中…" : _restricted ? "直接入力" : "Meltype · " + (_english ? "ABC" : "日英自動判別") + (_caps ? " · Shift" : "");
-        if (_mode != null) _mode.Text = _restricted || _english ? "英語 → 日英" : "日英 → 英語";
+        if (_mode != null)
+        {
+            _mode.Text = _restricted || _english ? "ABC" : "日英";
+            _mode.ContentDescription = _english ? "日英自動判別に戻る" : "英語専用モードに切り替える";
+            _mode.Enabled = _ready && !_restricted;
+            _mode.Background = MobileStyle.Rounded(this, _english ? MobileStyle.Soft : Color.White);
+        }
+        foreach (var (key, letter) in _letters) key.Text = (_caps ? char.ToUpperInvariant(letter) : letter).ToString();
+        if (_shift != null) _shift.Background = MobileStyle.Rounded(this, _caps ? MobileStyle.Soft : Color.White);
     }
     public override void OnDestroy()
     {

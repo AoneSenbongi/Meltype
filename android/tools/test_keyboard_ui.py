@@ -1,0 +1,90 @@
+"""Exercise the real keyboard in the Android emulator and capture its screens."""
+import pathlib
+import subprocess
+import sys
+import time
+import xml.etree.ElementTree as ET
+
+output = pathlib.Path(sys.argv[1])
+output.mkdir(parents=True, exist_ok=True)
+
+
+def adb(*args):
+    return subprocess.check_output(["adb", *args], text=True).strip()
+
+
+def tree():
+    adb("shell", "uiautomator", "dump", "/sdcard/meltype-window.xml")
+    return ET.fromstring(adb("shell", "cat", "/sdcard/meltype-window.xml"))
+
+
+def find(attribute, value):
+    for _ in range(8):
+        for node in tree().iter("node"):
+            if node.get(attribute) == value:
+                return node
+        time.sleep(.5)
+    raise AssertionError(f"Missing UI element: {attribute}={value}")
+
+
+def tap(node):
+    import re
+    left, top, right, bottom = map(int, re.findall(r"\d+", node.attrib["bounds"]))
+    assert right > left and bottom > top, "UI target is not visible"
+    adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+
+
+def capture(name):
+    with (output / name).open("wb") as file:
+        subprocess.run(["adb", "exec-out", "screencap", "-p"], stdout=file, check=True)
+
+
+package = "jp.aonesenbongi.meltype"
+activity = package + "/" + package + ".MainActivity"
+method = next(line for line in adb("shell", "ime", "list", "-s").splitlines() if line.startswith(package + "/"))
+adb("shell", "ime", "enable", method)
+adb("shell", "ime", "set", method)
+adb("shell", "am", "force-stop", package)
+adb("shell", "am", "start", "-n", activity)
+time.sleep(2)
+find("content-desc", "Meltypeのアイコン")
+capture("android-setup.png")
+editor_id = package + ":id/test_editor"
+tap(find("resource-id", editor_id))
+find("content-desc", "英語専用モードに切り替える")
+tap(find("content-desc", "大文字・小文字を切り替える"))
+assert find("content-desc", "q").get("text") == "Q", "Shift does not update letter labels"
+tap(find("content-desc", "大文字・小文字を切り替える"))
+assert find("content-desc", "q").get("text") == "q"
+keys = {node.get("content-desc"): node for node in tree().iter("node") if node.get("class") == "android.widget.Button"}
+for letter in "kyouhagoogledekensaku":
+    tap(keys[letter])
+    time.sleep(.08)
+time.sleep(1)
+preview = find("resource-id", editor_id).get("text", "")
+assert "google" in preview and "検索" in preview, f"Mixed live conversion failed: {preview}"
+find("content-desc", "候補 0")
+capture("android-keyboard.png")
+tap(find("content-desc", "数字・記号と英字配列を切り替える"))
+tap(find("content-desc", "?"))
+tap(find("content-desc", "数字・記号と英字配列を切り替える"))
+time.sleep(.5)
+assert "検索" in find("resource-id", editor_id).get("text", ""), "Question mark lost live conversion"
+tap(find("content-desc", "空白・変換"))
+find("content-desc", "候補 0")
+capture("android-candidates.png")
+tap(find("content-desc", "候補 0"))
+tap(find("content-desc", "英語専用モードに切り替える"))
+mode = find("content-desc", "日英自動判別に戻る")
+assert mode.get("text") == "ABC"
+for letter in "abc":
+    tap(find("content-desc", letter))
+assert find("resource-id", editor_id).get("text", "").endswith("abc"), "English mode is not direct input"
+capture("android-english.png")
+tap(mode)
+assert find("content-desc", "英語専用モードに切り替える").get("text") == "日英"
+(output / "ANDROID_UI_TEST_RESULT.txt").write_text(
+    "PASS: launcher icon, setup, Shift labels, keyboard taps, mixed live conversion, punctuation, candidates and English mode toggle\n",
+    encoding="utf-8",
+)
+print((output / "ANDROID_UI_TEST_RESULT.txt").read_text())

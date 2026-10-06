@@ -288,6 +288,32 @@ public sealed class CompositionController
         UpdateView();
     }
 
+    /// <summary>入力を確定・変換モードへ移行せず、最後の日本語文節の候補を返す。</summary>
+    public CompositionView LiveCandidateView(CompositionView view)
+    {
+        if (_converting || _text.IsEmpty || _text.Mode != DisplayMode.Auto) return view;
+        var clauses = BuildConversionClauses();
+        var index = clauses.FindLastIndex(c => !c.IsEnglish);
+        if (index < 0) return view;
+        var selected = clauses[index];
+        Expand(selected);
+        return view with { Candidates = selected.Candidates, SelectedIndex = selected.Index,
+            Clauses = clauses.Select(c => c.Text).ToList(), SelectedClause = index };
+    }
+
+    /// <summary>ライブ候補を選んだときに変換モードへ移り、候補文字列で選ぶ。</summary>
+    public bool SelectLiveCandidate(int clauseIndex, string text)
+    {
+        if (_converting || _text.IsEmpty) return false;
+        var clauses = BuildConversionClauses();
+        if (clauseIndex < 0 || clauseIndex >= clauses.Count) return false;
+        var clause = clauses[clauseIndex]; Expand(clause);
+        var candidate = clause.Candidates.IndexOf(text);
+        if (candidate < 0) return false;
+        _clauses = clauses; _selectedClause = clauseIndex; _converting = true;
+        SelectCandidate(candidate); return true;
+    }
+
     /// <summary>無効化・フォーカス喪失などで、未確定の内容をそのまま確定する。</summary>
     public void CommitPending()
     {
@@ -816,6 +842,15 @@ public sealed class CompositionController
     /// </summary>
     private void StartConversion(bool preferJapanese = false)
     {
+        var clauses = BuildConversionClauses(preferJapanese);
+        if (clauses.Count == 0) return;
+        _clauses = clauses;
+        _selectedClause = 0;
+        _converting = true;
+    }
+
+    private List<Clause> BuildConversionClauses(bool preferJapanese = false)
+    {
         var clauses = new List<Clause>();
         var segments = _text.ConversionSegments();
         for (var s = 0; s < segments.Count; s++)
@@ -846,10 +881,7 @@ public sealed class CompositionController
             }
             clauses.AddRange(japanese);
         }
-        if (clauses.Count == 0) return;
-        _clauses = clauses;
-        _selectedClause = 0;
-        _converting = true;
+        return clauses;
     }
 
     /// <summary>

@@ -10,13 +10,21 @@ Androidのキーボードとして選択する独立したアプリを作る。W
 
 対象はAndroid 8.0以降、arm64の実機とx86_64のエミュレーター。フリック、音声入力、絵文字専用画面、Gboardからの学習データ移行は試作の対象に含めない。
 
+## 0.2.0の画面改善
+
+ランチャーには専用のアダプティブアイコンを付ける。導入画面は有効化・選択の状態、2段階の設定ボタン、試し書き欄をまとめ、端末の密度に合わせた余白とスクロールに対応する。
+
+キーボードはSimejiのQWERTY配置を参考に、英字3段と操作1段にまとめる。文字キーの幅をそろえ、数字と記号は「123」で切り替える。Shiftと削除を英字下段、日英切替・空白・矢印・確定を最下段に置く。Shift時はキーの表示も大文字にする。日英ボタンには現在のモードを表示する。ローマ字入力と日英切替の挙動は維持する。
+
+ライブ変換中も候補を上部の横スクロール欄に表示する。入力中は最後の日本語文節の候補を出し、タップすると他の文節と英語部分を保って確定する。Spaceで変換した後は選択中の文節の候補を表示する。候補を表示するだけでは入力を確定しない。
+
 ## ビルド
 
 GitHub Actionsの`Android prototype`を`android-prototype`ブランチで実行する。固定したMozcのソースからJNIライブラリと辞書をビルドし、.NET 10のAndroidアプリへ同梱する。APKと対応するソース、ライセンス通知をArtifactsから取得できる。初回はMozcのビルドに時間がかかる。
 
 ## 導入
 
-1. [Android試作版のRelease](https://github.com/AoneSenbongi/Meltype/releases/tag/android-prototype-20261006)から`Meltype-Android-prototype.apk`をAndroidへダウンロードする。APKを開いたアプリに対してインストールを許可する。
+1. [Android試作版0.2.0のRelease](https://github.com/AoneSenbongi/Meltype/releases/tag/android-prototype-0.2.0)から`Meltype-Android-prototype.apk`をAndroidへダウンロードする。APKを開いたアプリに対してインストールを許可する。
 2. Meltypeのアプリを開き、「キーボードを有効にする」からMeltypeを有効にする。
 3. 「キーボードを選ぶ」でMeltypeを選択する。
 4. アプリ内の試し書き欄で`kyouhagoogledekensaku`を入力する。
@@ -25,7 +33,7 @@ GitHub Actionsの`Android prototype`を`android-prototype`ブランチで実行�
 
 ## 確認事項
 
-公開APKは試作版0.1.0。ソースには本家Meltype 1.0.1の修正を取り込み、入力処理のテストを通している。この変更を含むAPKはまだ公開していない。ソースの更新と公開APKの更新を区別する。
+0.2.0は本家Meltype 1.0.1の修正を含む。旧0.1.0は取り込み前のAPK。0.2.0の公開はエミュレーターでの入力と実際のキー操作のテストが通った後に行う。
 
 APKのビルドと日英切替などの入力テストが通った。Android 15のx86_64エミュレーターで、Mozcの接続、日英混在、句読点、入力欄の未確定表示と確定を確認した。実機での入力速度、各アプリのカーソル・改行・画面回転、長時間入力は別途確認が必要。これらの確認前は試作版として扱う。
 

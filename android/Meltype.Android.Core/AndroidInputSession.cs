@@ -55,14 +55,19 @@ public sealed class AndroidInputSession : ICompositionHost
 
     public void Select(int index)
     {
-        if (View is not { Converting: true }) return;
-        _controller.SelectCandidate(index);
+        if (View is not { } view || index < 0 || index >= view.Candidates.Count) return;
+        if (view.Converting) _controller.SelectCandidate(index);
+        else if (!_controller.SelectLiveCandidate(view.SelectedClause, view.Candidates[index])) return;
         _controller.CommitPending();
     }
     public void Commit() => _controller.CommitPending();
     public void Reset() { _controller.Reset(); _controller.ResetContext(); _gate.Abort(); View = null; }
     public void CommitText(string text) => _output(1, text, null);
-    public void Show(CompositionView view) { View = view; _output(0, view.Text, view); }
+    public void Show(CompositionView view)
+    {
+        View = view.Converting ? view : _controller.LiveCandidateView(view);
+        _output(0, View.Text, View);
+    }
     public void Hide() { View = null; _output(2, "", null); }
     public void DeleteBackward(int count) => _output(3, count.ToString(), null);
     public void Replay(KeyEvent e)

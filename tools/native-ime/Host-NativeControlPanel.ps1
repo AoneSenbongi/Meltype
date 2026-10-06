@@ -67,10 +67,14 @@ Add-Button '起動' 0 4 'Start' | Out-Null
 Add-Button '停止してGoogleに戻る' 1 4 'Stop' | Out-Null
 Add-Button '自動起動を有効にする' 0 5 'Enable' | Out-Null
 Add-Button '自動起動を無効にする' 1 5 'Disable' | Out-Null
+function Open-NativeGoogleDialog([string]$Mode) {
+    try { Start-Process -FilePath (Get-NativeGoogleTool) -ArgumentList ('--mode='+$Mode) }
+    catch { [Windows.Forms.MessageBox]::Show($_.Exception.Message,'Meltype') | Out-Null }
+}
 foreach ($item in @(@('単語登録','word_register_dialog',0),@('辞書を管理','dictionary_tool',1))) {
     $button = [Windows.Forms.Button]::new(); $button.Text = $item[0]; $button.Dock = 'Fill'; $button.Margin = [Windows.Forms.Padding]::new(4)
     $mode = $item[1]
-    $button.Add_Click({ try { Start-Process -FilePath (Get-NativeGoogleTool) -ArgumentList ('--mode='+$mode) } catch { [Windows.Forms.MessageBox]::Show($_.Exception.Message,'Meltype') | Out-Null } }.GetNewClosure())
+    $button.Add_Click({ Open-NativeGoogleDialog $mode }.GetNewClosure())
     $layout.Controls.Add($button,[int]$item[2],6)
 }
 $footer = [Windows.Forms.FlowLayoutPanel]::new(); $footer.Dock = 'Fill'
@@ -94,7 +98,14 @@ $message.ForeColor = [Drawing.Color]::DimGray
 $icon = [Windows.Forms.NotifyIcon]::new(); $icon.Icon = $form.Icon; $icon.Text = 'Meltype · Google日本語入力'; $icon.Visible = -not [bool]$RenderTo
 $menu = [Windows.Forms.ContextMenuStrip]::new()
 $open = $menu.Items.Add('管理画面を開く'); $open.Add_Click({ $form.Show(); $form.Activate() })
-$stop = $menu.Items.Add('停止してGoogleに戻る'); $stop.Add_Click({ Start-Action 'Stop' })
+function Add-NativeTrayActions([Windows.Forms.ContextMenuStrip]$Menu) {
+    $stop = $Menu.Items.Add('停止してGoogleに戻る'); $stop.Add_Click({ Start-Action 'Stop' })
+    foreach ($entry in @(@('単語登録','word_register_dialog'),@('辞書管理','dictionary_tool'))) {
+        $item = $Menu.Items.Add($entry[0]); $mode = $entry[1]
+        $item.Add_Click({ Open-NativeGoogleDialog $mode }.GetNewClosure())
+    }
+}
+Add-NativeTrayActions $menu
 $exit = $menu.Items.Add('管理画面を終了'); $exit.Add_Click({ $script:quitting = $true; $form.Close() })
 $icon.ContextMenuStrip = $menu; $icon.Add_DoubleClick({ $form.Show(); $form.Activate() })
 $form.Add_FormClosing({ if (-not $script:quitting -and -not $RenderTo -and $_.CloseReason -eq 'UserClosing') { $_.Cancel = $true; $form.Hide() } })

@@ -60,16 +60,18 @@ jobs:
           name: android-mozc-engine
           path: android/Meltype.Android
       - name: Install Android workload
-        run: dotnet workload install android
+        run: dotnet workload install android --source https://api.nuget.org/v3/index.json
       - name: Test input and mode toggle
         run: dotnet run --project android/Meltype.Android.Tests
       - name: Install build dependencies
         run: dotnet build android/Meltype.Android -t:InstallAndroidDependencies -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" -p:AcceptAndroidSdkLicenses=True
       - name: Build APK
         run: |
-          dotnet build android/Meltype.Android -c Debug -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME"
+          python3 android/tools/collect_notices.py /tmp/dotnet-notices.txt "$DOTNET_ROOT/packs"
+          cat /tmp/dotnet-notices.txt >> android/Meltype.Android/Assets/THIRD_PARTY_NOTICES.txt
+          dotnet build android/Meltype.Android -c Release -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME"
           mkdir -p android-distribution
-          cp android/Meltype.Android/bin/Debug/net10.0-android/*-Signed.apk android-distribution/Meltype-Android-prototype.apk
+          cp android/Meltype.Android/bin/Release/net10.0-android/*-Signed.apk android-distribution/Meltype-Android-prototype.apk
           cp LICENSE docs/ANDROID_PROTOTYPE.md android/Meltype.Android/Assets/THIRD_PARTY_NOTICES.txt android-distribution/
           git rev-parse HEAD > android-distribution/SOURCE_VERSION.txt
           git archive --format=zip --output=android-distribution/corresponding-source.zip HEAD
@@ -87,10 +89,12 @@ jobs:
             if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi
             sleep 2
           done
+          adb root
+          adb wait-for-device
           adb install android-distribution/Meltype-Android-prototype.apk
           adb shell am start -n jp.aonesenbongi.meltype/jp.aonesenbongi.meltype.MainActivity --ez selftest true
           for attempt in $(seq 1 60); do
-            if adb shell run-as jp.aonesenbongi.meltype cat files/selftest.txt > android-distribution/ANDROID_TEST_RESULT.txt 2>/dev/null; then break; fi
+            if adb shell cat /data/user/0/jp.aonesenbongi.meltype/files/selftest.txt > android-distribution/ANDROID_TEST_RESULT.txt 2>/dev/null; then break; fi
             sleep 2
           done
           cat android-distribution/ANDROID_TEST_RESULT.txt

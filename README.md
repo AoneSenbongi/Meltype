@@ -47,11 +47,13 @@ Google本体でも全角の「，」「．」を使う場合は、Google日本�
 
 ## Android版
 
-[Android試作版のRelease](https://github.com/AoneSenbongi/Meltype/releases/tag/android-prototype-20261006)でAPKを公開しています。Android 8.0以降のarm64端末向けです。QWERTYのローマ字入力、日英自動判別、ライブ変換、英語専用モードへの切替を実装しています。フリック入力はありません。
+[Android試作版0.2.0のRelease](https://github.com/AoneSenbongi/Meltype/releases/tag/android-prototype-0.2.0)でAPKを公開しています。Android 8.0以降のarm64端末向けです。QWERTYのローマ字入力、日英自動判別、ライブ変換、英語専用モードへの切替を実装しています。フリック入力はありません。
+
+0.2.0では専用アイコンと導入状態の表示を追加し、SimejiのQWERTY配置を参考に英字3段と操作1段へ整理しました。数字・記号は「123」で切り替えます。ライブ変換中も候補を表示し、候補を選ぶと他の文節と英語部分を保って確定します。
 
 AndroidではOSS版MozcとOSS辞書を同梱します。WindowsのGoogle日本語入力やGboardの辞書・学習履歴とは連携しません。エミュレーターでの入力は確認済みですが、実機での入力速度や各アプリとの相性は未確認です。
 
-公開APKは試作版0.1.0です。`android-prototype`ブランチのソースには本家1.0.1の修正を取り込み、入力処理のテストを通していますが、その変更を含むAPKはまだ公開していません。[導入手順と検証範囲](https://github.com/AoneSenbongi/Meltype/blob/android-prototype/docs/ANDROID_PROTOTYPE.md)を確認して利用してください。
+0.2.0のAPKには本家1.0.1の修正を含めています。試作用の署名が旧版と異なる場合は、旧版を削除してからインストールします。削除ではアプリの学習データも消えます。[導入手順と検証範囲](https://github.com/AoneSenbongi/Meltype/blob/android-prototype/docs/ANDROID_PROTOTYPE.md)を確認して利用してください。
 
 ## 検証範囲と制約
 

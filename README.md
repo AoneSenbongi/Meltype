@@ -19,7 +19,7 @@ Googleの既存辞書・学習履歴を使います。学習が有効なら、�
 3. 展開したフォルダーの`Install-NativeIme.cmd`を右クリックし、「管理者として実行」します。普段使うWindowsアカウントで実行してください。Googleの設定と学習データをバックアップしてからIMEを登録します。
 4. 管理者画面を閉じ、`Start-NativeIme.cmd`を通常のダブルクリックで起動します。初回は最大60秒待ちます。
 
-Windowsへ再ログインした後も、`Start-NativeIme.cmd`で起動してください。この試験版には自動起動と自動更新を設定していません。従来のMeltype常駐版が動いている場合は、先に終了します。
+インストール時に、Windowsへのサインイン後の自動起動を設定します。起動時のコンソールは非表示です。導入済みの場合は`Enable-NativeAutoStart.cmd`で設定できます。解除は`Disable-NativeAutoStart.cmd`です。自動更新はありません。従来のMeltype常駐版が動いている場合は、先に終了します。
 
 ZIPのSHA-256はReleaseの`.sha256`ファイルと比較できます。
 

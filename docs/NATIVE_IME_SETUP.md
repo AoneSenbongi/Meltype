@@ -25,6 +25,8 @@
 4. 通常のGoogleプロファイルと従来のMeltype常駐へ戻す場合は`Stop-NativeIme.cmd`を通常権限で実行する。
 5. 登録を削除する場合は`Uninstall-NativeIme.cmd`を管理者として実行する。続けて通常権限で`Start-Meltype.cmd`を実行すると従来版を起動できる。
 
+インストール時にサインイン後の自動起動を設定する。導入済みの場合は`Enable-NativeAutoStart.cmd`で有効にし、`Disable-NativeAutoStart.cmd`で解除する。起動時のコンソールは非表示。アンインストール時も自動起動を解除する。
+
 Google本体の句読点も合わせる場合は、Google日本語入力のプロパティで句読点を「，．」に設定する。Native版の起動スクリプトはGoogleの個人設定を自動変更しない。
 
 ## 検証範囲

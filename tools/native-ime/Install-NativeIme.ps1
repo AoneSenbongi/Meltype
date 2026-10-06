@@ -31,4 +31,5 @@ $dll = Join-Path $package 'MeltypeNative64.dll'
 if ($LASTEXITCODE -ne 0) { throw 'Windows rejected IME registration. Original Google IME remains selected.' }
 @{ PackageRoot = $package; Installed = (Get-Date).ToString('o'); UserSid = $identity.User.Value; Portable = [bool]$manifest.Portable } |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'native-ime-install.json') -Encoding UTF8
+& (Join-Path $PSScriptRoot 'Set-NativeAutoStart.ps1')
 Write-Output 'Registered native IME. Close this administrator window, then run Start-NativeIme.cmd normally.'

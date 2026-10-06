@@ -9,7 +9,7 @@
 
 日本語の句読点は全角の「，」「．」。ローマ字入力の区切りで`zh → ←`、`zj → ↓`、`zk → ↑`、`zl → →`を使える。Google本体でも同じ句読点を使う場合は、Google日本語入力のプロパティで句読点を「，．」に設定する。Googleへ新しい履歴を追加する場合は「学習する」を選ぶ。
 
-Windowsへのサインイン後は`Start-NativeIme.cmd`を起動する。通常のGoogle日本語入力へ戻す場合は`Stop-NativeIme.cmd`を起動する。削除する場合は`Uninstall-NativeIme.cmd`を管理者として実行する。バックアップは残る。登録後にフォルダーを移動する場合は、先に登録を削除する。
+インストール時にWindowsへのサインイン後の自動起動を設定する。起動時のコンソールは非表示。導入済みの場合は`Enable-NativeAutoStart.cmd`で設定し、解除は`Disable-NativeAutoStart.cmd`で行う。設定変更前の自動起動情報は`backups`に保存する。通常のGoogle日本語入力へ戻す場合は`Stop-NativeIme.cmd`を起動する。次回のサインインでもGoogleを使う場合は、自動起動も解除する。削除する場合は`Uninstall-NativeIme.cmd`を管理者として実行する。自動起動も解除し、バックアップは残る。登録後にフォルダーを移動する場合は、先に登録を削除する。
 
 句読点・疑問符の入力でライブ変換がかなへ戻る問題への修正を公開している。修正適用後、デスクトップPCとノートPCの両方で症状の解消を確認した。導入済みの場合はReleaseの`Meltype-Native-PunctuationFix-20261006.zip`を展開し、`Update-Punctuation.cmd`を通常権限で実行する。既存の登録先を確認し、更新前のDLLをバックアップしてから変換部品だけを入れ替える。IMEの再登録と辞書の移行は不要。
 

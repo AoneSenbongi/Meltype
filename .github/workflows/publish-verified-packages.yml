@@ -1,0 +1,87 @@
+name: Publish verified packages
+on:
+  workflow_dispatch:
+    inputs:
+      android_run:
+        description: Successful Android build run ID
+        required: true
+        default: '37445534038'
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish tested Android APK
+        env:
+          BUILD_RUN: ${{ inputs.android_run }}
+        run: |
+          gh api "repos/$GH_REPO/actions/runs/$BUILD_RUN" > /tmp/build.json
+          python3 -c 'import json; r=json.load(open("/tmp/build.json")); assert r["conclusion"] == "success" and r["head_branch"] == "android-prototype"'
+          gh run download "$BUILD_RUN" -n Meltype-Android-prototype -D android-distribution
+          cd android-distribution
+          sha256sum -c Meltype-Android-prototype.apk.sha256
+          grep -q '^PASS:' ANDROID_TEST_RESULT.txt
+          commit=$(cat SOURCE_VERSION.txt)
+          zip -q Meltype-Android-prototype-source-notices.zip corresponding-source.zip LICENSE THIRD_PARTY_NOTICES.txt ANDROID_PROTOTYPE.md SOURCE_VERSION.txt ANDROID_TEST_RESULT.txt
+          if ! gh release view android-prototype-20261006 >/dev/null 2>&1; then
+            gh release create android-prototype-20261006 --target "$commit" --prerelease --title 'Meltype Android ローマ字入力 試作版' --notes-file ../docs/ANDROID_RELEASE.md
+          fi
+          gh release upload android-prototype-20261006 Meltype-Android-prototype.apk Meltype-Android-prototype.apk.sha256 Meltype-Android-prototype-source-notices.zip --clobber
+      - name: Package current Windows startup scripts
+        run: |
+          mkdir -p native-distribution
+          gh release download native-google-20261006 --pattern 'Meltype-Native-Google-windows-x64-20261006-180930.zip' -D native-distribution
+          unzip -q native-distribution/*.zip -d native-stage
+          package=native-stage/Meltype-Native-Google-windows-x64
+          cp tools/native-ime/*.ps1 "$package/tools/native-ime/"
+          cp Enable-NativeAutoStart.cmd Disable-NativeAutoStart.cmd "$package/"
+          cp docs/NATIVE_IME_TRANSFER.md "$package/README.md"
+          git rev-parse HEAD > "$package/SOURCE_VERSION.txt"
+          git archive --format=zip --output="$package/corresponding-source.zip" HEAD
+          python3 - "$package" <<'PY'
+          import hashlib,json,pathlib,sys
+          root=pathlib.Path(sys.argv[1]); stage=root/'experimental-build/native-ime-package'
+          manifest=json.loads((stage/'manifest.json').read_text(encoding='utf-8-sig'))
+          for file in manifest['Files']:
+              assert hashlib.sha256((stage/file['Name']).read_bytes()).hexdigest().upper()==file['SHA256']
+          manifest['SourceCommit']=(root/'SOURCE_VERSION.txt').read_text().strip()
+          (stage/'manifest.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
+          PY
+          stamp=$(date -u +%Y%m%d-%H%M%S)
+          full="Meltype-Native-Google-windows-x64-$stamp.zip"
+          (cd native-stage && zip -qr "../native-distribution/$full" Meltype-Native-Google-windows-x64)
+          mkdir native-patch
+          cp tools/native-ime/NativeAutoStart.ps1 tools/native-ime/Set-NativeAutoStart.ps1 tools/native-ime/Set-InstalledNativeAutoStart.ps1 LICENSE native-patch/
+          python3 - <<'PY'
+          from pathlib import Path
+          for name,flag in [('Enable',''),('Disable',' -Disable')]:
+              command='@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Set-InstalledNativeAutoStart.ps1"'+flag+'\r\npause\r\n'
+              Path('native-patch/'+name+'-NativeAutoStart.cmd').write_bytes(command.encode('ascii'))
+          PY
+          patch="Meltype-Native-AutoStart-$stamp.zip"
+          (cd native-patch && zip -qr "../native-distribution/$patch" .)
+          (cd native-distribution && sha256sum "$full" > "$full.sha256" && sha256sum "$patch" > "$patch.sha256")
+          gh release upload native-google-20261006 "native-distribution/$full" "native-distribution/$full.sha256" "native-distribution/$patch" "native-distribution/$patch.sha256"
+          gh api "repos/$GH_REPO/releases/tags/native-google-20261006" > /tmp/native-release.json
+          FULL="$full" PATCH="$patch" python3 - <<'PY'
+          import json,os,pathlib,re
+          release=json.load(open('/tmp/native-release.json'))
+          body=re.sub(r'\n\n## サインイン後の自動起動.*$','',release['body'],flags=re.S)
+          body += '\n\n## サインイン後の自動起動\n\n新しい移行用ZIPはインストール時に自動起動を設定します。導入済みの場合は'+os.environ['PATCH']+'を展開し、Enable-NativeAutoStart.cmdを通常権限で実行してください。Googleの変換サービスが準備できるまで待ち、Windowsへのサインイン後にNative版を非表示で起動します。解除はDisable-NativeAutoStart.cmdです。IMEの再登録は不要です。'
+          pathlib.Path('/tmp/native-body.json').write_text(json.dumps({'body':body}),encoding='utf-8')
+          keep={os.environ['FULL'],os.environ['FULL']+'.sha256',os.environ['PATCH'],os.environ['PATCH']+'.sha256'}
+          old=[str(a['id']) for a in release['assets'] if a['name'].startswith(('Meltype-Native-Google-windows-x64-','Meltype-Native-AutoStart-')) and a['name'] not in keep]
+          pathlib.Path('/tmp/old-assets.txt').write_text('\n'.join(old))
+          PY
+          release_id=$(python3 -c 'import json; print(json.load(open("/tmp/native-release.json"))["id"])')
+          gh api "repos/$GH_REPO/releases/$release_id" --method PATCH --input /tmp/native-body.json >/dev/null
+          while IFS= read -r asset_id; do
+            if [ -n "$asset_id" ]; then gh api "repos/$GH_REPO/releases/assets/$asset_id" --method DELETE; fi
+          done < /tmp/old-assets.txt

@@ -58,16 +58,17 @@ activity = package + "/" + package + ".MainActivity"
 methods = [line.strip() for line in adb("shell", "ime", "list", "-a", "-s").splitlines()]
 method = next((line for line in methods if line.startswith(package + "/")), None)
 assert method, f"Installed Meltype IME is missing: {methods}"
+adb("shell", "am", "force-stop", package)
 adb("shell", "ime", "enable", method)
 adb("shell", "ime", "set", method)
 adb("shell", "input", "keyevent", "224")
 adb("shell", "wm", "dismiss-keyguard")
 adb("shell", "input", "keyevent", "82")
-adb("shell", "am", "force-stop", package)
 adb("shell", "am", "start", "-n", activity)
 time.sleep(2)
 capture("android-setup.png")
 find("content-desc", "Meltypeのアイコン")
+assert adb("shell", "settings", "get", "secure", "default_input_method") == method, "Meltype is not the selected input method"
 editor_id = package + ":id/test_editor"
 tap(find("resource-id", editor_id))
 find("content-desc", "英語専用モードに切り替える")

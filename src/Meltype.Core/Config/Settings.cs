@@ -57,6 +57,7 @@ public enum ConversionEngine
     [Description("Mozc")] Mozc,
     /// <summary>OS の変換エンジン (Windows では Microsoft IME)。</summary>
     [Description("Microsoft IME")] System,
+    [Description("Google日本語入力（試験版）")] Google,
 }
 
 public enum InputMode
@@ -168,7 +169,7 @@ public sealed class Settings
     public bool LiveConversion { get; set; } = true;
 
     [Category("1. 全般"), DisplayName("変換エンジン"),
-     Description("かな漢字変換に使うエンジン。「両方」は Mozc (Google 日本語入力のオープンソース版) で変換し、Mozc が使えないときは Microsoft IME で変換します。候補には両方の候補が出ます。")]
+     Description("かな漢字変換に使うエンジン。「両方」はMozcを優先します。「Google日本語入力（試験版）」はインストール済みのGoogle本体で変換し、確定した日本語をGoogleにも学習させます。Googleで一度入力してから使用してください。")]
     public ConversionEngine ConversionEngine { get; set; } = ConversionEngine.Hybrid;
 
     [Category("1. 全般"), DisplayName("英訳の候補"),

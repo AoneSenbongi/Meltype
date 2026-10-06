@@ -1,0 +1,58 @@
+# Google日本語入力に近い操作を保つ改造IME
+
+ユーザーが希望する構成は、Meltypeの日英判定とGoogleエンジンによるライブ変換を維持し、未確定文字を元の入力欄へ直接表示するもの。2026年10月6日に、入力欄への直接表示を必須条件として確認した。独自の変換ボックスを入力欄に重ねる方式とは別の構成にする。フォントを似せるだけの対応では要件を満たさない。
+
+## 表示側の試作
+
+Native版の日本語入力では句読点を全角の「，」「．」にする。英語区間と数値の小数点・桁区切りは半角を維持する。日本語のローマ字入力に`zh → ←`、`zj → ↓`、`zk → ↑`、`zl → →`を追加する。Google本体の句読点設定もCOMMA_PERIODへ変更する。設定変更前にバックアップを取る。
+
+この改良はMeltypeのForkで管理する。学習履歴、個人の設定、ログ、バックアップ、ビルド済みファイルは公開対象に含めない。2026年10月6日に管理者でのIME登録と通常権限での有効化が成功した。実アプリでの表示は引き続き確認する。
+
+変更対象を表示側に絞る。NativeCompositionは、入力先アプリのTSF編集セッション内で未確定文字を更新するC++の部品。CompositionControllerが返す表示文字列を受け取り、同じ未確定範囲を置き換える。打鍵の判定やGoogle変換エンジンは変更しない。文字のフォントや色は指定せず、入力先の書式で扱う。
+
+検証ではWindowsの実際のTSFマネージャーと編集セッションを使い、検証用のTextStoreへかな、漢字、英字を含む未確定文字を反映する。更新で既存の前後の文字が失われないこと、確定で未確定範囲が終了すること、取消で入力前の選択文字が復元されること、別の入力欄への誤更新を拒否することを確かめる。検証用TextStoreはアプリがTSFへ提供する文書の最小実装であり、ブラウザーや実際の入力欄での表示・改行を確認する試験ではない。
+
+この部品だけでは常駐アプリから他のアプリへ入力できない。そのためNativeTextService（入力先で動くTSFのDLL）とNativeBroker（既存のCompositionControllerを動かす常駐プロセス）も試作した。元の入力欄にはTSFで文字を反映し、候補選択中だけ白い候補画面を出す。日本語と英語の判定、ライブ変換、Space・Enter・Escは既存のControllerを使う。IME切替やフォーカス変更では表示中の文字を保持する。アプリが未確定範囲を終了した場合は、次の打鍵で古いControllerの状態を破棄し、文字の重複を防ぐ。
+
+検証用の文書では、DLLの打鍵処理、別プロセスのBroker、インストール済みGoogleエンジン、TSFの文書更新が接続できた。検証時は学習を無効にし、候補画面の描画とOSへの打鍵ハンドラー登録は実行していない。実際のアプリでのフォント・色・改行、候補画面の配置は使用するアプリで確認する。試験機では管理者による登録と通常権限での有効化が成功し、Native版のBrokerが稼働している。
+
+通常権限での試験登録はITfInputProcessorProfiles::Registerで0x80004005となった。登録先のHKLM\\SOFTWARE\\Microsoft\\CTF\\TIPにも書き込み権限がなく、自分のCOM登録を取り消した。Googleの登録と辞書は変更していない。管理者による登録後に実アプリでの確認が必要。試験版は64ビットの従来型デスクトップアプリ向けで、32ビットアプリやストアアプリへの対応は未検証。
+
+## 改造するソースと接続先
+
+[公式の配布版と公開版の比較](https://github.com/google/mozc/blob/master/docs/about_branding.md)によると、配布版Google日本語入力のソースとシステム辞書はGoogle内部にあり、公開されたMozcとは異なる。このPCのGoogleIMEJaTIP64.dllなどは配布済みバイナリであり、対応する配布版のソースは取得できていない。
+
+当初は公開版MozcのTSF入力処理へMeltypeを組み込む案を検討した。その後、表示側だけを変更する要望に合わせ、既存のMeltypeを維持してTSFの表示部品を追加する方針に絞った。配布版Google日本語入力のプログラムとGoogleの候補画面を改造するものではない。Googleの変換エンジン、辞書、確定時の学習を既存のGoogleImeConverterで使う。
+
+ソースを確認する箇所はMozcのwin32/tip/tip_keyevent_handler.cc（打鍵）、win32/tip/tip_edit_session.cc（入力欄へ未確定文字を反映）、client/client.ccとipc/win32_ipc.cc（変換エンジンとの通信）。Googleの変換結果を使いながら、確定前の表示だけを打鍵ごとに更新する構成を検討する。Spaceで候補選択へ移り、英語は英字のまま保持する。
+
+[公式Windowsビルド手順](https://github.com/google/mozc/blob/master/docs/build_mozc_in_windows.md)ではMSVC、Windows SDK、ATL、Bazeliskなどが必要。このPCにはVisual Studio 2022があるが、vswhereのC++ツール条件では該当する環境が返らず、Windows SDKの標準ディレクトリも見つからなかった。ビルドに必要な追加環境は未導入。
+
+## 現行コードから確認した差分
+
+1. KeyboardモードはWindowsのIMEをOFFにし、MeltypeのCompositionWindowへ入力する。GoogleImeConverterを選んでも、表示はGoogleの標準画面にはならない。
+2. AutoSwitchモードは独自の変換ボックスを使わず、OSのIMEへ打鍵を渡す。ただし、既に日本語入力のときは判定を省略し、英語と判定したときにIMEを閉じる処理もない。そのままでは双方向の自動判別を満たさない。
+3. TsfImeController.FindJapaneseProfileはMicrosoft IMEを優先する。Google専用の補助モードではGoogleのプロファイルを保持し、Microsoft IMEへ切り替えないようにする必要がある。
+4. 入力の途中でIMEを閉じると、Googleが編集中の文字を確定・取消する可能性がある。日本語の変換中と、判定を開始してよい入力の区切りを分けて扱う必要がある。
+
+このPCにはGoogle日本語入力のTSFプロファイルが登録されている。登録されたTIPのCLSIDはD5A86FD5-5308-47EA-AD16-9C4EB160EC3C、プロファイルGUIDは773EB24E-CA1D-4B1B-B420-FA985BB0B80D。
+
+## 確定した入力の動作
+
+Spaceで変換候補を選ぶ操作は維持する。同時に、長く入力したときに未確定の表示が徐々に漢字へ変わるライブ変換も残す。これは途中で文章を確定する動作ではない。
+
+現行のMeltypeでは、日本語の読みが4文字以上になると、打鍵に応じて変換結果を再計算して独自画面に表示する。短い読みはかなのまま、英語の部分は英字のまま表示する。Spaceを押すと候補選択へ移る。この動作をGoogleの標準入力画面で実現できるかは未確認。Google側へ単にSpaceやEnterを自動送信する方式では、次の入力で前の文字が確定される可能性があり、同じ動作にはならない。
+
+実現方法を検証するまでは、現在の常駐設定をAutoSwitchへ変更しない。入力中の文字へ推測で確定操作を送らない。フォントを合わせるだけの実装も進めない。
+
+## 2026年10月6日の検証結果
+
+インストール済みのGoogle変換エンジンへ、独立したシークレットセッションから読みの更新とローマ字の打鍵を送った。既存の設定はuse_realtime_conversion、use_auto_conversionともに有効。mixed_conversionを無効・有効にした両方のセッションで、Space前の未確定文字はかなのままだった。Space後は漢字へ変換された。確定操作は送らず、検証用セッションは取り消して削除した。
+
+英語を含む`kyouhagoogledekensakushiteimasu`では、Google単独の入力結果は`きょうはごおｇぇでけんさくしています`だった。Meltypeの日英判定をそのままGoogleへ打鍵を渡すだけで再現できるわけではない。
+
+この結果は、今回試した設定と入力経路ではライブ変換を再現できなかったことを示す。Googleの画面全体で不可能と断定する検証ではない。独立セッションの変換結果を、Google自身が入力欄へ表示している未確定文字へ反映する方法は未確認。
+
+この事前試験を踏まえ、WindowsのTSF入力サービスを追加した。表示文字のフォントと色は指定せず、入力先の書式で扱う。Google自身の画面と処理をすべて使う構成とは異なる。
+
+現在の接続試験は`tools/native-ime/Generate-NativeCompositionTrace.ps1`と`native/tsf/NativeCompositionTest.cpp`を参照。参考は[Mozcの入力状態と変換操作](https://github.com/google/mozc/blob/master/docs/configurations.md)と[WindowsのTSF編集セッション](https://learn.microsoft.com/en-us/windows/win32/tsf/edit-sessions)。Mozcの資料だけで、インストール済みGoogle日本語入力の全機能を断定しない。

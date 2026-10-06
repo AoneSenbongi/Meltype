@@ -28,3 +28,7 @@ mac/build/
 native/mozc/bin/
 linux/build/
 tools/data/
+
+# Native IME local packages, settings backups, and logs
+experimental-build/
+backups/

@@ -25,6 +25,8 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     // Mozc (同梱の mozc/meltype_mozc_helper.exe) と Microsoft IME を組み合わせた変換エンジン。
     private readonly MozcConverter _mozc = new(Path.Combine(AppContext.BaseDirectory, "mozc", "meltype_mozc_helper.exe"), Path.Combine(Config.AppPaths.DataDirectory, "mozc"));
     private HybridConverter _hybrid = null!;
+    private readonly GoogleImeConverter _google = new(learning: true);
+    private Func<Config.ConversionEngine> _engine = null!;
     private readonly IME.Imm32ImeController _imm32 = new();
     private readonly System.Windows.Forms.Timer _tick = new() { Interval = 100 };
     private int _pumpScheduled;
@@ -33,6 +35,7 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     public CompositionService(Control invoker, CompositionDetector detector, CompositionOptions options)
     {
         _invoker = invoker;
+        _engine = options.Engine;
         Gate = new CaptureGate(SchedulePump);
         // 補助辞書・文脈の手がかり・学習データは、指定がなければ既定の場所から読む。
         var userDirectory = Config.AppPaths.UserDictionaryDirectory;
@@ -51,7 +54,7 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             ContextRules = options.ContextRules ?? ContextRules.Load(userDirectory),
             History = History,
             UserDictionary = UserDictionary,
-            MoreCandidates = options.MoreCandidates ?? (reading => _hybrid.Candidates(reading)),
+            MoreCandidates = options.MoreCandidates ?? (reading => _engine() == Config.ConversionEngine.Google ? _google.Candidates(reading) : _hybrid.Candidates(reading)),
             AutoCorrect = options.AutoCorrect,
             Level = options.Level,
             KanaInput = options.KanaInput,
@@ -66,8 +69,8 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             TranslationHistory = options.TranslationHistory ?? new TranslationHistory(Config.AppPaths.TranslationHistoryFile),
         };
         _hybrid = new HybridConverter(options.Engine, _mozc, _converter, reading => _windowsCandidates.Get(reading));
-        Controller = new CompositionController(Gate, detector, _hybrid, this, resolved);
-        if (options.Engine() != Config.ConversionEngine.System && _mozc.IsInstalled) _mozc.WarmUp();
+        Controller = new CompositionController(Gate, detector, new SelectedConverter(_engine, _google, _hybrid), this, resolved);
+        if (options.Engine() is Config.ConversionEngine.Hybrid or Config.ConversionEngine.Mozc && _mozc.IsInstalled) _mozc.WarmUp();
         _showIndicator = options.ModeIndicator;
         _placement = options.Placement;
         _size = options.Size;
@@ -81,6 +84,19 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     }
 
     public CaptureGate Gate { get; }
+
+    private sealed class SelectedConverter(Func<Config.ConversionEngine> engine, GoogleImeConverter google, HybridConverter hybrid)
+        : IKanjiConverter, ILearningConverter
+    {
+        private IKanjiConverter Current => engine() == Config.ConversionEngine.Google ? google : hybrid;
+        public string? Convert(string hiragana) => Current.Convert(hiragana);
+        public IReadOnlyList<ConversionClause>? ConvertClauses(string hiragana, string? context = null) => Current.ConvertClauses(hiragana, context);
+        public void Learn(string? context, IReadOnlyList<ConversionClause> clauses)
+        {
+            if (engine() == Config.ConversionEngine.Google) google.Learn(context, clauses);
+            else hybrid.Learn(context, clauses);
+        }
+    }
 
     public CompositionController Controller { get; }
 

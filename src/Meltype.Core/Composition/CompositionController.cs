@@ -57,6 +57,7 @@ public interface ICompositionHost
 /// <summary>CompositionController の設定と、外の判定器へのつなぎ。</summary>
 public sealed class CompositionOptions
 {
+    public bool FullWidthCommaPeriod { get; init; }
     /// <summary>打ったそばから漢字に変換して見せるか。</summary>
     public Func<bool> LiveConversion { get; init; } = () => false;
 
@@ -225,6 +226,7 @@ public sealed class CompositionController
         _converter = converter;
         _host = host;
         _options = options ?? new CompositionOptions();
+        _text.FullWidthCommaPeriod = _options.FullWidthCommaPeriod;
         _text.Level = () => _options.Level();
         _text.TypoCorrector = _options.RomajiTypos;
         // よく使う日本語の読み (kyouha = 今日は) は、一度英字にして確定しただけでは英語として覚えない。

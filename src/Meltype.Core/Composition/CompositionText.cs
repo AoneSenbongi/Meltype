@@ -31,6 +31,8 @@ public sealed class CompositionText
 
     public CompositionText(CompositionDetector detector) => _detector = detector;
 
+    public bool FullWidthCommaPeriod { get; set; }
+
     public IReadOnlyList<CompositionUnit> Units => _units;
     public string Pending => _pending.ToString();
     public bool IsEmpty => _units.Count == 0 && _pending.Length == 0;
@@ -68,6 +70,15 @@ public sealed class CompositionText
 
     public void Append(char c)
     {
+        if (c is 'h' or 'j' or 'k' or 'l' && Pending == "z" &&
+            (_units.Count == 0 || !char.IsAsciiLetter(_units[^1].Raw[^1])))
+        {
+            _pending.Length--;
+            Normalize(final: true);
+            var arrow = c switch { 'h' => "←", 'j' => "↓", 'k' => "↑", _ => "→" };
+            _units.Add(new CompositionUnit(arrow, arrow));
+            return;
+        }
         // 英数字の間に打った . / - はドメイン名や略語の区切り。入力直後は後続文字が分からないため、
         // 次の英数字が来た時点で句点・長音として読んだ記号を半角に戻す (tetr.io、J-core)。
         if (char.IsAsciiLetterOrDigit(c) && _units.Count >= 2 && (_units[^1].Raw is "." or "-") &&
@@ -864,11 +875,11 @@ public sealed class CompositionText
     }
 
     /// <summary>日本語の中で打った記号 (Microsoft IME と同じく全角)。英語の区間では打ったままの半角で出す。数字と括弧は半角のまま。</summary>
-    private static char Symbol(char c) => c switch
+    private char Symbol(char c) => c switch
     {
         '-' => 'ー',
-        ',' => '、',
-        '.' => '。',
+        ',' => FullWidthCommaPeriod ? '，' : '、',
+        '.' => FullWidthCommaPeriod ? '．' : '。',
         '[' => '「',
         ']' => '」',
         // ASCII の括弧はチャット本文でもそのまま使われるため、入力した幅を保つ。

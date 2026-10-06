@@ -12,6 +12,8 @@ internal static class TestRunner
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.FirstOrDefault() == "--google-verify") return GoogleImeTests.VerifyInstalledGoogle();
+        if (args.FirstOrDefault() == "--google-learning") return GoogleImeTests.VerifyLearning();
         TestSupport.WordChecker = Detection.WindowsSpellChecker.Shared;
         // dotnet run --project src/Meltype.Tests -- --convert きょうはいいてんきです
         // で、Microsoft IME の変換エンジン (MSIME.Japan) が使えるかを確かめる。

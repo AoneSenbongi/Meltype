@@ -142,6 +142,7 @@ internal static class CompositionTests
         /// <summary>かな入力 (JIS) か。</summary>
         public bool Kana { get; set; }
         public bool CorrectTypos { get; set; } = true;
+        public bool SpaceAroundEnglish { get; set; }
 
         /// <summary>かな入力で、仮想キーを順に打つ (shift: その打鍵で Shift を押す)。</summary>
         public void TypeKeys(params (int Vk, bool Shift)[] keys)
@@ -198,6 +199,7 @@ internal static class CompositionTests
                 TranslationHistory = translationHistory,
                 RomajiTypos = Typos,
                 CorrectTypos = () => CorrectTypos,
+                SpaceAroundEnglish = () => SpaceAroundEnglish,
             });
         }
 
@@ -1416,5 +1418,58 @@ internal static class CompositionTests
         k.Key('T');
         k.Key(VirtualKeys.LShift, up: true);
         Assert.True(k.Host.Events.Contains("up:A0"), "離したことを伝えないと Shift が押しっぱなしになる");
+    }
+
+    [Test]
+    public static void EnglishVerb_PlusSuru()
+    {
+        // Twitter の報告: 「commitしてpushして」が こっみつぃてぷっして になる
+        // (英単語の最後の t + s が つ になる / 末尾の pushsite は site も英単語なので全部英字になる)
+        foreach (var (typed, expected) in new[]
+        {
+            ("commitsitepushsite", "commitしてpushして"),
+            ("commitsuru", "commitする"),
+            ("commitsitekara", "commitしてから"),
+            ("pushsite", "pushして"),
+            ("gitpushsite", "gitpushして"),
+            ("website", "website"),
+            ("websitewomiru", "websiteをみる"),
+            ("tetsudou", "てつどう"),
+        })
+        {
+            // 実際と同じく、辞書にない英単語 (website) はスペルチェッカーで見る
+            Detector.SpellChecker = Detection.BuiltInWordChecker.Shared;
+            try
+            {
+                var k = new Keyboard();
+                k.Type(typed + "\n");
+                Assert.Equal(expected, k.Host.Document, typed);
+            }
+            finally
+            {
+                Detector.SpellChecker = null;
+            }
+        }
+    }
+
+    [Test]
+    public static void SpaceAroundEnglish_AddsHalfWidthSpaces()
+    {
+        // Twitter の要望: 半角英語の前後に半角スペース (設定、最初は OFF)
+        foreach (var (text, before, after, expected) in new (string, string?, string?, string)[]
+        {
+            ("今日はGitHubにpushした", null, null, "今日は GitHub に push した"),
+            ("iPhone15を買った", null, null, "iPhone15 を買った"),
+            ("3時に行く", null, null, "3時に行く"),                  // 数字だけには入れない
+            ("GitHubで、pushした。", null, null, "GitHub で、push した。"), // 記号の隣には入れない
+            ("C++の本", null, null, "C++ の本"),
+            ("Hello.今日は", null, null, "Hello.今日は"),            // 語の端の記号の後ろには入れない
+            ("に", "GitHub", null, " に"),                           // 前に確定した英単語に続ける
+            ("GitHub", "今日は", "に", " GitHub "),                  // キャレットの前後が日本語
+            ("I want to go", null, null, "I want to go"),          // 英文はそのまま
+        })
+        {
+            Assert.Equal(expected, CompositionController.AddSpacesAroundEnglish(text, before, after), text);
+        }
     }
 }

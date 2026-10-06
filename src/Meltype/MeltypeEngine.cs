@@ -115,6 +115,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     public void AttachComposition(Composition.CompositionService composition)
     {
         _composition = composition;
+        composition.PasteCommit = () => _settings.UsesPaste(_foreground.Current.ProcessName);
         composition.InputAllowed = () => KeyboardLayoutPolicy.AllowsInput(_settings);
         // 変換ボックスで確定した文字と、Meltype が送り直したキーも、今の行の追いかけに入れる (自分で送ったキーはフックに届かない)。
         composition.Controller.Committed += text => _line.Append(text);
@@ -190,6 +191,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
             if (e.IsDown)
             {
                 lock (_swallowedToggleUps) _swallowedToggleUps.Add(e.Vk);
+                MaskAltRelease();
                 // コードの行 (コメント・文字列の外) では、この行だけ日本語にする / 戻す。
                 if (!_keyboardDirect && IsCodeApp(settings) && (_codeJapanese || InCode(settings)))
                 {
@@ -202,6 +204,18 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
                 return true;
             }
         }
+        // 変換キーは Microsoft IME に渡さない。渡すと IME が ON になって選択した文字の再変換を始め、
+        // Meltype キーボードが IME を OFF に戻すときに、再変換中の文字 (選択していた文字) が消える (#19)。
+        if (settings.Enabled && e.Vk == VirtualKeys.Convert && !e.Injected && !composition.Gate.IsCaptured)
+        {
+            if (e.IsDown)
+            {
+                lock (_swallowedToggleUps) _swallowedToggleUps.Add(e.Vk);
+                MaskAltRelease();
+                Log.Info("変換キー: Meltype キーボードの使用中は Microsoft IME の再変換を使わない (選択した文字が消えるため)");
+            }
+            return true;
+        }
         // 英数状態で英語と判定した単語は、区切りのキー (Space・記号など) が来たら終わり。次の単語はまた判定する。
         // @ と _ の後ろはユーザー名 (@kuraido、upah_setu) なので判定しない (ローマ字として読めても日本語にしない)。
         if (_keyboardDirect && e.IsDown && !VirtualKeys.IsLetter(e.Vk) && !VirtualKeys.IsModifier(e.Vk))
@@ -211,6 +225,15 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         if (!swallowed && e.IsDown && !VirtualKeys.IsModifier(e.Vk)) composition.ForgetLastCommit();
         if (!swallowed && !e.Injected) TrackLine(e);
         return swallowed;
+    }
+
+    /// <summary>
+    /// Alt を押したまま打ったキー (US 配列の Alt + ` = 半角/全角) を飲み込むと、アプリには Alt だけを押して離したように見え、
+    /// メニューバーに移ってしまう。何もしないキー (0xE8、割り当てなし) を送って、Alt の単独押しにしない。
+    /// </summary>
+    private static void MaskAltRelease()
+    {
+        if (IsDown(VirtualKeys.Menu)) ThreadPool.QueueUserWorkItem(_ => KeyInjector.SendKey(0xE8));
     }
 
     // ---- アプリの種類「コード」: コメント・文字列の中だけ日本語 ----
@@ -364,7 +387,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         // 同梱の辞書にない英単語 (debate, potato) はローマ字としても読めるので、スペルチェッカーの語なら日本語にしない。
         if (result.Verdict == Verdict.Japanese && letters.Length >= 4 && Detection.WindowsSpellChecker.Shared.IsWord(letters.ToLowerInvariant()))
         {
-            Log.Info($"英数状態: 「{letters}」は英単語 (スペルチェッカー) なので日本語にしない");
+            Log.Info($"英数状態: {Log.Text(letters)}は英単語 (スペルチェッカー) なので日本語にしない");
             return final ? Verdict.English : Verdict.Undecided;
         }
         if (result.Verdict == Verdict.Japanese) Log.Decision($"英数状態でローマ字を検知: {result.Describe()}");
@@ -486,7 +509,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     {
         if (summary.UserCorrected)
         {
-            Log.Decision($"誤判定のフィードバック: \"{summary.Letters}\" は {summary.Verdict} ではなかった → {summary.Outcome}");
+            Log.Decision($"誤判定のフィードバック: {Log.Text(summary.Letters)} は {summary.Verdict} ではなかった → {summary.Outcome}");
         }
         if (_settings.LearningEnabled)
         {

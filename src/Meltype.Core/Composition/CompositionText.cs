@@ -126,7 +126,9 @@ public sealed class CompositionText
             while (_units.Count > 0 && _units[^1] is { Raw.Length: 1 } last && last.Kana == last.Raw && char.IsAsciiLetter(last.Raw[0]) &&
                    !(char.IsAsciiLetterUpper(last.Raw[0]) && _units.Count >= 2 && _units[^2].Raw is { Length: > 0 } before && char.IsAsciiLetterUpper(before[^1])) &&
                    // 英単語の最後の l / x (hotel の l) は、次の文字と合わせて小書き文字 (lya = ゃ) にしない。
-                   !(last.Raw is "l" or "x" or "L" or "X" && EndsWithEnglishWordFromUnit(_units.Count)))
+                   !(last.Raw is "l" or "x" or "L" or "X" && EndsWithEnglishWordFromUnit(_units.Count)) &&
+                   // 英単語の最後の t (commit の t) も、続けて打った s と合わせて ts (つ) にしない。
+                   !(last.Raw is "t" or "T" && _pending.Length > 0 && _pending[0] is 's' or 'S' && EndsWithEnglishWordFromUnit(_units.Count)))
             {
                 pulled.Insert(0, last.Raw);
                 _units.RemoveAt(_units.Count - 1);
@@ -134,6 +136,13 @@ public sealed class CompositionText
             _pending.Insert(0, pulled.ToString());
             // 英単語 (hotel) の最後の l / x の次に打った文字は、l / x と合わせて小書き文字 (hotel + ya → ほてゃ) にしない。
             if (_pending.Length == 1 && _pending[0] is 'l' or 'x' or 'L' or 'X' && EndsWithEnglishWordFromUnit(_units.Count, _pending.ToString()))
+            {
+                _units.Add(new CompositionUnit(_pending.ToString(), _pending.ToString()));
+                _pending.Clear();
+            }
+            // 英単語の最後の t の次に打った s は、t と合わせて ts (つ・つぃ) にしない
+            // (commit + suru・site → こっみつる・こっみつぃて ではなく commitする・commitして)。
+            if (_pending.Length == 1 && _pending[0] is 't' or 'T' && c is 's' or 'S' && EndsWithEnglishWordFromUnit(_units.Count, _pending.ToString()))
             {
                 _units.Add(new CompositionUnit(_pending.ToString(), _pending.ToString()));
                 _pending.Clear();

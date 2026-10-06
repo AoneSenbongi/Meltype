@@ -39,7 +39,10 @@ public sealed record DetectionResult(
     IReadOnlyList<Contribution> Contributions,
     string Summary)
 {
+    /// <summary>
+    /// ログ用の説明。入力した文字をログに出さない設定 (既定) なら、打った文字と、理由の中の打った文字 (「kyou」と一致 など) は出さない。
+    /// </summary>
     public string Describe() =>
-        $"{Verdict} \"{Text}\" JP={JapaneseScore} EN={EnglishScore} {Summary}" +
-        (Contributions.Count > 0 ? " | " + string.Join(", ", Contributions) : "");
+        $"{Verdict} {Diagnostics.Log.Text(Text)} JP={JapaneseScore} EN={EnglishScore} {Summary}" +
+        (Contributions.Count > 0 ? " | " + string.Join(", ", Contributions.Select(c => Diagnostics.Log.RecordText ? c.ToString() : $"{c.Source}(JP{c.Japanese:+#;-#;0} EN{c.English:+#;-#;0})")) : "");
 }

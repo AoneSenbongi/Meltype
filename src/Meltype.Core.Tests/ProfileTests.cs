@@ -102,4 +102,14 @@ internal static class ProfileTests
         Assert.True(odd.Enabled, "ON/OFF は読み込まない");
         Assert.Equal(3000, odd.IdleFlushMs, "範囲に収める");
     }
+    [Test]
+    public static void PasteApps_MatchProcessNames()
+    {
+        // #5: DaVinci Resolve は 1 文字ずつ送ると取り違えるので、最初から貼り付けで入れる
+        var settings = new Settings().Normalize();
+        Assert.True(settings.UsesPaste("Resolve.exe") && settings.UsesPaste("resolve.EXE"), "Resolve は最初から (大文字小文字は問わない)");
+        Assert.True(!settings.UsesPaste("notepad.exe") && !settings.UsesPaste(null), "ほかのアプリは今までどおり");
+        settings.PasteApps = "Resolve.exe, LINE.exe ;foo.exe";
+        Assert.True(settings.UsesPaste("LINE.exe") && settings.UsesPaste("foo.exe"), "カンマ・セミコロン区切り");
+    }
 }

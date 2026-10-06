@@ -223,12 +223,27 @@ public sealed class FocusInspector : IDisposable
                 // Windows Terminal などは Edit ではなく TextPattern を持つ独自コントロール。
                 editable = true;
             }
+            // UI Automation では入力欄と分からなくても、Windows のキャレット (点滅する縦線) を出しているなら文字を打つ所
+            // (サクラエディタなど、独自の編集画面を持つ Win32 のアプリ)。
+            if (!editable && HasCaret())
+            {
+                editable = true;
+                description += " (キャレットあり)";
+            }
             return new FocusInfo(editable, false, element.Bounds, description, element.Name, element.ClassName);
         }
         catch (Exception ex)
         {
             return new FocusInfo(false, false, null, $"確認できない: {ex.GetType().Name}");
         }
+    }
+
+    /// <summary>前面のウィンドウのスレッドが、フォーカスのあるウィンドウにキャレットを出しているか。</summary>
+    private static bool HasCaret()
+    {
+        var thread = Native.GetWindowThreadProcessId(Native.GetForegroundWindow(), out _);
+        var info = new Native.GUITHREADINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.GUITHREADINFO>() };
+        return Native.GetGUIThreadInfo(thread, ref info) && info.hwndCaret != IntPtr.Zero && info.hwndCaret == info.hwndFocus;
     }
 
     private static string ControlTypeName(int type) => type switch

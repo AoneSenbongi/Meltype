@@ -91,15 +91,15 @@ public sealed class LanguageMemory
             var waiting = NeedsTwice(word, old);
             old.Count = Math.Max(1, old.Count) + 1;
             old.Explicit |= explicitChoice;
-            if (waiting) Diagnostics.Log.Decision($"「{word}」は次から英語にします (2 回目の学習)。");
+            if (waiting) Diagnostics.Log.Decision($"{Diagnostics.Log.Text(word)}は次から英語にします (2 回目の学習)。");
         }
         else
         {
             var entry = new Entry { English = english, Used = DateTime.UtcNow, Count = 1, Explicit = explicitChoice };
             _entries[word] = entry;
             Diagnostics.Log.Decision(NeedsTwice(word, entry)
-                ? $"「{word}」はローマ字としても読めるので、もう一度英字にして確定したら英語にします (学習)。"
-                : $"「{word}」は次から{(english ? "英語" : "日本語")}にします (学習)。");
+                ? $"{Diagnostics.Log.Text(word)}はローマ字としても読めるので、もう一度英字にして確定したら英語にします (学習)。"
+                : $"{Diagnostics.Log.Text(word)}は次から{(english ? "英語" : "日本語")}にします (学習)。");
         }
         if (_entries.Count > MaxEntries)
         {

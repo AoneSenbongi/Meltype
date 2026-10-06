@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.0</string>
+	<string>1.0.1</string>
 	<key>CFBundleVersion</key>
-	<string>6</string>
+	<string>7</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>LSBackgroundOnly</key>
@@ -41,6 +41,9 @@
 	<string>ja</string>
 	<key>tsInputMethodIconFileKey</key>
 	<string>icon.tiff</string>
+	<!-- 黒い M の形だけを使い、ダークモードでは白く出す (黒のままだと見えない) -->
+	<key>TISIconIsTemplate</key>
+	<true/>
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Hira</string>
@@ -64,6 +67,8 @@
 				<string>icon.tiff</string>
 				<key>tsInputModeAlternateMenuIconFileKey</key>
 				<string>icon.tiff</string>
+				<key>TISIconIsTemplate</key>
+				<true/>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeIsVisibleKey</key>

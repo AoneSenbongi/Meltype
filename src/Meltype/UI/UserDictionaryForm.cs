@@ -125,7 +125,7 @@ internal sealed class UserDictionaryForm : Form
             return;
         }
         _message.Text = "";
-        Diagnostics.Log.Info($"ユーザー辞書に登録しました: {reading} → {_word.Text.Trim()}");
+        Diagnostics.Log.Info($"ユーザー辞書に登録しました: {Diagnostics.Log.Text(reading)} → {Diagnostics.Log.Text(_word.Text.Trim())}");
         _reading.Clear();
         _word.Text = "";
         _word.Items.Clear();

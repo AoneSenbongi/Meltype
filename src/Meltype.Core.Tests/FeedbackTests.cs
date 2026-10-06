@@ -213,6 +213,19 @@ internal static class KanaInputTests
     }
 
     [Test]
+    public static void KanaInput_SpaceAroundEnglish()
+    {
+        // かな入力でも、確定した英単語の前後に半角スペースが入る
+        var k = Kana();
+        k.SpaceAroundEnglish = true;
+        k.TypeKanaKeys("google");
+        k.Type("\n");
+        k.TypeKanaKeys("byiaf");
+        k.Type("\n");
+        Assert.Equal("google こんにちは", k.Host.Document);
+    }
+
+    [Test]
     public static void KanaInput_FollowsLevels()
     {
         var manual = Kana(DetectionLevel.Manual);
@@ -534,6 +547,9 @@ internal static class LanguageLearningTests
                 // テスターの報告 (2026-10-05): 英語のユーザー名が打てない。@ の後ろ (メンション)・_ の入った語は英字のまま
                 ("@kuraido", "@kuraido"), ("@una08142009 arigatou", "@una08142009 ありがとう"), ("upah_setu", "upah_setu"), ("cafely_latte", "cafely_latte"),
                 ("taro@gmail.com", "たろ@gmail.com"), ("@akisamesan", "@akisamesan"),
+                // Issue #12: ローマ字として読めてしまう英単語 (feature → ふぇあつれ)。日本語の中でも英字
+                ("feature", "feature"), ("future", "future"), ("nature", "nature"), ("remote", "remote"), ("online", "online"),
+                ("atarashiifeaturewotsuika", "あたらしいfeatureをついか"), ("kyouharemotedesu", "きょうはremoteです"),
             })
             {
                 var k = new CompositionTests.Keyboard();

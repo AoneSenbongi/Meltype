@@ -1,0 +1,80 @@
+name: Android prototype
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  MOZC_REVISION: 60fe4012e5eaa26805dbbb8e5548cbe6db4aaf98
+jobs:
+  mozc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore built engine
+        id: engine-cache
+        uses: actions/cache@v4
+        with:
+          path: engine
+          key: android-mozc-60fe4012e5eaa26805dbbb8e5548cbe6db4aaf98-v1
+      - name: Build OSS Mozc and dictionary
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --filter=blob:none https://github.com/google/mozc.git mozc
+          git -C mozc checkout "$MOZC_REVISION"
+          curl --fail --location https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /tmp/bazelisk
+          chmod +x /tmp/bazelisk
+          cd mozc/src
+          python3 build_tools/update_deps.py
+          /tmp/bazelisk build --config oss_android --config release_build //android/jni:mozc.arm64 //android/jni:mozc.x86_64 //data_manager/oss:mozc.data
+          mkdir -p ../../engine/Native/arm64-v8a ../../engine/Native/x86_64 ../../engine/Assets
+          arm64=$(/tmp/bazelisk cquery --config oss_android --config release_build //android/jni:mozc.arm64 --output=files | tail -n 1)
+          x64=$(/tmp/bazelisk cquery --config oss_android --config release_build //android/jni:mozc.x86_64 --output=files | tail -n 1)
+          cp "$arm64" ../../engine/Native/arm64-v8a/libmozc.so
+          cp "$x64" ../../engine/Native/x86_64/libmozc.so
+          cp bazel-bin/data_manager/oss/mozc.data ../../engine/Assets/mozc.data
+          external=$(/tmp/bazelisk info output_base)/external
+          python3 ../../android/tools/collect_notices.py ../../engine/Assets/THIRD_PARTY_NOTICES.txt .. "$external"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-mozc-engine
+          path: engine
+          if-no-files-found: error
+  apk:
+    needs: mozc
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-mozc-engine
+          path: android/Meltype.Android
+      - name: Install Android workload
+        run: dotnet workload install android
+      - name: Test input and mode toggle
+        run: dotnet run --project android/Meltype.Android.Tests
+      - name: Install build dependencies
+        run: dotnet build android/Meltype.Android -t:InstallAndroidDependencies -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" -p:AcceptAndroidSdkLicenses=True
+      - name: Build APK
+        run: |
+          dotnet build android/Meltype.Android -c Debug -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME"
+          mkdir -p android-distribution
+          cp android/Meltype.Android/bin/Debug/net10.0-android/*-Signed.apk android-distribution/Meltype-Android-prototype.apk
+          cp LICENSE docs/ANDROID_PROTOTYPE.md android/Meltype.Android/Assets/THIRD_PARTY_NOTICES.txt android-distribution/
+          git rev-parse HEAD > android-distribution/SOURCE_VERSION.txt
+          git archive --format=zip --output=android-distribution/corresponding-source.zip HEAD
+          cd android-distribution
+          sha256sum Meltype-Android-prototype.apk > Meltype-Android-prototype.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Meltype-Android-prototype
+          path: android-distribution
+          if-no-files-found: error

@@ -1,84 +1,69 @@
-# Meltype
+# Meltype Native Google
 
-このForkには、インストール済みのGoogle日本語入力を使う変換エンジンと、元の入力欄へ未確定文字を表示するWindows Native版を追加しています。日英の自動判別とライブ変換を維持し、日本語の句読点は全角の「，」「．」、`zh`・`zj`・`zk`・`zl`は矢印になります。[Native版のビルド・起動方法](docs/NATIVE_IME_SETUP.md)を参照してください。以下は元のMeltypeの案内です。
-
-従来の常駐版にも「Google日本語入力（試験版）」を選ぶ設定があります。確定した日本語をGoogleにも学習させます。Googleの学習停止設定やシークレット設定が有効な場合は学習しません。[Google接続の制約と検証方法](docs/GOOGLE_IME_EXPERIMENT.md)を参照してください。
-
-**雪解けのように、半角/全角の壁を溶かす日本語入力。**
-
-半角/全角 キーを押さなくても、日本語と英語を打ち分けられるようにする Windows 常駐ツールです。
-(開発中は AutoIME という仮の名前でした。以前の設定と学習データは、Meltype の初回起動時に自動で引き継ぎます)
-
-Windows 版のほか、Mac 版・Linux 版のプレビュー版があります ([mac/README.md](mac/README.md)。Linux 版は IBus のエンジン)。プレビュー版は、まだ一部の機能が無く、動きも変わることがあります。
+[雪代／Yukishiro氏のMeltype](https://github.com/yksr-melt/Meltype)を基に、Windowsの入力欄へ未確定文字を表示するIMEと、インストール済みGoogle日本語入力との連携を追加した非公式Forkです。改良は`google-native-ime`ブランチで管理しています。Googleや元作者の公式配布版ではありません。
 
 ## できること
 
-- 半角/全角 キーを押さずに、ローマ字のまま日本語と英語を混ぜて打てます (`kyouhagoogledekensaku` → 今日はgoogleで検索)
-- 日本語は変換ボックスでかな・漢字に変換し、英単語 (`google` `github` `hello` …) は自動で英字のまま
-- 英文 (`I want to go to the park`) も、そのまま打てます
-- 絵文字・顔文字の変換 (えがお → 😊)、よくある書き間違いの指摘 (ブレスレッド → ブレスレット)
-- VS Code やターミナルでは基本は英数、コメントや文字列の中だけ日本語
-- 打った内容をネットワークに送りません。判定・変換はすべて PC の中で行います
+Meltypeの日英判別を使い、`kyouhagoogledekensaku`を「今日はgoogleで検索」のように入力できます。日本語の読みが4文字以上になると、Spaceを押す前からGoogleの変換結果で表示を更新します。途中では確定しません。
+
+未確定文字は元の入力欄へ表示し、フォントや色を独自に指定しません。候補選択中だけ白い候補画面を出します。日本語の句読点は全角の「，」「．」。ローマ字入力の区切りで`zh → ←`、`zj → ↓`、`zk → ↑`、`zl → →`を使えます。
+
+Googleの既存辞書・学習履歴を使います。学習が有効なら、確定した日本語を一致確認のうえGoogleにも学習させます。
 
 ## インストール
 
-1. [Releases](https://github.com/yksr-melt/Meltype/releases) から `Meltype-<版>-windows.zip` をダウンロードして展開する
-   (Mac 版は `Meltype-<版>-mac.zip`、Linux 版は `Meltype-<版>-linux.zip`。どちらもプレビュー版)
-2. `Install.cmd` をダブルクリックする (管理者権限は不要)
-   - Meltype はコード署名をしていないので、「Windows によって PC が保護されました」と出ることがあります。「詳細情報」→「実行」で入れられます。
-   - キーボードの入力を受け持つソフトなので、ウイルス対策ソフトが誤って止めることがあります。そのときは、お使いのウイルス対策ソフトで Meltype のフォルダーを許可してください。
-   - ダウンロードした zip が本物か確かめたいときは、リリースのページに出ている SHA-256 と比べてください (PowerShell: `Get-FileHash .\Meltype-<版>-windows.zip`)。
-3. タスクトレイに「あ」のアイコンが出れば動いています。Windows の起動時にも自動で起動します。
+必要なものはWindows 10／11のx64版と、インストール済みのGoogle日本語入力です。ARM版と32ビット版にはこのパッケージを使わないでください。ランタイムはZIPに同梱しているので、Codex・開発環境・別途の.NETインストールは不要です。
 
-1.0.0 以降は、新しい版が出ると自動で更新します (トレイのアイコンを右クリック →「更新」→「自動で更新する」で止められます)。
-アンインストールは、トレイの Meltype のアイコンを右クリック →「アンインストール...」か、Windows の「設定」→「アプリ」→「インストールされているアプリ」で Meltype の「…」→「アンインストール」を選びます (設定と学習データも消えます)。zip の中の `Uninstall.cmd` をダブルクリックしても同じです。
+1. Google日本語入力をインストールし、一度日本語を入力して動作を確認します。
+2. [このForkのRelease](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-20261006)のAssetsから、`Meltype-Native-Google-windows-x64-<日時>.zip`をダウンロードして全部展開します。`C:\MeltypeNative`など、移動しない場所へ置いてください。ZIPのプロパティに「ブロックの解除」がある場合は、展開前に解除します。
+3. 展開したフォルダーの`Install-NativeIme.cmd`を右クリックし、「管理者として実行」します。普段使うWindowsアカウントで実行してください。Googleの設定と学習データをバックアップしてからIMEを登録します。
+4. 管理者画面を閉じ、`Start-NativeIme.cmd`を通常のダブルクリックで起動します。初回は最大60秒待ちます。
 
-必要なもの: Windows 10 / 11 (64bit)、Microsoft IME (Windows 標準の日本語入力)。.NET は同梱しているので、別に入れる必要はありません。
+Windowsへ再ログインした後も、`Start-NativeIme.cmd`で起動してください。この試験版には自動起動と自動更新を設定していません。従来のMeltype常駐版が動いている場合は、先に終了します。
 
-## 使い始める
+ZIPのSHA-256はReleaseの`.sha256`ファイルと比較できます。
 
-メモ帳やブラウザーの入力欄で、IME を気にせずそのままローマ字で打ってください。
+```powershell
+Get-FileHash .\Meltype-Native-Google-windows-x64-<日時>.zip -Algorithm SHA256
+```
 
-- 日本語はかなで、英単語は英字のまま、カーソルの下の変換ボックスに出ます
-- **Enter** で確定、**Space** で漢字に変換 (英単語のときは確定して空白)
-- 変換中は ← → で文節を選び、Space / ↓ で候補を切り替え
-- **F7** でカタカナ、**F10** で英字。英字にして確定した語は、次から英字になります
-- **半角/全角** で英数 (そのまま入力) ⇔ 日本語、**Ctrl + 半角/全角** で Meltype 自体の一時停止 / 再開
-- よく使う言葉は、トレイのアイコンを右クリック →「ユーザー辞書...」で登録できます
+詳しくは[自分のPCへの導入](docs/NATIVE_IME_TRANSFER.md)を参照してください。Mac版・Linux版のNative Google連携パッケージは配布していません。
 
-詳しい使い方 (キー操作・判定の強さ・かな入力・コードエディター・設定など) は [docs/USAGE.md](docs/USAGE.md) にあります。
+## 使い方
 
-## よくある質問
+入力欄へローマ字で入力します。日本語はライブ変換し、英語と判別した部分は英字で残します。Spaceで変換候補を選び、Enterで確定します。半角／全角キーで日本語入力と英数の直接入力を切り替えます。
 
-**タスクバーの IME の表示がずっと「A」のまま**
-Meltype が Windows の IME を OFF にして、代わりに入力を受け持っているためです (故障ではありません)。今のモードは、入力欄に入ったときにカーソルの近くに出る「あ」「A」か、タスクトレイの Meltype のアイコンで分かります。
+Google本体でも全角の「，」「．」を使う場合は、Google日本語入力のプロパティで句読点を「，．」に設定します。新しい履歴をGoogleへ追加する場合は、Google側で「学習する」を選んでください。
 
-**Google 日本語入力など、ほかの IME も使いたい**
-Ctrl + 半角/全角 で Meltype を一時停止してから使ってください。
+## 停止・更新・削除
 
-**英語のつもりがかなになった / かなのつもりが英字になった**
-F10 (英字) / F6 (ひらがな) で直して確定すると、次からその語は直した方になります。トレイの右クリック →「自動判定の強さ」でも調整できます。
+通常のGoogle日本語入力へ戻す場合は`Stop-NativeIme.cmd`を通常起動します。登録を削除する場合は`Uninstall-NativeIme.cmd`を管理者として実行してください。バックアップと展開したファイルは残ります。登録後にフォルダーを移動する場合は、先に登録を削除します。
 
-**おかしな動きを見つけた**
-トレイのアイコンを右クリック →「不具合の報告・提案...」から報告できます。「どのアプリで」「何と打って」「どうなったか」を書いてもらえると助かります。
+句読点・疑問符の入力でライブ変換がかなへ戻る問題への修正を公開しています。導入済みの場合はReleaseの`Meltype-Native-PunctuationFix-20261006.zip`を全部展開し、`Update-Punctuation.cmd`を通常起動してください。更新前のDLLをバックアップしてから変換部品を更新します。再登録は不要です。現在の通常ZIPにも修正を含めています。ただし、修正後も同じ症状の報告があり、追加調査中です。
+
+古いパッケージで起動待ちが約4秒で失敗する場合は、Releaseの`Meltype-Native-StartupFix-20261006.zip`を展開し、`tools`フォルダーを導入先へコピーして上書きしてください。
+
+## 検証範囲と制約
+
+WindowsのTSF文書を使った未確定文字・確定・取消の試験、Googleとの接続試験、日英混在と起動待ちの試験を実施しています。登録・有効化と、別のPCでの起動も確認しました。フォント・改行・候補配置は使用するアプリで確認してください。32ビットアプリとストアアプリは未検証です。
+
+Native版では、前後の確定文字の取得やMeltype独自の永続学習をまだ接続していません。元のMeltypeにあるトレイ設定・コードエディター用の判別・ユーザー辞書画面など、一部の機能はNative版で提供していません。
+
+Googleへの接続は非公式IPCを使っています。Googleの更新によって接続できなくなる可能性があります。Google本体のプログラムやシステム辞書は改造・同梱していません。
+
+不具合を報告する際は、アプリ名、入力した操作、期待した動作、実際の動作を記載してください。起動失敗時は画面のメッセージと、`experimental-build`内の`native-broker-errors.txt`・`native-broker-output.txt`も確認できます。
 
 ## プライバシー
 
-Meltype はキーボードの入力を監視して動くツールですが、打った内容をネットワークに送ることはありません。 セキュリティの方針と脆弱性の報告先は [SECURITY.md](SECURITY.md)。通信するのは、自動更新で GitHub に新しい版があるかを確かめるとき (送るのは今の版だけ) と、自分で開いた不具合報告のフォームだけです。
-保存するのは `%LOCALAPPDATA%\Meltype` の設定・学習データ・ユーザー辞書と、ファイルログを ON にしたときのログだけです。
+入力の判別とGoogleへの変換要求はPC内で処理します。入力文字をネットワークへ送信する処理は追加していません。ZIPには個人の設定・辞書・学習履歴を含めず、導入先のGoogleのデータを使います。登録時のバックアップは展開先の`backups`へ保存します。
 
-## ライセンス
+## 元のMeltypeとライセンス
 
-Meltype は **GNU General Public License v3.0** ([LICENSE](LICENSE)) で公開しています。
+日英判別と入力処理は、元のMeltypeの成果を基にしています。元作者と協力者への謝意を含む[元のREADME](README.UPSTREAM.md)を保存しています。この文書は元の常駐版の説明であり、上記のNative版の導入手順とは異なります。
 
-- 個人・会社でそのまま使う、GPL v3 の条件 (改造版もソースを公開) で改造・再配布する → 無料で自由に使えます
-- GPL v3 の条件で使えない場合 (製品に組み込んでソースを公開せずに配布したいなど、非公開で利用したい場合) は、メールでご相談ください: ibutya0319@gmail.com
+MeltypeとこのForkの改良は[GNU GPL](LICENSE)に従って公開しています。配布ZIPには対応するソースを同梱しています。同梱ランタイムのライセンスと第三者の通知は、ZIP内の`runtime/LICENSE.txt`と`runtime/ThirdPartyNotices.txt`を参照してください。
 
-貢献の方法と貢献者ライセンス同意 (CLA) は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
-
-ソースファイルの先頭には `SPDX-License-Identifier: GPL-3.0-or-later` を付けています。配布用パッケージに同梱している .NET ランタイム (MIT ライセンス) と、実行時に使う Windows の機能は [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) を参照してください。アプリのバージョン・著作権・ライセンスは、トレイの「Meltype について...」で確認できます。
-
-```
+```text
 Meltype
 Copyright (C) 2026 雪代 / Yukishiro (@yksr_melt / @yksr-melt)
 
@@ -91,20 +76,4 @@ even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE
 General Public License for more details.
 ```
 
-## 協力してくださった方々
-
-テスト版を使って、不具合の報告や意見をくださった方々です。ありがとうございました (敬称略)。
-
-- くらいど！ ([@Kuraido8888](https://x.com/Kuraido8888))
-- しぐれ ([@Akisameee0465](https://x.com/Akisameee0465))
-- 琴音Link
-- あげちゃ
-- うな ([@una08142009](https://x.com/una08142009))
-- かふぇらて ([@cafely_latte](https://x.com/cafely_latte))
-- ウパー ([@upah_setu](https://x.com/upah_setu))
-- Ray
-- うぽつです ([@up2ds](https://x.com/up2ds))
-
-## 開発に参加する
-
-ソースからのビルド・テスト・動作の仕組みは [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)、不具合の報告・辞書の追加・Pull Request の送り方は [CONTRIBUTING.md](CONTRIBUTING.md) を見てください。
+ソースからのビルドは[Native版の構成と手順](docs/NATIVE_IME_SETUP.md)、Googleとの接続方式は[Google連携の説明](docs/GOOGLE_IME_EXPERIMENT.md)を参照してください。

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <ApplicationId>jp.aonesenbongi.meltype</ApplicationId>
+    <ApplicationTitle>Meltype Android 試作版</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+    <AndroidPackageFormats>apk</AndroidPackageFormats>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Meltype.Android.Core/Meltype.Android.Core.csproj" />
+    <AndroidJavaSource Include="Java/**/*.java" />
+    <AndroidNativeLibrary Include="Native/arm64-v8a/libmozc.so" />
+    <AndroidNativeLibrary Include="Native/x86_64/libmozc.so" />
+    <AndroidAsset Include="../../../LICENSE" Link="LICENSE.txt" />
+  </ItemGroup>
+  <Target Name="RequireMozc" BeforeTargets="Build">
+    <Error Condition="!Exists('Native/arm64-v8a/libmozc.so') Or !Exists('Native/x86_64/libmozc.so') Or !Exists('Assets/mozc.data')" Text="Build and package the pinned Mozc libraries and OSS dictionary first. See docs/ANDROID_PROTOTYPE.md." />
+  </Target>
+</Project>

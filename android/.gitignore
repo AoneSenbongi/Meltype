@@ -1,0 +1,5 @@
+**/bin/
+**/obj/
+Meltype.Android/Native/
+Meltype.Android/Assets/mozc.data
+Meltype.Android/Assets/THIRD_PARTY_NOTICES.txt

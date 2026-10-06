@@ -41,7 +41,9 @@ def capture(name):
 
 package = "jp.aonesenbongi.meltype"
 activity = package + "/" + package + ".MainActivity"
-method = next(line for line in adb("shell", "ime", "list", "-s").splitlines() if line.startswith(package + "/"))
+methods = [line.strip() for line in adb("shell", "ime", "list", "-a", "-s").splitlines()]
+method = next((line for line in methods if line.startswith(package + "/")), None)
+assert method, f"Installed Meltype IME is missing: {methods}"
 adb("shell", "ime", "enable", method)
 adb("shell", "ime", "set", method)
 adb("shell", "am", "force-stop", package)

@@ -113,7 +113,8 @@ public sealed class KeyboardService : InputMethodService
     private int Dp(int pixels) => MobileStyle.Dp(this, pixels);
     private Button AddKey(LinearLayout row, string label, Action action, float weight = 1, int height = 48, string? description = null)
     {
-        var key = new Button(this) { Text = label, TextSize = label.Length > 3 ? 13 : 18, ContentDescription = description ?? label };
+        var key = new Button(this) { Text = label, TextSize = label.Length > 1 ? 13 : 20, ContentDescription = description ?? label };
+        key.SetSingleLine(true);
         MobileStyle.Button(key); key.SetPadding(0, 0, 0, 0); key.Click += (_, _) => action();
         row.AddView(key, new LinearLayout.LayoutParams(0, Dp(height), weight) { MarginStart = Dp(2), MarginEnd = Dp(2), TopMargin = Dp(3), BottomMargin = Dp(3) }); return key;
     }

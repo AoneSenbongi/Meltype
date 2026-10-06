@@ -111,6 +111,7 @@ jobs:
           grep -q '^PASS:' android-distribution/ANDROID_TEST_RESULT.txt
           python3 android/tools/test_keyboard_ui.py android-distribution
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Meltype-Android-prototype
           path: android-distribution

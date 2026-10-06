@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
 $context = Get-NativeGuiContext $workspace
@@ -62,12 +62,12 @@ try {
         Copy-Item -LiteralPath $launcher -Destination $targetLauncher -Force
     }
     $context.State | Add-Member NoteProperty BaseVersion '1.0.1' -Force
-    $context.State | Add-Member NoteProperty NativeVersion '1.0.1.1' -Force
+    $context.State | Add-Member NoteProperty NativeVersion '1.0.2' -Force
     $context.State | ConvertTo-Json | Set-Content (Join-Path $context.Root 'experimental-build/native-ime-install.json') -Encoding UTF8
     if ($autoEnabled) { & (Join-Path $PSScriptRoot 'Set-InstalledNativeAutoStart.ps1') }
     & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -WorkspaceRoot $context.Root
     & (Join-Path $context.Scripts 'Start-NativeIme.ps1')
-    Write-Output 'Updated to Meltype Native Google 1.0.1.1. Google dictionaries and learning data were preserved. Reopen input applications to load the new native DLL.'
+    Write-Output 'Updated to Meltype Native Google 1.0.2. Google dictionaries and learning data were preserved. Reopen input applications to load the new native DLL.'
 } catch {
     $failure = $_
     if ($registrationChanged) {

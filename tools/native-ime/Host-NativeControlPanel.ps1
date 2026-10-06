@@ -12,7 +12,7 @@ $mutex = [Threading.Mutex]::new($false, ('Local\Meltype.NativePanel.' + $sid), [
 $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\Meltype.NativePanel.Show.' + $sid))
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Meltype 1.0.1 · Google日本語入力'
+$form.Text = 'Meltype 1.0.2 · Google日本語入力'
 $form.ClientSize = [Drawing.Size]::new(600, 480)
 $form.MinimumSize = [Drawing.Size]::new(616, 519)
 $form.StartPosition = 'CenterScreen'

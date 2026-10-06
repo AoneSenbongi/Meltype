@@ -56,6 +56,7 @@ public sealed class KeyboardService : InputMethodService
         var root = new LinearLayout(this) { Orientation = Orientation.Vertical };
         root.SetBackgroundColor(MobileStyle.KeyboardBackground);
         root.SetPadding(Dp(4), Dp(4), Dp(4), Dp(6));
+        root.SetOnApplyWindowInsetsListener(new KeyboardInsets(Dp(6)));
         var header = new LinearLayout(this); header.SetGravity(GravityFlags.CenterVertical);
         _status = new TextView(this) { TextSize = 11 };
         _status.SetTextColor(MobileStyle.Muted); _status.SetPadding(Dp(8), Dp(2), Dp(8), Dp(2));
@@ -221,5 +222,18 @@ public sealed class KeyboardService : InputMethodService
     public override void OnDestroy()
     {
         Interlocked.Increment(ref _generation); _thread?.QuitSafely(); base.OnDestroy();
+    }
+
+    private sealed class KeyboardInsets(int padding) : Java.Lang.Object, View.IOnApplyWindowInsetsListener
+    {
+        public WindowInsets OnApplyWindowInsets(View? view, WindowInsets? insets)
+        {
+            if (view == null || insets == null) throw new ArgumentNullException();
+            var bottom = OperatingSystem.IsAndroidVersionAtLeast(30)
+                ? insets.GetInsets(WindowInsets.Type.NavigationBars())!.Bottom
+                : insets.SystemWindowInsetBottom;
+            view.SetPadding(view.PaddingLeft, view.PaddingTop, view.PaddingRight, padding + bottom);
+            return insets;
+        }
     }
 }

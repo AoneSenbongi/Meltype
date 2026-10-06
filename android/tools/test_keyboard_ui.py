@@ -17,7 +17,7 @@ def adb(*args):
 def tree():
     for _ in range(4):
         try:
-            adb("shell", "uiautomator", "dump", "/sdcard/meltype-window.xml")
+            adb("shell", "uiautomator", "dump", "--windows", "/sdcard/meltype-window.xml")
             return ET.fromstring(adb("shell", "cat", "/sdcard/meltype-window.xml"))
         except (subprocess.CalledProcessError, ET.ParseError):
             time.sleep(1)
@@ -47,6 +47,7 @@ def capture(name):
 
 def capture_final_state():
     capture("android-latest.png")
+    (output / "ANDROID_UI_TREE.xml").write_text(adb("shell", "cat", "/sdcard/meltype-window.xml"), encoding="utf-8")
     (output / "ANDROID_UI_LOGCAT.txt").write_text(adb("logcat", "-d"), encoding="utf-8")
 
 

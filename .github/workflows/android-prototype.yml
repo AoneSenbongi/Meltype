@@ -85,8 +85,11 @@ jobs:
           sdkmanager "emulator" "system-images;android-35;google_apis;x86_64"
           echo no | avdmanager create avd --force --name meltype-test --package "system-images;android-35;google_apis;x86_64" --device pixel_6
           sudo chmod 666 /dev/kvm
-          "$ANDROID_HOME/emulator/emulator" -avd meltype-test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot >/tmp/meltype-emulator.log 2>&1 &
-          timeout 180 adb wait-for-device
+          "$ANDROID_HOME/emulator/emulator" -avd meltype-test -no-window -no-audio -no-boot-anim -gpu swiftshader -no-snapshot >/tmp/meltype-emulator.log 2>&1 &
+          emulator_pid=$!
+          sleep 5
+          if ! kill -0 "$emulator_pid" 2>/dev/null; then cat /tmp/meltype-emulator.log; exit 1; fi
+          if ! timeout 180 adb wait-for-device; then cat /tmp/meltype-emulator.log; exit 1; fi
           for attempt in $(seq 1 120); do
             if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi
             sleep 2
@@ -99,6 +102,7 @@ jobs:
             if adb shell cat /data/user/0/jp.aonesenbongi.meltype/files/selftest.txt > android-distribution/ANDROID_TEST_RESULT.txt 2>/dev/null; then break; fi
             sleep 2
           done
+          adb logcat -d > android-distribution/ANDROID_LOGCAT.txt
           cat android-distribution/ANDROID_TEST_RESULT.txt
           grep -q '^PASS:' android-distribution/ANDROID_TEST_RESULT.txt
       - uses: actions/upload-artifact@v4

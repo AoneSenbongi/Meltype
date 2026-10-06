@@ -18,8 +18,6 @@
   <ItemGroup>
     <ProjectReference Include="../Meltype.Android.Core/Meltype.Android.Core.csproj" />
     <AndroidJavaSource Include="Java/**/*.java" />
-    <AndroidNativeLibrary Include="Native/arm64-v8a/libmozc.so" />
-    <AndroidNativeLibrary Include="Native/x86_64/libmozc.so" />
     <AndroidAsset Include="../../LICENSE" Link="LICENSE.txt" />
   </ItemGroup>
   <Target Name="RequireMozc" BeforeTargets="Build">

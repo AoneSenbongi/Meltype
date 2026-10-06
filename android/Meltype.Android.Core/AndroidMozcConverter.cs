@@ -95,7 +95,7 @@ public sealed class AndroidMozcConverter : IKanjiConverter, ILearningConverter
             if (session != 0)
             {
                 // DELETE_SESSION does not submit the pending composition.
-                try { Call(2); } catch (Exception ex) { Diagnostics.Log.Warn($"Google試験セッションを破棄できませんでした: {ex.Message}"); }
+                try { Call(2); } catch (Exception ex) { Diagnostics.Log.Warn($"Mozc試験セッションを破棄できませんでした: {ex.Message}"); }
             }
         }
     }
@@ -132,7 +132,7 @@ public sealed class AndroidMozcConverter : IKanjiConverter, ILearningConverter
                 var config = Call(6).Message(9);
                 if (config.Int(20) != 0 || config.Int(50) != 0)
                 {
-                    Diagnostics.Log.Info("Google日本語入力の設定により、Google側の学習は停止しています。");
+                    Diagnostics.Log.Info("Mozcの設定により、Google側の学習は停止しています。");
                     return false;
                 }
                 session = Call(1, Proto.Blob(7, [])).Int(1);
@@ -157,20 +157,20 @@ public sealed class AndroidMozcConverter : IKanjiConverter, ILearningConverter
                 if (selected != expected) return false;
                 var result = Call(5, Proto.Blob(4, Proto.Number(1, 2)), allowResult: true); // SUBMIT only after exact match
                 if (result.Message(4).Text(2) != expected) throw new InvalidOperationException("Google committed an unexpected candidate");
-                Call(8); // persist through Google's own server
+                Call(8); // persist through the embedded Mozc engine
                 _candidates.Clear();
-                Diagnostics.Log.Info("Google日本語入力に確定した変換を学習させました。");
+                Diagnostics.Log.Info("Mozcに確定した変換を学習させました。");
                 return true;
             }
             catch (Exception ex)
             {
-                Diagnostics.Log.Warn($"Google日本語入力への学習を完了できませんでした: {ex.Message}");
+                Diagnostics.Log.Warn($"Mozcへの学習を完了できませんでした: {ex.Message}");
                 return false;
             }
             finally
             {
                 if (session != 0)
-                    try { Call(2); } catch (Exception ex) { Diagnostics.Log.Warn($"Google学習セッションを破棄できませんでした: {ex.Message}"); }
+                    try { Call(2); } catch (Exception ex) { Diagnostics.Log.Warn($"Mozc学習セッションを破棄できませんでした: {ex.Message}"); }
             }
         }
     }

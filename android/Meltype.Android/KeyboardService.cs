@@ -73,7 +73,7 @@ public sealed class KeyboardService : InputMethodService
             var english = _english;
             Queue(() => _session?.SetEnglish(english)); Status();
         });
-        AddKey(controls, "次の入力方法", () => SwitchToNextInputMethod(false));
+        AddKey(controls, "入力方法", () => ((InputMethodManager)GetSystemService(InputMethodService)!).ShowInputMethodPicker());
         AddKey(controls, "Space / 変換", () => Input(' '), 2);
         AddKey(controls, "←", () => Special(0x25));
         AddKey(controls, "→", () => Special(0x27));

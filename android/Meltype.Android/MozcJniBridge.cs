@@ -47,8 +47,12 @@ internal static class MozcJniBridge
             try
             {
                 var result = JNIEnv.CallStaticObjectMethod(_type, _eval, new[] { new JValue(bytes) });
-                var command = JNIEnv.GetArray<byte>(result, JniHandleOwnership.TransferLocalRef)!;
-                return AndroidMozcConverter.ReadOutput(command);
+                try
+                {
+                    var command = JNIEnv.GetArray<byte>(result)!;
+                    return AndroidMozcConverter.ReadOutput(command);
+                }
+                finally { JNIEnv.DeleteLocalRef(result); }
             }
             finally { JNIEnv.DeleteLocalRef(bytes); }
         }

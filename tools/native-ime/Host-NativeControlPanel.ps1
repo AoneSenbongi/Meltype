@@ -1,4 +1,4 @@
-﻿param([switch]$Tray, [string]$RenderTo)
+param([switch]$Tray, [string]$RenderTo)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
@@ -12,7 +12,7 @@ $mutex = [Threading.Mutex]::new($false, ('Local\Meltype.NativePanel.' + $sid), [
 $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\Meltype.NativePanel.Show.' + $sid))
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Meltype 1.0.2 · Google日本語入力'
+$form.Text = 'Meltype 1.0.3 · Google日本語入力'
 $form.ClientSize = [Drawing.Size]::new(600, 480)
 $form.MinimumSize = [Drawing.Size]::new(616, 519)
 $form.StartPosition = 'CenterScreen'
@@ -127,7 +127,9 @@ $timer.Add_Tick({
             $running = Test-Path -LiteralPath ('\\.\pipe\Meltype.NativeComposition.' + $sid)
             $status.Text = if ($context.Installed) { 'インストール済み  ·  入力サービス：' + $(if($running){'起動中'}else{'停止中'}) + '  ·  自動起動：' + $(if($autoEnabled){'有効'}else{'無効'}) } else { '未インストール' }
             foreach ($action in $buttons.Keys) { $buttons[$action].Enabled = if ($action -eq 'Install') { -not $context.Installed } else { $context.Installed } }
-            $buttons.Update.Enabled = $context.Installed -and (Test-Path -LiteralPath (Join-Path $workspace 'experimental-build/native-ime-package/manifest.json'))
+            $buttons.Update.Enabled = $false
+            $buttons.Update.Enabled = Test-NativeUpdateRequired $workspace $context
+            $buttons.Update.Text = if ($context.Installed -and -not $buttons.Update.Enabled) { 'この版は適用済み' } else { 'この版に更新' }
         } catch { $status.Text = '状態を確認できません：' + $_.Exception.Message }
     }
 })

@@ -6,9 +6,11 @@ $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $state = Get-Content (Join-Path $workspace 'experimental-build/native-ime-install.json') -Raw | ConvertFrom-Json
 if ($state.UserSid -ne $identity.User.Value) { throw 'Uninstall using the Windows account that installed this IME.' }
 & (Join-Path $PSScriptRoot 'Stop-NativeIme.ps1') -NoStartOriginal
-& (Join-Path $state.PackageRoot 'native-ime-control.exe') --unregister (Join-Path $state.PackageRoot 'MeltypeNative64.dll')
+$mode=if($state.NativeRegistration -eq 'Machine'){'--unregister-machine'}else{'--unregister'}
+& (Join-Path $state.PackageRoot 'native-ime-control.exe') $mode (Join-Path $state.PackageRoot 'MeltypeNative64.dll')
 if ($LASTEXITCODE -ne 0) { throw 'IME unregistration failed. Existing files were preserved.' }
 & (Join-Path $PSScriptRoot 'Set-NativeAutoStart.ps1') -Disable
 & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -Remove -WorkspaceRoot $workspace
 Remove-Item -LiteralPath (Join-Path $workspace 'experimental-build/native-ime-install.json')
+Remove-ItemProperty -LiteralPath 'HKCU:\Software\MeltypeNativeGoogle' -Name InstallRoot -ErrorAction SilentlyContinue
 Write-Output 'Native IME unregistered. Build and backup files were preserved.'

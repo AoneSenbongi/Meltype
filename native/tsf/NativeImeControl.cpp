@@ -8,7 +8,7 @@
 
 int wmain(int argc, WCHAR** argv) {
   bool activate = argc == 2 && (std::wstring(argv[1]) == L"--native" || std::wstring(argv[1]) == L"--google");
-  if (!activate && (argc != 3 || (std::wstring(argv[1]) != L"--register" && std::wstring(argv[1]) != L"--unregister"))) return 2;
+  if (!activate && (argc != 3 || (std::wstring(argv[1]) != L"--register" && std::wstring(argv[1]) != L"--unregister" && std::wstring(argv[1]) != L"--register-machine" && std::wstring(argv[1]) != L"--unregister-machine"))) return 2;
   HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
   if (FAILED(hr)) return 3;
   if (activate) {
@@ -24,8 +24,9 @@ int wmain(int argc, WCHAR** argv) {
   }
   HMODULE library = LoadLibraryW(argv[2]);
   if (!library) { std::fprintf(stderr, "LoadLibrary: %lu\n", GetLastError()); CoUninitialize(); return 4; }
-  bool remove = std::wstring(argv[1]) == L"--unregister";
-  FARPROC address = GetProcAddress(library, remove ? "DllUnregisterServer" : "DllRegisterServer");
+  bool remove = std::wstring(argv[1]) == L"--unregister" || std::wstring(argv[1])==L"--unregister-machine";
+  bool machine = std::wstring(argv[1])==L"--register-machine" || std::wstring(argv[1])==L"--unregister-machine";
+  FARPROC address = GetProcAddress(library, machine?(remove?"DllUnregisterServerMachine":"DllRegisterServerMachine"):(remove?"DllUnregisterServer":"DllRegisterServer"));
   HRESULT (WINAPI* function)() = nullptr;
   static_assert(sizeof(address) == sizeof(function));
   std::memcpy(&function, &address, sizeof(function));

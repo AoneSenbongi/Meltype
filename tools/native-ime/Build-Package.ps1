@@ -19,6 +19,6 @@ Copy-Item -LiteralPath (Join-Path $workspace 'native/tsf/NativeBroker.cs') -Dest
 Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination (Join-Path $stage 'LICENSE') -Force
 $files += @('NativeBroker.cs', 'LICENSE')
 $hashes = foreach ($name in $files) { @{ Name = $name; SHA256 = (Get-FileHash (Join-Path $stage $name)).Hash } }
-@{ Created = (Get-Date).ToString('o'); Architecture = 'x64'; UserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value; Files = @($hashes) } |
+@{ Created = (Get-Date).ToString('o'); Architecture = 'x64'; UserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value; NativeRegistration='Machine'; Files = @($hashes) } |
     ConvertTo-Json -Depth 4 | Set-Content (Join-Path $stage 'manifest.json') -Encoding UTF8
 Write-Output 'Package prepared. Run Install-NativeIme.cmd as administrator, then Start-NativeIme.cmd normally.'

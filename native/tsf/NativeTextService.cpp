@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <initguid.h>
 #include "NativeComposition.h"
+#include "NativeTsfCompatibility.h"
 #include <sddl.h>
 #include <algorithm>
 #include <array>
@@ -11,6 +12,7 @@
 #include <memory>
 #include <inputscope.h>
 #include <cstdio>
+#include <shlobj.h>
 
 DEFINE_GUID(CLSID_MeltypeNative, 0xf2d11628, 0x2679, 0x4dcc, 0x93,0x27,0x65,0x7e,0xf2,0xc1,0xa4,0x50);
 DEFINE_GUID(GUID_MeltypeNativeProfile, 0x825c8537, 0x9fc0, 0x4951, 0xa1,0x97,0x1c,0x33,0xf7,0x7b,0x92,0x43);
@@ -103,14 +105,16 @@ struct Reply {
 };
 class Channel {
  public:
+  Channel() = default;
+  explicit Channel(std::wstring testPipe) : testPipe_(std::move(testPipe)) {}
   HANDLE pipe = INVALID_HANDLE_VALUE;
   ~Channel() { Close(); }
   void Close() { if (pipe != INVALID_HANDLE_VALUE) { CloseHandle(pipe); pipe = INVALID_HANDLE_VALUE; } }
   bool Connect() {
     if (pipe != INVALID_HANDLE_VALUE) return true;
-    auto name = PipeName();
+    auto name = testPipe_.empty() ? PipeName() : testPipe_;
     if (name.empty() || !WaitNamedPipeW(name.c_str(), 30)) return false;
-    pipe = CreateFileW(name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+    pipe = CreateFileW(name.c_str(), (FILE_GENERIC_READ | FILE_GENERIC_WRITE) & ~FILE_CREATE_PIPE_INSTANCE, 0, nullptr, OPEN_EXISTING,
                        FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr);
     if (pipe == INVALID_HANDLE_VALUE) return false;
     if (!TrustedServer(pipe)) { Close(); return false; }
@@ -153,6 +157,8 @@ class Channel {
     reply.replay = replay != 0; reply.converting = converting != 0;
     return true;
   }
+ private:
+  std::wstring testPipe_;
 };
 class Edit final : public ITfEditSession {
  public:
@@ -172,14 +178,14 @@ class Edit final : public ITfEditSession {
   std::function<HRESULT(TfEditCookie)> run_;
 };
 
-class TextService final : public ITfTextInputProcessor, public ITfKeyEventSink, public ITfThreadMgrEventSink {
+class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEventSink, public ITfThreadMgrEventSink {
  public:
   explicit TextService(bool testing = false) : testing_(testing) { InterlockedIncrement(&liveObjects); }
   ~TextService() { Deactivate(); composition_->Release(); InterlockedDecrement(&liveObjects); }
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** value) override {
     if (!value) return E_POINTER;
     *value = nullptr;
-    if (iid == IID_IUnknown || iid == IID_ITfTextInputProcessor) *value = static_cast<ITfTextInputProcessor*>(this);
+    if (iid == IID_IUnknown || iid == IID_ITfTextInputProcessor || iid == IID_MeltypeTextInputProcessorEx) *value = static_cast<MeltypeTextInputProcessorEx*>(this);
     else if (iid == IID_ITfKeyEventSink) *value = static_cast<ITfKeyEventSink*>(this);
     else if (iid == IID_ITfThreadMgrEventSink) *value = static_cast<ITfThreadMgrEventSink*>(this);
     else return E_NOINTERFACE;
@@ -187,6 +193,10 @@ class TextService final : public ITfTextInputProcessor, public ITfKeyEventSink, 
   }
   ULONG STDMETHODCALLTYPE AddRef() override { return ++refs_; }
   ULONG STDMETHODCALLTYPE Release() override { ULONG n = --refs_; if (!n) delete this; return n; }
+  HRESULT STDMETHODCALLTYPE ActivateEx(ITfThreadMgr* thread, TfClientId client, DWORD flags) override {
+    (void)flags;
+    return Activate(thread, client);
+  }
   HRESULT STDMETHODCALLTYPE Activate(ITfThreadMgr* thread, TfClientId client) override {
     if (!thread || thread_) return E_INVALIDARG;
     Ptr<ITfKeystrokeMgr> keys;
@@ -229,6 +239,23 @@ class TextService final : public ITfTextInputProcessor, public ITfKeyEventSink, 
   HRESULT STDMETHODCALLTYPE OnTestKeyUp(ITfContext*, WPARAM vk, LPARAM, BOOL* eaten) override { *eaten = vk < 256 && captured_[vk]; return S_OK; }
   HRESULT STDMETHODCALLTYPE OnKeyDown(ITfContext* context, WPARAM vk, LPARAM lparam, BOOL* eaten) override { return Key(context, vk, lparam, false, eaten); }
   HRESULT STDMETHODCALLTYPE OnKeyUp(ITfContext* context, WPARAM vk, LPARAM lparam, BOOL* eaten) override { return Key(context, vk, lparam, true, eaten); }
+  bool CandidateRefreshForTest() {
+    if (!testing_) return false;
+    visible_.converting = true;
+    visible_.candidates = {L"橋", L"箸", L"端"};
+    visible_.selected = 0;
+    ShowPopup(-32000, -32000);
+    if (!popup_) return false;
+    UpdateWindow(popup_);
+    ValidateRect(popup_, nullptr);
+    visible_.selected = 1;
+    ShowPopup(-32000, -32000);
+    bool refresh = GetUpdateRect(popup_, nullptr, FALSE) != FALSE;
+    UpdateWindow(popup_);
+    DestroyWindow(popup_); popup_ = nullptr;
+    return refresh;
+  }
+
  private:
   ULONG refs_ = 1;
   ITfThreadMgr* thread_ = nullptr;
@@ -393,11 +420,6 @@ class TextService final : public ITfTextInputProcessor, public ITfKeyEventSink, 
   void UpdatePopup(ITfContext* context, TfEditCookie cookie) {
     if (testing_) return;
     if (!visible_.converting || visible_.candidates.empty() || !composition_->Active()) { if (popup_) ShowWindow(popup_, SW_HIDE); return; }
-    if (!popup_) {
-      WNDCLASSW type{}; type.hInstance = module; type.lpfnWndProc = Window; type.lpszClassName = L"MeltypeNativeCandidates";
-      RegisterClassW(&type);
-      popup_ = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST, type.lpszClassName, L"", WS_POPUP | WS_BORDER, 0, 0, 300, 220, nullptr, nullptr, module, this);
-    }
     Ptr<ITfContextView> view;
     Ptr<ITfRange> range;
     RECT rect{}; BOOL clipped = FALSE;
@@ -405,8 +427,19 @@ class TextService final : public ITfTextInputProcessor, public ITfKeyEventSink, 
     TF_SELECTION selection{}; ULONG fetched = 0;
     if (SUCCEEDED(context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &fetched)) && fetched == 1) { range.p->Release(); range.p = selection.range; }
     if (FAILED(view->GetTextExt(cookie, range.p, &rect, &clipped))) return;
+    ShowPopup(rect.left, rect.bottom + 2);
+  }
+  void ShowPopup(int left, int top) {
+    if (!popup_) {
+      WNDCLASSW type{}; type.hInstance = module; type.lpfnWndProc = Window; type.lpszClassName = L"MeltypeNativeCandidates";
+      RegisterClassW(&type);
+      popup_ = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST, type.lpszClassName, L"", WS_POPUP | WS_BORDER, 0, 0, 300, 220, nullptr, nullptr, module, this);
+    }
     int rows = std::min(9, static_cast<int>(visible_.candidates.size()) - std::max(0, visible_.selected) / 9 * 9);
-    SetWindowPos(popup_, HWND_TOPMOST, rect.left, rect.bottom + 2, 320, std::max(1, rows) * 24 + 8, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    SetWindowPos(popup_, HWND_TOPMOST, left, top, 320, std::max(1, rows) * 24 + 8, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    // Selecting another candidate often leaves the window bounds unchanged.
+    // SetWindowPos alone does not schedule a paint in that case.
+    InvalidateRect(popup_, nullptr, FALSE);
   }
 };
 
@@ -428,15 +461,46 @@ extern "C" __declspec(dllexport) HRESULT WINAPI DllCanUnloadNow() { return liveO
 extern "C" __declspec(dllexport) HRESULT WINAPI CreateMeltypeNativeForTest(ITfTextInputProcessor** service) { if (!service) return E_POINTER; *service = new(std::nothrow) TextService(true); return *service ? S_OK : E_OUTOFMEMORY; }
 extern "C" __declspec(dllexport) BOOL WINAPI MeltypeProtectedInputScopeForTest(InputScope scope) { return ProtectedInputScope(scope); }
 extern "C" __declspec(dllexport) BOOL WINAPI MeltypeTrustedServerForTest(HANDLE pipe) { return TrustedServer(pipe); }
+extern "C" __declspec(dllexport) BOOL WINAPI MeltypeSearchConversionForTest(const WCHAR* pipeName) {
+  if(!pipeName) return FALSE;
+  Channel channel(L"\\\\.\\pipe\\"+std::wstring(pipeName));
+  bool live=false, candidates=false, committed=false;
+  for(auto character:std::wstring(L"nihongo")) {
+    Reply reply;
+    if(!channel.Call(0,character-L'a'+L'A',0,character,0,reply)) return FALSE;
+    for(auto& action:reply.actions) if(action.kind==0 && !action.text.empty())live=true;
+  }
+  Reply conversion;
+  if(!channel.Call(0,VK_SPACE,0,L' ',0,conversion)) return FALSE;
+  candidates=!conversion.candidates.empty();
+  Reply result;
+  if(!channel.Call(0,VK_RETURN,0,0,0,result)) return FALSE;
+  for(auto& action:result.actions) if(action.kind==1 && action.text.find(L"日本語")!=std::wstring::npos)committed=true;
+  return live && candidates && committed;
+}
+extern "C" __declspec(dllexport) BOOL WINAPI MeltypeCandidateRefreshForTest() {
+  auto* service = new TextService(true);
+  bool result = service->CandidateRefreshForTest();
+  service->Release();
+  return result;
+}
 
 namespace {
 constexpr WCHAR comKey[] = L"Software\\Classes\\CLSID\\{F2D11628-2679-4DCC-9327-657EF2C1A450}";
-HRESULT ComRegistration(bool remove) {
-  if (remove) { LONG error = RegDeleteTreeW(HKEY_CURRENT_USER, comKey); return error == ERROR_FILE_NOT_FOUND ? S_OK : HRESULT_FROM_WIN32(error); }
+bool ProtectedModulePath() {
+  WCHAR programFiles[MAX_PATH], path[32768];
+  if(FAILED(SHGetFolderPathW(nullptr,CSIDL_PROGRAM_FILES,nullptr,SHGFP_TYPE_CURRENT,programFiles)))return false;
+  auto prefix=std::wstring(programFiles)+L"\\MeltypeNativeGoogle\\";
+  DWORD length=GetModuleFileNameW(module,path,32768);
+  return length>prefix.size() && length<32768 && _wcsnicmp(path,prefix.c_str(),prefix.size())==0;
+}
+HRESULT ComRegistration(bool remove, bool machine=false) {
+  HKEY hive=machine?HKEY_LOCAL_MACHINE:HKEY_CURRENT_USER;
+  if (remove) { LONG error = RegDeleteTreeW(hive, comKey); return error == ERROR_FILE_NOT_FOUND ? S_OK : HRESULT_FROM_WIN32(error); }
   WCHAR path[32768]; DWORD length = GetModuleFileNameW(module, path, 32768);
   if (!length || length >= 32768) return E_FAIL;
   HKEY root = nullptr, server = nullptr;
-  LONG error = RegCreateKeyExW(HKEY_CURRENT_USER, comKey, 0, nullptr, 0, KEY_WRITE | KEY_WOW64_64KEY, nullptr, &root, nullptr);
+  LONG error = RegCreateKeyExW(hive, comKey, 0, nullptr, 0, KEY_WRITE | KEY_WOW64_64KEY, nullptr, &root, nullptr);
   if (error != ERROR_SUCCESS) return HRESULT_FROM_WIN32(error);
   const WCHAR description[] = L"Meltype Native Google (experimental)";
   error = RegSetValueExW(root, nullptr, 0, REG_SZ, reinterpret_cast<const BYTE*>(description), sizeof(description));
@@ -449,9 +513,10 @@ HRESULT ComRegistration(bool remove) {
   return HRESULT_FROM_WIN32(error);
 }
 }
-extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer() {
-  HRESULT hr = ComRegistration(false);
-  if (FAILED(hr)) { ComRegistration(true); return hr; }
+HRESULT RegisterServer(bool machine) {
+  if(machine && !ProtectedModulePath())return E_ACCESSDENIED;
+  HRESULT hr = ComRegistration(false,machine);
+  if (FAILED(hr)) { ComRegistration(true,machine); return hr; }
   Ptr<ITfInputProcessorProfiles> profiles;
   hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles, reinterpret_cast<void**>(&profiles.p));
   bool registered = false;
@@ -465,21 +530,33 @@ extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer() {
   Ptr<ITfCategoryMgr> categories;
   if (SUCCEEDED(hr)) hr = CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories.p));
   if (SUCCEEDED(hr)) hr = categories->RegisterCategory(CLSID_MeltypeNative, GUID_TFCAT_TIP_KEYBOARD, CLSID_MeltypeNative);
+  if (SUCCEEDED(hr) && machine) hr = categories->RegisterCategory(CLSID_MeltypeNative, MeltypeImmersiveCategory, CLSID_MeltypeNative);
   if (SUCCEEDED(hr)) hr = profiles->EnableLanguageProfile(CLSID_MeltypeNative, 0x0411, GUID_MeltypeNativeProfile, TRUE);
+  if (SUCCEEDED(hr) && machine) hr=ComRegistration(true,false);
   if (FAILED(hr)) {
     if (categories.p) categories->UnregisterCategory(CLSID_MeltypeNative, GUID_TFCAT_TIP_KEYBOARD, CLSID_MeltypeNative);
+    if (categories.p && machine) categories->UnregisterCategory(CLSID_MeltypeNative, MeltypeImmersiveCategory, CLSID_MeltypeNative);
     if (registered) profiles->Unregister(CLSID_MeltypeNative);
-    ComRegistration(true);
+    ComRegistration(true,machine);
   }
   return hr;
 }
-extern "C" __declspec(dllexport) HRESULT WINAPI DllUnregisterServer() {
+HRESULT UnregisterServer(bool machine) {
+  if(machine && !ProtectedModulePath())return E_ACCESSDENIED;
   Ptr<ITfInputProcessorProfiles> profiles;
   HRESULT hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles, nullptr, CLSCTX_INPROC_SERVER, IID_ITfInputProcessorProfiles, reinterpret_cast<void**>(&profiles.p));
   if (FAILED(hr)) return hr;
   hr = profiles->Unregister(CLSID_MeltypeNative);
-  if (FAILED(hr)) return hr;
+  if (FAILED(hr) && !machine) return hr;
   Ptr<ITfCategoryMgr> categories;
-  if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories.p)))) categories->UnregisterCategory(CLSID_MeltypeNative, GUID_TFCAT_TIP_KEYBOARD, CLSID_MeltypeNative);
-  return ComRegistration(true);
+  if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories.p)))) {
+    categories->UnregisterCategory(CLSID_MeltypeNative, GUID_TFCAT_TIP_KEYBOARD, CLSID_MeltypeNative);
+    if(machine)categories->UnregisterCategory(CLSID_MeltypeNative, MeltypeImmersiveCategory, CLSID_MeltypeNative);
+  }
+  HRESULT removed=ComRegistration(true,machine);
+  return FAILED(removed)?removed:hr;
 }
+extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServer() {return RegisterServer(false);}
+extern "C" __declspec(dllexport) HRESULT WINAPI DllUnregisterServer() {return UnregisterServer(false);}
+extern "C" __declspec(dllexport) HRESULT WINAPI DllRegisterServerMachine() {return RegisterServer(true);}
+extern "C" __declspec(dllexport) HRESULT WINAPI DllUnregisterServerMachine() {return UnregisterServer(true);}

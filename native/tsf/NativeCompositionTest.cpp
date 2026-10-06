@@ -2,6 +2,7 @@
 // Real Windows TSF, with an in-memory application document. No system IME registration.
 #include <initguid.h>
 #include "NativeComposition.h"
+#include "NativeTsfCompatibility.h"
 #include <textstor.h>
 #include <olectl.h>
 #include <algorithm>
@@ -261,6 +262,10 @@ int main(int argc, char** argv) {
       auto create = Export<HRESULT (WINAPI*)(ITfTextInputProcessor**)>(library, "CreateMeltypeNativeForTest");
       auto canUnload = Export<HRESULT (WINAPI*)()>(library, "DllCanUnloadNow");
       Expect(create && canUnload, "native text service exports");
+      auto registerMachine = Export<HRESULT (WINAPI*)()>(library, "DllRegisterServerMachine");
+      auto unregisterMachine = Export<HRESULT (WINAPI*)()>(library, "DllUnregisterServerMachine");
+      Expect(registerMachine && unregisterMachine, "protected registration exports");
+      Expect(registerMachine()==E_ACCESSDENIED && unregisterMachine()==E_ACCESSDENIED, "non-protected DLL cannot change machine registration");
       ITfTextInputProcessor* service = nullptr;
       Check(create(&service), "create native service");
       auto protectedScope = Export<BOOL (WINAPI*)(InputScope)>(library, "MeltypeProtectedInputScopeForTest");
@@ -281,7 +286,10 @@ int main(int argc, char** argv) {
       Expect(testClient != INVALID_HANDLE_VALUE, "peer test client connected");
       Expect(trustedServer(testClient), "same-user medium integrity server trusted");
       CloseHandle(testClient); CloseHandle(testServer);
-      Check(service->Activate(thread, client), "activate service on test thread");
+      MeltypeTextInputProcessorEx* extended = nullptr;
+      Check(service->QueryInterface(IID_MeltypeTextInputProcessorEx, reinterpret_cast<void**>(&extended)), "Windows app activation interface");
+      Check(extended->ActivateEx(thread, client, 0x40000000), "activate service through Windows app interface");
+      extended->Release();
       ITfKeyEventSink* keys = nullptr;
       Check(service->QueryInterface(IID_ITfKeyEventSink, reinterpret_cast<void**>(&keys)), "native key sink");
       {
@@ -366,11 +374,15 @@ int main(int argc, char** argv) {
       }
       Check(service->Deactivate(), "deactivate test service");
       keys->Release(); service->Release();
+      // Testing the registered path can also load the real TIP on this TSF thread.
+      // Its references are legitimate until the thread manager is deactivated.
+      thread->Deactivate(); thread->Release(); thread = nullptr;
       Expect(canUnload() == S_OK, "native service releases COM references");
       FreeLibrary(library);
       std::puts("PASS: native DLL key sink -> resident broker -> Google -> real TSF document; Space/Enter/Escape, mode switching, focus loss, disabled/read-only protection");
     }
-    thread->Deactivate(); thread->Release(); CoUninitialize();
+    if (thread) { thread->Deactivate(); thread->Release(); }
+    CoUninitialize();
     return 0;
   } catch (const std::exception& e) { std::fprintf(stderr, "FAIL: %s\n", e.what()); return 1; }
 }

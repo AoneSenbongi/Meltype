@@ -1,6 +1,7 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
+. (Join-Path $PSScriptRoot 'NativeProtectedPackage.ps1')
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'IME registration needs administrator privileges. Run Install-NativeIme.cmd as administrator.'
@@ -15,7 +16,7 @@ foreach ($file in $manifest.Files) {
     $path = Join-Path $stage $file.Name
     if ((Get-NativeFileSha256 $path) -ne $file.SHA256) { throw "Package checksum mismatch: $($file.Name)" }
 }
-if (Test-Path -LiteralPath 'Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{F2D11628-2679-4DCC-9327-657EF2C1A450}') {
+if ((Test-Path -LiteralPath 'Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{F2D11628-2679-4DCC-9327-657EF2C1A450}') -or (Test-Path -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{F2D11628-2679-4DCC-9327-657EF2C1A450}')) {
     throw 'Native IME is already registered. Stop and uninstall the previous native trial before installing again.'
 }
 $portableRuntime = Join-Path $workspace 'runtime/pwsh.exe'
@@ -24,14 +25,27 @@ if (-not (Test-Path -LiteralPath $runtime)) { throw 'PowerShell runtime missing.
 if ($manifest.Portable) { Set-Content (Join-Path $build 'runtime-path.txt') $runtime -Encoding UTF8 }
 & $runtime -NoProfile -File (Join-Path $PSScriptRoot 'Backup-State.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Backup failed; installation stopped.' }
-$package = Join-Path $build ('native-ime-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-New-Item -ItemType Directory -Path $package | Out-Null
-foreach ($file in $manifest.Files) { Copy-Item -LiteralPath (Join-Path $stage $file.Name) -Destination (Join-Path $package $file.Name) }
-$dll = Join-Path $package 'MeltypeNative64.dll'
-& (Join-Path $package 'native-ime-control.exe') --register $dll
-if ($LASTEXITCODE -ne 0) { throw 'Windows rejected IME registration. Original Google IME remains selected.' }
-@{ PackageRoot = $package; Installed = (Get-Date).ToString('o'); UserSid = $identity.User.Value; Portable = [bool]$manifest.Portable; NativeVersion = '1.0.2'; BaseVersion = '1.0.1' } |
+$package = Join-Path (Get-NativeProtectedBase) ('package-' + [Guid]::NewGuid().ToString('N'))
+$locationKey='HKCU:\Software\MeltypeNativeGoogle'
+$registered=$false
+try {
+New-Item -Path $locationKey -Force|Out-Null
+New-ItemProperty -LiteralPath $locationKey -Name InstallRoot -Value $workspace -PropertyType String -Force|Out-Null
+Invoke-NativeProtectedDeploy -Stage $stage -Destination $package -Runtime $runtime -ResultFile (Join-Path $build ('protected-install-'+[Guid]::NewGuid().ToString('N')+'.json'))|Out-Null
+$registered=$true
+@{ PackageRoot = $package; Installed = (Get-Date).ToString('o'); UserSid = $identity.User.Value; Portable = [bool]$manifest.Portable; NativeVersion = '1.0.3'; BaseVersion = '1.0.1'; NativeRegistration='Machine'; SearchPackage='Microsoft.Windows.Search_cw5n1h2txyewy' } |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'native-ime-install.json') -Encoding UTF8
 & (Join-Path $PSScriptRoot 'Set-NativeAutoStart.ps1')
 & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -WorkspaceRoot $workspace
 Write-Output 'Registered native IME. Close this administrator window, then run Start-NativeIme.cmd normally.'
+}catch {
+    $failure=$_
+    if($registered){Invoke-NativeProtectedDeploy -Destination $package -Runtime $runtime -ResultFile (Join-Path $build ('protected-restore-'+[Guid]::NewGuid().ToString('N')+'.json')) -RestoreOnly|Out-Null}
+    Remove-ItemProperty -LiteralPath $locationKey -Name InstallRoot -ErrorAction SilentlyContinue
+    if($registered) {
+        & (Join-Path $PSScriptRoot 'Set-NativeAutoStart.ps1') -Disable
+        & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -WorkspaceRoot $workspace -Remove
+        Remove-Item -LiteralPath (Join-Path $build 'native-ime-install.json') -ErrorAction SilentlyContinue
+    }
+    throw $failure
+}

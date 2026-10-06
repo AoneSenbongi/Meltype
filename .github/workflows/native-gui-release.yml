@@ -1,0 +1,57 @@
+name: Native GUI 1.0.1 release
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get bundled Windows runtime
+        shell: pwsh
+        run: |
+          $asset = gh api "repos/$env:GH_REPO/releases/tags/native-google-20261006" --jq '.assets[] | select(.name | startswith("Meltype-Native-Google-windows-x64-")) | select(.name | endswith(".zip")) | .name'
+          $download = Join-Path $env:RUNNER_TEMP 'meltype-old-package'
+          gh release download native-google-20261006 --pattern ($asset | Select-Object -First 1) -D $download
+          Expand-Archive (Get-ChildItem "$download/*.zip").FullName "$download/extracted"
+          $old = Join-Path $download 'extracted/Meltype-Native-Google-windows-x64'
+          "MELTYPE_OLD=$old" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build 1.0.1 libraries and GUI launcher
+        shell: pwsh
+        run: |
+          $runtime = Join-Path $env:MELTYPE_OLD 'runtime/pwsh.exe'
+          & $runtime -NoProfile -File tools/native-ime/Build-WithBundledCompiler.ps1 -BuildOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Managed compilation failed' }
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vcvars = Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
+          $source = Join-Path $PWD 'native/control-panel/Launcher.cpp'
+          $output = Join-Path $PWD 'Meltype-Settings.exe'
+          cmd /c ('call "'+$vcvars+'" >nul && cl /nologo /std:c++17 /EHsc /MT /W4 /WX "'+$source+'" /link /SUBSYSTEM:WINDOWS /OUT:"'+$output+'" user32.lib')
+          if ($LASTEXITCODE -ne 0) { throw 'GUI launcher compilation failed' }
+          $stage = Join-Path $PWD 'experimental-build/native-ime-package'
+          New-Item -ItemType Directory $stage -Force | Out-Null
+          Copy-Item "$env:MELTYPE_OLD/experimental-build/native-ime-package/*" $stage
+          Copy-Item experimental-build/Meltype.Core.dll,experimental-build/Meltype.dll $stage -Force
+          Copy-Item native/tsf/NativeBroker.cs $stage -Force
+          $manifest = Get-Content "$stage/manifest.json" -Raw | ConvertFrom-Json
+          foreach ($file in $manifest.Files) { $file.SHA256 = (Get-FileHash (Join-Path $stage $file.Name)).Hash }
+          $manifest.SourceCommit = (git rev-parse HEAD).Trim()
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content "$stage/manifest.json" -Encoding utf8
+          & $runtime -NoProfile -STA -File tools/native-ime/Host-NativeControlPanel.ps1 -RenderTo (Join-Path $PWD 'gui-preview.png')
+          if ($LASTEXITCODE -ne 0) { throw 'GUI rendering failed' }
+          Remove-Item -LiteralPath (Join-Path $PWD 'Launcher.obj') -ErrorAction SilentlyContinue
+          & $runtime -NoProfile -File tools/native-ime/Build-TransferPackage.ps1 -Runtime $runtime
+          if ($LASTEXITCODE -ne 0) { throw 'Transfer package failed' }
+      - name: Publish GUI package
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem distributions/Meltype-Native-Google-windows-x64-*.zip | Select-Object -First 1
+          gh release view native-google-1.0.1
+          if ($LASTEXITCODE -ne 0) { gh release create native-google-1.0.1 --target $env:GITHUB_SHA --prerelease --title 'Meltype 1.0.1 · Google日本語入力と管理画面' --notes-file docs/NATIVE_GUI_RELEASE.md }
+          gh release upload native-google-1.0.1 $zip.FullName ($zip.FullName+'.sha256') gui-preview.png --clobber

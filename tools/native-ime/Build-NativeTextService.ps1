@@ -10,3 +10,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Native text service compilation failed' }
 & $Compiler -std=c++17 -Wall -Wextra -Werror -municode -static -static-libgcc -static-libstdc++ '-finput-charset=UTF-8' "${source}/NativeImeControl.cpp" -lole32 -luuid -o (Join-Path $workspace 'experimental-build/native-ime-control.exe')
 if ($LASTEXITCODE -ne 0) { throw 'Native IME registration utility compilation failed' }
 Write-Output "Native TSF module built: $output"
+& $Compiler -std=c++17 -Wall -Wextra -Werror -municode -mwindows -static -static-libgcc -static-libstdc++ '-finput-charset=UTF-8' (Join-Path $workspace 'native/control-panel/Launcher.cpp') -luser32 -o (Join-Path $workspace 'Meltype-Settings.exe')
+if ($LASTEXITCODE -ne 0) { throw 'Management launcher compilation failed' }

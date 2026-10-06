@@ -2,6 +2,8 @@
 
 [雪代／Yukishiro氏のMeltype](https://github.com/yksr-melt/Meltype)を基に、Windowsの入力欄へ未確定文字を表示するIMEと、インストール済みGoogle日本語入力との連携を追加した非公式Forkです。改良は`google-native-ime`ブランチで管理しています。Googleや元作者の公式配布版ではありません。
 
+本家Meltype 1.0.1の判定・辞書・ログ修正を取り込んでいます。PC版は`Meltype-Settings.exe`の管理画面からインストール、起動、停止、単語登録、辞書管理を操作できます。
+
 ## できること
 
 Meltypeの日英判別を使い、`kyouhagoogledekensaku`を「今日はgoogleで検索」のように入力できます。日本語の読みが4文字以上になると、Spaceを押す前からGoogleの変換結果で表示を更新します。途中では確定しません。
@@ -15,9 +17,9 @@ Googleの既存辞書・学習履歴を使います。学習が有効なら、�
 必要なものはWindows 10／11のx64版と、インストール済みのGoogle日本語入力です。ARM版と32ビット版にはこのパッケージを使わないでください。ランタイムはZIPに同梱しているので、Codex・開発環境・別途の.NETインストールは不要です。
 
 1. Google日本語入力をインストールし、一度日本語を入力して動作を確認します。
-2. [このForkのRelease](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-20261006)のAssetsから、`Meltype-Native-Google-windows-x64-<日時>.zip`をダウンロードして全部展開します。`C:\MeltypeNative`など、移動しない場所へ置いてください。ZIPのプロパティに「ブロックの解除」がある場合は、展開前に解除します。
-3. 展開したフォルダーの`Install-NativeIme.cmd`を右クリックし、「管理者として実行」します。普段使うWindowsアカウントで実行してください。Googleの設定と学習データをバックアップしてからIMEを登録します。
-4. 管理者画面を閉じ、`Start-NativeIme.cmd`を通常のダブルクリックで起動します。初回は最大60秒待ちます。
+2. [このForkの1.0.1 Release](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.1)のAssetsから、`Meltype-Native-Google-windows-x64-<日時>.zip`をダウンロードして全部展開します。`C:\MeltypeNative`など、移動しない場所へ置いてください。ZIPのプロパティに「ブロックの解除」がある場合は、展開前に解除します。
+3. `Meltype-Settings.exe`を開き、「インストール」を押します。普段使うWindowsアカウントで管理者確認を承認してください。Googleの設定と学習データをバックアップしてからIMEを登録します。
+4. 「起動」を押します。初回は最大60秒待ちます。スタートメニューにも「Meltypeの管理画面」を追加します。
 
 インストール時に、Windowsへのサインイン後の自動起動を設定します。起動時のコンソールは非表示です。導入済みの場合は`Enable-NativeAutoStart.cmd`で設定できます。解除は`Disable-NativeAutoStart.cmd`です。自動更新はありません。従来のMeltype常駐版が動いている場合は、先に終了します。
 
@@ -37,7 +39,7 @@ Google本体でも全角の「，」「．」を使う場合は、Google日本�
 
 ## 停止・更新・削除
 
-通常のGoogle日本語入力へ戻す場合は`Stop-NativeIme.cmd`を通常起動します。登録を削除する場合は`Uninstall-NativeIme.cmd`を管理者として実行してください。バックアップと展開したファイルは残ります。登録後にフォルダーを移動する場合は、先に登録を削除します。
+管理画面の「停止してGoogleに戻る」で通常のGoogle日本語入力へ戻します。登録の削除は「削除」です。バックアップとGoogleの辞書・学習履歴は残ります。導入済みの場合は、新しいZIPを別の場所へ展開して管理画面を開き、「この版に更新」を押します。再登録は不要です。詳しくは[管理画面の説明](docs/NATIVE_GUI.md)を参照してください。
 
 句読点・疑問符の入力でライブ変換がかなへ戻る問題への修正を公開しています。導入済みの場合はReleaseの`Meltype-Native-PunctuationFix-20261006.zip`を全部展開し、`Update-Punctuation.cmd`を通常起動してください。更新前のDLLをバックアップしてから変換部品を更新します。再登録は不要です。現在の通常ZIPにも修正を含めています。修正適用後、デスクトップPCとノートPCの両方で症状が解消したことを確認しました。
 

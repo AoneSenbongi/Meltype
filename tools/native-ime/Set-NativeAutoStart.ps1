@@ -44,7 +44,7 @@ if (-not $converter) {
     }
 }
 if (-not $converter) { throw 'Install Google Japanese Input before enabling automatic startup.' }
-@{ Runtime = $runtime; StartScript = $StartScript; GoogleConverter = $converter } | ConvertTo-Json | Set-Content (Join-Path $directory 'settings.json') -Encoding UTF8
+@{ Runtime = $runtime; StartScript = $StartScript; GoogleConverter = $converter; PanelLauncher = (Join-Path $WorkspaceRoot 'Meltype-Settings.exe') } | ConvertTo-Json | Set-Content (Join-Path $directory 'settings.json') -Encoding UTF8
 @'
 $ErrorActionPreference = 'Stop'
 try {
@@ -61,6 +61,7 @@ try {
     if (-not $googleReady) { throw 'Google conversion service did not become ready within 30 seconds.' }
     $arguments = '-NoProfile -File "' + $settings.StartScript + '"'
     Start-Process -FilePath $settings.Runtime -ArgumentList $arguments -WindowStyle Hidden -RedirectStandardOutput (Join-Path $PSScriptRoot 'startup-output.txt') -RedirectStandardError (Join-Path $PSScriptRoot 'startup-errors.txt')
+    if ($settings.PanelLauncher -and (Test-Path -LiteralPath $settings.PanelLauncher)) { Start-Process -FilePath $settings.PanelLauncher -ArgumentList '--tray' -WindowStyle Hidden }
 } catch {
     $_ | Out-String | Set-Content (Join-Path $PSScriptRoot 'startup-errors.txt') -Encoding UTF8
 }

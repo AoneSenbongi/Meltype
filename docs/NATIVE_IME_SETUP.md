@@ -8,7 +8,7 @@
 
 別のPCへ移す場合は、`Build-TransferPackage.ps1`で作るWindows x64用ZIPを使う。ZIPには必要なPowerShellランタイム、試作IME、対応するソースを含める。個人の設定・学習履歴・インストール先のパス・Windowsアカウント情報は含めない。移行先のPCではGoogle日本語入力を別途インストールし、ZIPを固定した場所へ展開してから管理者権限で登録する。展開先は登録後に移動しない。
 
-移行用ZIPの`Stop-NativeIme.cmd`は通常のGoogle日本語入力に戻す。元のMeltype常駐版は起動しない。Windowsへサインインした後は`Start-NativeIme.cmd`を通常権限で実行する。句読点設定と学習設定はGoogle側で別途設定する。
+管理画面は`Meltype-Settings.exe`で開く。インストール、起動、停止、更新、単語登録、辞書管理を操作できる。詳しくは[管理画面の説明](NATIVE_GUI.md)を参照。停止すると通常のGoogle日本語入力に戻す。Windowsへのサインイン後は入力サービスとトレイの管理画面を非表示で起動する。句読点設定と学習設定はGoogle側で別途設定する。
 
 起動時はBrokerの準備を最大60秒待つ。起動済みなら再起動せず有効化する。起動失敗時は通常のGoogleへ戻し、この起動操作で開始したプロセスを終了する。画面には`native-broker-errors.txt`と`native-broker-output.txt`の末尾を表示する。従来の約4秒の待機では、初回のコンパイルに時間がかかるPCで正常な起動を拒否していた。
 

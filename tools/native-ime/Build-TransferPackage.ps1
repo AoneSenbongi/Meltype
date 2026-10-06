@@ -24,13 +24,14 @@ foreach ($file in $manifest.Files) { Copy-Item -LiteralPath (Join-Path $package 
     ConvertTo-Json -Depth 4 | Set-Content (Join-Path $stagePackage 'manifest.json') -Encoding UTF8
 $scripts = Join-Path $stage 'tools/native-ime'
 New-Item -ItemType Directory -Path $scripts -Force | Out-Null
-foreach ($script in @('NativeAutoStart.ps1','Set-NativeAutoStart.ps1','Install-NativeIme.ps1','Start-NativeIme.ps1','Wait-NativeBroker.ps1','Stop-NativeIme.ps1','Uninstall-NativeIme.ps1','Host-NativeBroker.ps1','Backup-State.ps1','Start-Resident.ps1','Host-Resident.ps1')) {
+foreach ($script in @('Set-NativeShortcuts.ps1','Uninstall-InstalledNativeIme.ps1','NativeGuiCommon.ps1','Host-NativeControlPanel.ps1','Open-NativeControlPanel.ps1','Invoke-NativeGuiAction.ps1','Update-NativeIme.ps1','Set-InstalledNativeAutoStart.ps1','NativeAutoStart.ps1','Set-NativeAutoStart.ps1','Install-NativeIme.ps1','Start-NativeIme.ps1','Wait-NativeBroker.ps1','Stop-NativeIme.ps1','Uninstall-NativeIme.ps1','Host-NativeBroker.ps1','Backup-State.ps1','Start-Resident.ps1','Host-Resident.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $script) -Destination (Join-Path $scripts $script)
 }
 foreach ($launcher in @('Enable-NativeAutoStart.cmd','Disable-NativeAutoStart.cmd','Install-NativeIme.cmd','Start-NativeIme.cmd','Stop-NativeIme.cmd','Uninstall-NativeIme.cmd')) {
     Copy-Item -LiteralPath (Join-Path $workspace $launcher) -Destination (Join-Path $stage $launcher)
 }
 Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination (Join-Path $stage 'LICENSE')
+Copy-Item -LiteralPath (Join-Path $workspace 'Meltype-Settings.exe') -Destination (Join-Path $stage 'Meltype-Settings.exe')
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_IME_TRANSFER.md') -Destination (Join-Path $stage 'README.md')
 Set-Content (Join-Path $stage 'SOURCE_VERSION.txt') $version -Encoding ASCII
 $sourceArchive = Join-Path $stage 'corresponding-source.zip'

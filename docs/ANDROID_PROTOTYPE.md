@@ -16,7 +16,7 @@ GitHub Actionsの`Android prototype`を`android-prototype`ブランチで実行�
 
 ## 導入
 
-1. 試作APKをAndroidへ転送し、APKを開いたアプリに対してインストールを許可する。
+1. [Android試作版のRelease](https://github.com/AoneSenbongi/Meltype/releases/tag/android-prototype-20261006)から`Meltype-Android-prototype.apk`をAndroidへダウンロードする。APKを開いたアプリに対してインストールを許可する。
 2. Meltypeのアプリを開き、「キーボードを有効にする」からMeltypeを有効にする。
 3. 「キーボードを選ぶ」でMeltypeを選択する。
 4. アプリ内の試し書き欄で`kyouhagoogledekensaku`を入力する。
@@ -25,6 +25,8 @@ GitHub Actionsの`Android prototype`を`android-prototype`ブランチで実行�
 
 ## 確認事項
 
-APKのビルド、Mozcの接続、日英混在、句読点、未確定文字の表示を自動検証する。実機での入力速度、各アプリのカーソル・改行・画面回転、長時間入力は別途確認が必要。これらの確認前は試作版として扱う。
+APKのビルドと日英切替などの入力テストが通った。Android 15のx86_64エミュレーターで、Mozcの接続、日英混在、句読点、入力欄の未確定表示と確定を確認した。実機での入力速度、各アプリのカーソル・改行・画面回転、長時間入力は別途確認が必要。これらの確認前は試作版として扱う。
+
+署名は試作用。自動更新は行わない。今後、署名が変わる版への更新では再インストールが必要になる場合がある。
 
 MeltypeのGPLと元作者の表記を維持する。Mozcと同梱辞書・依存ライブラリの通知はアプリ内のライセンス画面と配布物へ含める。

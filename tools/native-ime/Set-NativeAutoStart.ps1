@@ -33,11 +33,32 @@ foreach ($path in @($runtime,$StartScript)) {
 New-Item -ItemType Directory -Path $directory -Force | Out-Null
 $proxy = Join-Path $directory 'Startup.ps1'
 $command = Get-NativeAutoStartCommand $proxy
-@{ Runtime = $runtime; StartScript = $StartScript } | ConvertTo-Json | Set-Content (Join-Path $directory 'settings.json') -Encoding UTF8
+$converter = $null
+$activeConverter = Get-Process -Name GoogleIMEJaConverter -ErrorAction SilentlyContinue | Where-Object SessionId -EQ (Get-Process -Id $PID).SessionId | Select-Object -First 1
+if ($activeConverter) { $converter = $activeConverter.Path }
+if (-not $converter) {
+    foreach ($root in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+        if (-not $root) { continue }
+        $candidate = Join-Path $root 'Google/Google Japanese Input/GoogleIMEJaConverter.exe'
+        if (Test-Path -LiteralPath $candidate) { $converter = $candidate; break }
+    }
+}
+if (-not $converter) { throw 'Install Google Japanese Input before enabling automatic startup.' }
+@{ Runtime = $runtime; StartScript = $StartScript; GoogleConverter = $converter } | ConvertTo-Json | Set-Content (Join-Path $directory 'settings.json') -Encoding UTF8
 @'
 $ErrorActionPreference = 'Stop'
 try {
     $settings = Get-Content (Join-Path $PSScriptRoot 'settings.json') -Raw | ConvertFrom-Json
+    $sessionId = (Get-Process -Id $PID).SessionId
+    if (-not (Get-Process -Name GoogleIMEJaConverter -ErrorAction SilentlyContinue | Where-Object SessionId -EQ $sessionId)) {
+        Start-Process -FilePath $settings.GoogleConverter -WindowStyle Hidden
+    }
+    $googleReady = $false
+    for ($attempt = 0; $attempt -lt 120; $attempt++) {
+        if ([IO.Directory]::GetFiles('\\.\pipe\') | Where-Object { [IO.Path]::GetFileName($_) -like 'googlejapaneseinput.*.session' }) { $googleReady = $true; break }
+        Start-Sleep -Milliseconds 250
+    }
+    if (-not $googleReady) { throw 'Google conversion service did not become ready within 30 seconds.' }
     $arguments = '-NoProfile -File "' + $settings.StartScript + '"'
     Start-Process -FilePath $settings.Runtime -ArgumentList $arguments -WindowStyle Hidden -RedirectStandardOutput (Join-Path $PSScriptRoot 'startup-output.txt') -RedirectStandardError (Join-Path $PSScriptRoot 'startup-errors.txt')
 } catch {

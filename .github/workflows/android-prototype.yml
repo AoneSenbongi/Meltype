@@ -98,8 +98,13 @@ jobs:
             if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then break; fi
             sleep 2
           done
-          adb root
-          adb wait-for-device
+          for attempt in $(seq 1 5); do
+            if adb root; then break; fi
+            sleep 2
+            timeout 60 adb wait-for-device
+          done
+          timeout 60 adb wait-for-device
+          test "$(adb shell id -u | tr -d '\r')" = 0
           adb install android-distribution/Meltype-Android-prototype.apk
           adb shell am start -n jp.aonesenbongi.meltype/jp.aonesenbongi.meltype.MainActivity --ez selftest true
           for attempt in $(seq 1 60); do

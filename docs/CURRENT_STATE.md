@@ -87,3 +87,7 @@ AssetsはMeltype-Native-Google-windows-x64-20261007-023356.zipと同名の.sha25
 2026年10月7日、管理画面修正版の配布ZIPをローカル作成。distributions/Meltype-Native-Google-windows-x64-20261007-160029.zip、対応ソース084ba97、SHA-256 A27B2C5EF952F5FC62BE5CAD06DFBE4EDD068982907157C0A5009D7F0177067B。必須ファイル、管理スクリプト3件の一致、対応コミット、個人ログ・バックアップの除外を確認。GitHub公開と別PCのインストール確認は未実施。
 
 ユーザー指定により管理画面修正は1.0.4の新規通常Releaseとして準備する。1.0.3への追加配布案は取り下げた。管理画面と導入・更新状態、README・配布資料を1.0.4へ変更し、公開は本文と新ZIPへの承認待ち。
+
+1.0.4の配布ZIPはdistributions/Meltype-Native-Google-windows-x64-20261007-160630.zip。対応ソース92a647a、SHA-256 E4C3E4B856556356A6F3D378E4229B1B64E78C9E2892E6E9980AF87C601FE784。関連試験6本、必須ファイル・管理スクリプト・版番号・ペイロードハッシュ・個人ログ除外を確認。本文はdocs/RELEASE_1_0_4.md、公開計画はexperimental-build/release-1.0.4-publication.jsonに保存。通常Releaseの新規公開とソースpushは今回の内容への承認待ち。
+
+ユーザー指示により本家v1.0.3の取り込みを1.0.4公開の前提とした。管理画面のみのZIPと公開計画は旧候補であり公開しない。タグを取得して差分確認中。新版を再ビルド・検証し、変更後の本文とZIPへの承認を受ける。

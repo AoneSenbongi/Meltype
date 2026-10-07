@@ -95,3 +95,11 @@ AssetsはMeltype-Native-Google-windows-x64-20261007-023356.zipと同名の.sha25
 本家v1.0.3をマージし、競合したREADMEはFork向け導入説明を維持して本家の脅威検出案内を反映した。共通コア、常駐Windows実装、Mac・Linuxソース、候補辞書と回帰テストを取り込んだ。208/208の試験が通過。品質コーパスは1242/1243（apinoerrorの判定1件が期待と異なる）で既定合格基準を満たす。Native Brokerの選択範囲取得・置換は未実装のため、本家の再変換はNative IMEでは未対応と資料へ明記。タグv1.0.3の本家csproj内部版番号は1.0.2。これから配布ペイロード再ビルドとNative連携を検証する。
 
 本家1.0.3取り込み後のNativeパッケージを再ビルドした。Googleライブ変換のTSF実文書反映、候補再描画、同名パイプ拒否、AppContainerからのGoogle変換・候補・確定と接続先照合、検索パッケージの権限境界、GUI6本の試験が通過。導入済みIMEの登録・入力サービス・辞書は変更していない。脅威検査スクリプトの回帰試験も通過。これから新ZIPと配布物のDefender検査を実行し、確認後に最終公開案を提示する。
+
+## 本家1.0.3対応済み1.0.4候補
+
+本家タグv1.0.3（6703669）を履歴ごとマージした。ソースc4828cdbf528456a8085afee3a668402648df765。最新候補はdistributions/Meltype-Native-Google-windows-x64-20261007-161640.zip（113,654,008バイト）、SHA-256 8BEBAC80AAF2ECE5B21F3A4B6F91A9057097B1BE94912F9ECDD7BAD740BA118E。旧管理画面のみの候補は公開しない。共通・Windows208件、Google→TSF実文書、候補再描画、検索向けAppContainer通信・本人確認・権限境界、GUI・更新・復旧試験を確認。必須ファイル、対応コミット、ペイロードハッシュ、管理スクリプトの一致と個人ログ除外を確認。変換ペイロードのDefender検査は脅威なし。ZIPのDefender検査も脅威なしで完了した（定義1.459.576.0／エンジン1.1.26080.3）。新しい本文と添付はexperimental-build/release-1.0.4-publication.jsonへ保存した。通常Releaseとソースpushはユーザーへの再提示・承認待ち。導入済みPCへ新コアは適用していない。Native版の選択範囲再変換、Windows11検索欄、別PCのインストールエラー解消は未対応または未確認。
+
+ユーザー指示により1.0.4の主配布をEXEインストーラーへ変更し、デスクトップショートカットを追加する。ZIP候補の公開は保留。仕様はdocs/NATIVE_INSTALLER.md。作成ツールInno Setupのダウンロード・導入をまとめた操作は自動審査にblocked by policyで拒否された。既存ツール調査とソース・回帰試験の準備を進める。
+
+承認を受けて署名・公式SHA-256を確認したInno Setup 6.7.3をE:/Prog/Meltype/Tools/InnoSetup/compilerへ導入した。NSIS候補は配布ファイルを取得できず採用しない。NativeInstaller・Invoke-NativeSetupとInno Setup定義を実装。通常権限の新規導入・既存更新・取消・削除失敗と別アカウント拒否を隔離試験で確認。Windows PowerShellの日本語読込用にBOMを付けた。ショートカットを実際のCOMで隔離フォルダーへ作成・削除し、デスクトップの作成解除と他導入先のリンク保持を確認。GUIと更新・復旧6本も通過。ここからセットアップEXEをビルドする。現在の導入済みIMEと利用者デスクトップは変更していない。

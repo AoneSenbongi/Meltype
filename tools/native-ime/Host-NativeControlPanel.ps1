@@ -1,4 +1,4 @@
-param([switch]$Tray, [string]$RenderTo)
+﻿param([switch]$Tray, [string]$RenderTo)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
@@ -37,8 +37,20 @@ $hint = Add-Label '辞書・学習履歴は、このPCのGoogle日本語入力�
 $hint.ForeColor = [Drawing.Color]::DimGray
 $buttons = @{}
 $script:actionProcess = $null; $script:resultFile = $null; $script:quitting = $false
+function Show-NativeGuiError([string]$Details) {
+    $text = Get-NativeGuiErrorMessage $Details
+    try {
+        $folder = Join-Path $workspace 'experimental-build'
+        New-Item -ItemType Directory -Path $folder -Force | Out-Null
+        $path = Join-Path $folder ('gui-error-' + [Guid]::NewGuid().ToString('N') + '.txt')
+        [IO.File]::WriteAllText($path, $Details, [Text.UTF8Encoding]::new($false))
+        $text += "`n`nエラーの詳細を保存しました：`n" + $path
+    } catch { $text += "`n`nエラーの詳細を保存できませんでした。" }
+    [Windows.Forms.MessageBox]::Show($text, 'Meltype', [Windows.Forms.MessageBoxButtons]::OK, [Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+}
 function Start-Action([string]$Action) {
     if ($script:actionProcess) { return }
+    if ($buttons.ContainsKey($Action) -and -not $buttons[$Action].Enabled) { return }
     try {
         $route = Get-NativeGuiAction $workspace $Action
         $script:resultFile = Join-Path $workspace ('experimental-build/gui-' + [Guid]::NewGuid().ToString('N') + '.json')
@@ -51,11 +63,11 @@ function Start-Action([string]$Action) {
         $script:actionProcess = Start-Process @parameters
         $message.Text = '処理中です。完了するまでお待ちください。'
         foreach ($button in $buttons.Values) { $button.Enabled = $false }
-    } catch { [Windows.Forms.MessageBox]::Show($_.Exception.Message,'Meltype',[Windows.Forms.MessageBoxButtons]::OK,[Windows.Forms.MessageBoxIcon]::Error) | Out-Null }
+    } catch { Show-NativeGuiError ($_ | Out-String) }
 }
 function Add-Button([string]$Text, [int]$Column, [int]$Row, [string]$Action) {
     $button = [Windows.Forms.Button]::new(); $button.Text = $Text; $button.Dock = 'Fill'; $button.Height = 46
-    $button.Margin = [Windows.Forms.Padding]::new(4); $button.FlatStyle = 'System'
+    $button.Margin = [Windows.Forms.Padding]::new(4); $button.FlatStyle = 'Flat'; $button.FlatAppearance.BorderColor = [Drawing.Color]::LightGray
     $button.Add_Click({ Start-Action $Action }.GetNewClosure())
     $layout.Controls.Add($button,$Column,$Row); $buttons[$Action] = $button
     return $button
@@ -63,16 +75,17 @@ function Add-Button([string]$Text, [int]$Column, [int]$Row, [string]$Action) {
 foreach ($row in 3..6) { $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,50)) | Out-Null }
 Add-Button 'インストール' 0 3 'Install' | Out-Null
 Add-Button 'この版に更新' 1 3 'Update' | Out-Null
-Add-Button '起動' 0 4 'Start' | Out-Null
-Add-Button '停止してGoogleに戻る' 1 4 'Stop' | Out-Null
+(Add-Button '起動' 0 4 'Start').Enabled = $false
+(Add-Button '停止してGoogleに戻る' 1 4 'Stop').Enabled = $false
 Add-Button '自動起動を有効にする' 0 5 'Enable' | Out-Null
 Add-Button '自動起動を無効にする' 1 5 'Disable' | Out-Null
 function Open-NativeGoogleDialog([string]$Mode) {
     try { Start-Process -FilePath (Get-NativeGoogleTool) -ArgumentList ('--mode='+$Mode) }
-    catch { [Windows.Forms.MessageBox]::Show($_.Exception.Message,'Meltype') | Out-Null }
+    catch { Show-NativeGuiError ($_ | Out-String) }
 }
 foreach ($item in @(@('単語登録','word_register_dialog',0),@('辞書を管理','dictionary_tool',1))) {
     $button = [Windows.Forms.Button]::new(); $button.Text = $item[0]; $button.Dock = 'Fill'; $button.Margin = [Windows.Forms.Padding]::new(4)
+    $button.FlatStyle = 'Flat'; $button.FlatAppearance.BorderColor = [Drawing.Color]::LightGray
     $mode = $item[1]
     $button.Add_Click({ Open-NativeGoogleDialog $mode }.GetNewClosure())
     $layout.Controls.Add($button,[int]$item[2],6)
@@ -89,7 +102,7 @@ foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Back
                 'Backup' { $root = (Get-NativeGuiContext $workspace).Root; $folder = Join-Path $root 'backups'; New-Item -ItemType Directory $folder -Force | Out-Null; Start-Process explorer.exe -ArgumentList (ConvertTo-NativeGuiArgument $folder) }
                 'Uninstall' { if ([Windows.Forms.MessageBox]::Show('Native版の登録を削除し、Google日本語入力へ戻します。辞書と履歴は残ります。','Meltype','YesNo','Question') -eq 'Yes') { Start-Action 'Uninstall' } }
             }
-        } catch { [Windows.Forms.MessageBox]::Show($_.Exception.Message,'Meltype') | Out-Null }
+        } catch { Show-NativeGuiError ($_ | Out-String) }
     }.GetNewClosure())
     $footer.Controls.Add($button)
 }
@@ -116,8 +129,8 @@ $timer.Add_Tick({
         try {
             $result = Receive-NativeGuiActionCompletion ([ref]$script:actionProcess) ([ref]$script:resultFile)
             $message.Text = if ($result.Success) { '完了しました。' } else { '処理に失敗しました。' }
-            if (-not $result.Success) { [Windows.Forms.MessageBox]::Show($result.Output,'Meltype') | Out-Null }
-        } catch { $message.Text = '結果を確認できません：' + $_.Exception.Message }
+            if (-not $result.Success) { Show-NativeGuiError $result.Output }
+        } catch { $message.Text = Get-NativeGuiErrorMessage ($_ | Out-String) }
     }
     if (-not $script:actionProcess) {
         try {
@@ -127,10 +140,12 @@ $timer.Add_Tick({
             $running = Test-Path -LiteralPath ('\\.\pipe\Meltype.NativeComposition.' + $sid)
             $status.Text = if ($context.Installed) { 'インストール済み  ·  入力サービス：' + $(if($running){'起動中'}else{'停止中'}) + '  ·  自動起動：' + $(if($autoEnabled){'有効'}else{'無効'}) } else { '未インストール' }
             foreach ($action in $buttons.Keys) { $buttons[$action].Enabled = if ($action -eq 'Install') { -not $context.Installed } else { $context.Installed } }
+            if ($buttons.ContainsKey('Start')) { $buttons.Start.Enabled = $context.Installed -and -not $running }
+            if ($buttons.ContainsKey('Stop')) { $buttons.Stop.Enabled = $context.Installed -and $running }
             $buttons.Update.Enabled = $false
             $buttons.Update.Enabled = Test-NativeUpdateRequired $workspace $context
             $buttons.Update.Text = if ($context.Installed -and -not $buttons.Update.Enabled) { 'この版は適用済み' } else { 'この版に更新' }
-        } catch { $status.Text = '状態を確認できません：' + $_.Exception.Message }
+        } catch { $status.Text = '状態を確認できません。少し待ってから画面を開き直してください。' }
     }
 })
 try {

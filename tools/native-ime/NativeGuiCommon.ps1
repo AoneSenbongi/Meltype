@@ -120,3 +120,25 @@ function Assert-NativeUpdatePackage([string]$Stage,[string]$ManifestJson) {
     }
     return $manifest
 }
+
+function Get-NativeGuiErrorMessage([string]$Details) {
+    if ($Details -match '1223|cancell?ed|キャンセル') {
+        return '管理者確認がキャンセルされたため、処理を中止しました。変更する場合は、もう一度操作して管理者確認を許可してください。'
+    }
+    if ($Details -match 'Protected package operation did not return a result|Protected package operation returned an invalid result') {
+        return '管理者権限で行う処理の結果を確認できませんでした。管理者確認のキャンセルや、処理の起動失敗が考えられます。画面のインストール状態を確認してから、もう一度操作してください。'
+    }
+    if ($Details -match 'Native broker did not become ready|broker.*ready|入力サービス.*起動') {
+        return '入力サービスの起動を確認できませんでした。少し待ってから状態を確認し、停止中の場合はもう一度「起動」を押してください。'
+    }
+    if ($Details -match 'hash mismatch|Missing.*file|Required update file|Invalid.*package|package.*missing') {
+        return '更新用のファイルが不足しているか、内容が一致しません。ReleaseのZIPを新しいフォルダーへ展開し直してから、もう一度操作してください。'
+    }
+    if ($Details -match 'access.*denied|UnauthorizedAccess|アクセス.*拒否') {
+        return '必要なファイルへのアクセスが拒否されました。管理者確認を許可したか確認し、もう一度操作してください。'
+    }
+    if ($Details -match 'Google.*tool.*missing|Google.*not found') {
+        return 'Google日本語入力の設定ツールが見つかりません。Google日本語入力のインストール状態を確認してください。'
+    }
+    return '処理を完了できませんでした。画面の状態を確認してから、もう一度操作してください。繰り返す場合は、保存したエラーの詳細を確認してください。'
+}

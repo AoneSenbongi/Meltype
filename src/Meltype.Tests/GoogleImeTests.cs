@@ -76,7 +76,8 @@ internal static class GoogleImeTests
     private static byte[] Preedit(string reading, string value) =>
         P.Blob(5, new byte[] { 19 }.Concat(P.String(4, value)).Concat(P.String(6, reading)).Concat(new byte[] { 20 }).ToArray());
 
-    private static GoogleImeConverter LearningMock(List<string> commands, bool candidateExists = true, bool sameBoundary = true)
+    private static GoogleImeConverter LearningMock(List<string> commands, bool candidateExists = true, bool sameBoundary = true,
+        Func<bool>? learningEnabled = null, Action? highlighted = null)
     {
         var selected = "構成";
         return new GoogleImeConverter(request =>
@@ -87,7 +88,7 @@ internal static class GoogleImeTests
             commands.Add($"{kind}:{command}");
             if (kind == 1) return P.Number(1, 12345);
             if (kind == 17) { Assert.Equal(0UL, input.Message(9).Int(23)); return []; }
-            if (kind == 5 && command == 4) { selected = "校正"; return Preedit("こうせい", selected); }
+            if (kind == 5 && command == 4) { selected = "校正"; highlighted?.Invoke(); return Preedit("こうせい", selected); }
             if (kind == 5 && command == 2) return P.Blob(4, P.Number(1, 1).Concat(P.String(2, selected)).ToArray());
             if (kind == 3)
             {
@@ -95,7 +96,7 @@ internal static class GoogleImeTests
                 return Preedit(sameBoundary ? "こうせい" : "こう", selected).Concat(candidates).ToArray();
             }
             return [];
-        }, learning: true);
+        }, learning: true) { LearningEnabled = learningEnabled ?? (() => true) };
     }
 
     [Test]
@@ -105,6 +106,18 @@ internal static class GoogleImeTests
         var converter = LearningMock(commands);
         Assert.True(converter.TryLearn(null, [new("こうせい", "校正")]), "Matching candidate learned");
         Assert.Equal("6:0,1:0,17:0,5:22,5:26,3:0,5:4,5:2,8:0,2:0", string.Join(",", commands));
+    }
+    [Test]
+    public static void GoogleLearning_StopBeforeSubmit()
+    {
+        var enabled = false;
+        var commands = new List<string>();
+        var converter = LearningMock(commands, learningEnabled: () => enabled, highlighted: () => enabled = false);
+        Assert.True(!converter.TryLearn(null, [new("こうせい", "校正")]), "Stopped learning must not contact Google");
+        Assert.Equal(0, commands.Count);
+        enabled = true;
+        Assert.True(!converter.TryLearn(null, [new("こうせい", "校正")]), "Stop during candidate selection must cancel submit");
+        Assert.True(!commands.Contains("5:2") && !commands.Contains("8:0"), "No submission or persistence after stop");
     }
 
     [Test]
@@ -189,6 +202,18 @@ internal static class GoogleImeTests
             if (space) { live.Type(" "); Assert.Equal(before + mark, live.Showing, "Space preserves converted text and punctuation"); }
             live.Type("\n");
             Assert.Equal(before + mark, live.Host.Document, "Enter preserves converted text and punctuation");
+        }
+        foreach (var comma in new[] { '、', '，', ',' })
+        foreach (var period in new[] { '。', '．', '.' })
+        foreach (var key in new[] { ',', '.' })
+        {
+            var live = new CompositionTests.Keyboard(live: true, converter: converter, moreCandidates: converter.Candidates, comma: comma, period: period);
+            live.Type("kyouhaiitenki");
+            live.Type(key.ToString());
+            var expected = "今日はいい天気" + (key == ',' ? comma : period);
+            Assert.Equal(expected, live.Showing, "Selected punctuation preserves live conversion");
+            live.Type(" \n");
+            Assert.Equal(expected, live.Host.Document, "Selected punctuation survives Space and commit");
         }
         var mixedLive = new CompositionTests.Keyboard(live: true, converter: converter, moreCandidates: converter.Candidates, fullWidthCommaPeriod: true);
         mixedLive.Type("kyouhagoogledekensaku");

@@ -141,9 +141,13 @@ public static class MeltypeNativeBroker
             if(!IsTrustedClient(pipe,packageSid)) return;
             var host = new Host();
             var gate = new CaptureGate(() => { });
-            var google = new GoogleImeConverter(learning);
+            var preferences = new Meltype.Config.InputPreferenceStore(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MeltypeNativeGoogle", "input-preferences.json"));
+            var google = new GoogleImeConverter(learning) { LearningEnabled = () => preferences.Current.LearningEnabled };
             var controller = new CompositionController(gate, CompositionDetector.CreateDefault(), google, host,
-                new CompositionOptions { FullWidthCommaPeriod = true, LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false });
+                new CompositionOptions { FullWidthCommaPeriod = true, Comma = () => preferences.Current.Comma[0],
+                    Period = () => preferences.Current.Period[0], LearningEnabled = () => preferences.Current.LearningEnabled,
+                    LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false });
             var request = new byte[32];
             try
             {

@@ -20,6 +20,31 @@
     if ($state -and $state.NativeRegistration -ne 'Machine' -and -not $state.Portable -and (Test-Path (Join-Path $root 'investigation/Start-NativeIme.ps1'))) { $scripts = Join-Path $root 'investigation' }
     return @{ Installed = $installed; Root = $root; State = $state; Scripts = $scripts }
 }
+function Get-NativeInputPreferencesPath {
+    return Join-Path $env:LOCALAPPDATA 'MeltypeNativeGoogle/input-preferences.json'
+}
+function Get-NativeInputPreferences {
+    $path = Get-NativeInputPreferencesPath
+    $result = [pscustomobject]@{ Comma='，'; Period='．'; LearningEnabled=$true }
+    if (-not [IO.File]::Exists($path)) { return $result }
+    try {
+        $value = [IO.File]::ReadAllText($path) | ConvertFrom-Json
+        if ($value.Comma -in @('、','，',',')) { $result.Comma = $value.Comma }
+        if ($value.Period -in @('。','．','.')) { $result.Period = $value.Period }
+        $result.LearningEnabled = $value.LearningEnabled -is [bool] -and $value.LearningEnabled
+    } catch { $result.LearningEnabled = $false }
+    return $result
+}
+function Save-NativeInputPreferences([ValidateSet('、','，',',')][string]$Comma, [ValidateSet('。','．','.')][string]$Period, [bool]$LearningEnabled) {
+    $path = Get-NativeInputPreferencesPath
+    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
+    $temp = $path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+    try {
+        [IO.File]::WriteAllText($temp, (@{Comma=$Comma;Period=$Period;LearningEnabled=$LearningEnabled} | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+        if ([IO.File]::Exists($path)) { [IO.File]::Replace($temp,$path,[Management.Automation.Language.NullString]::Value) }
+        else { [IO.File]::Move($temp,$path) }
+    } finally { if ([IO.File]::Exists($temp)) { [IO.File]::Delete($temp) } }
+}
 function Get-NativeGuiAction([string]$SourceRoot, [string]$Action) {
     $context = Get-NativeGuiContext $SourceRoot
     $sourceScripts = Join-Path $SourceRoot 'tools/native-ime'

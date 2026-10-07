@@ -1,4 +1,4 @@
-param([switch]$Tray, [string]$RenderTo)
+﻿param([switch]$Tray, [string]$RenderTo)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
@@ -13,15 +13,15 @@ $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'Meltype 1.0.4 · Google日本語入力'
-$form.ClientSize = [Drawing.Size]::new(600, 530)
-$form.MinimumSize = [Drawing.Size]::new(616, 569)
+$form.ClientSize = [Drawing.Size]::new(600, 646)
+$form.MinimumSize = [Drawing.Size]::new(616, 685)
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = [Drawing.Color]::White
 $form.Font = [Drawing.Font]::new('Yu Gothic UI', 10)
 $form.Icon = [Drawing.SystemIcons]::Application
 $layout = [Windows.Forms.TableLayoutPanel]::new()
 $layout.Dock = 'Fill'; $layout.Padding = [Windows.Forms.Padding]::new(24)
-$layout.ColumnCount = 2; $layout.RowCount = 10
+$layout.ColumnCount = 2; $layout.RowCount = 12
 foreach ($n in 0..1) { $layout.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,50)) | Out-Null }
 $form.Controls.Add($layout)
 function Add-Label([string]$Text, [int]$Row, [int]$Height = 34) {
@@ -104,7 +104,7 @@ foreach ($item in @(@('単語登録','word_register_dialog',0),@('辞書を管�
     $layout.Controls.Add($button,[int]$item[2],7)
 }
 $footer = [Windows.Forms.FlowLayoutPanel]::new(); $footer.Dock = 'Fill'
-$layout.Controls.Add($footer,0,8); $layout.SetColumnSpan($footer,2)
+$layout.Controls.Add($footer,0,10); $layout.SetColumnSpan($footer,2)
 $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,42)) | Out-Null
 foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Backup'))) {
     $button = [Windows.Forms.Button]::new(); $button.Text = $item[0]; $button.AutoSize = $true; $operation = $item[1]
@@ -118,7 +118,48 @@ foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Back
     }.GetNewClosure())
     $footer.Controls.Add($button)
 }
-$message = Add-Label '画面を閉じると、タスクトレイに格納します。' 9 52
+$punctuationRow = [Windows.Forms.FlowLayoutPanel]::new(); $punctuationRow.Dock = 'Fill'
+$layout.Controls.Add($punctuationRow,0,8); $layout.SetColumnSpan($punctuationRow,2)
+$layout.RowStyles.Insert(8,[Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,54))
+function Add-PunctuationChoice([string]$Title,[string[]]$Values) {
+    $label = [Windows.Forms.Label]::new(); $label.Text=$Title; $label.AutoSize=$true; $label.Margin=[Windows.Forms.Padding]::new(4,10,4,4)
+    $punctuationRow.Controls.Add($label)
+    $choice=[Windows.Forms.ComboBox]::new(); $choice.DropDownStyle='DropDownList'; $choice.Width=128
+    foreach($value in $Values){$choice.Items.Add($value) | Out-Null}
+    $punctuationRow.Controls.Add($choice); return $choice
+}
+$commaValues=@('、','，',',');$periodValues=@('。','．','.')
+$commaChoice=Add-PunctuationChoice '読点' @('、（読点）','，（全角カンマ）',',（半角カンマ）')
+$periodChoice=Add-PunctuationChoice '句点' @('。（句点）','．（全角ピリオド）','.（半角ピリオド）')
+$punctuationSave=[Windows.Forms.Button]::new();$punctuationSave.Text='句読点を保存';$punctuationSave.AutoSize=$true
+$punctuationSave.Add_Click({
+    try {
+        $current=Get-NativeInputPreferences
+        Save-NativeInputPreferences $commaValues[$commaChoice.SelectedIndex] $periodValues[$periodChoice.SelectedIndex] $current.LearningEnabled
+        $message.Text='句読点を保存しました。次の入力から反映します。'
+    } catch { Show-NativeGuiError ($_ | Out-String) }
+});$punctuationRow.Controls.Add($punctuationSave)
+$preferences=Get-NativeInputPreferences
+$commaChoice.SelectedIndex=[Array]::IndexOf($commaValues,$preferences.Comma);$periodChoice.SelectedIndex=[Array]::IndexOf($periodValues,$preferences.Period)
+$learningStatus=[Windows.Forms.Label]::new();$learningStatus.Dock='Fill';$learningStatus.TextAlign='MiddleLeft'
+$layout.Controls.Add($learningStatus,0,9)
+$learningButton=[Windows.Forms.Button]::new();$learningButton.Dock='Fill';$learningButton.Margin=[Windows.Forms.Padding]::new(4);$learningButton.FlatStyle='Flat'
+$learningButton.Add_Click({
+    try {
+        $current=Get-NativeInputPreferences
+        Save-NativeInputPreferences $current.Comma $current.Period (-not $current.LearningEnabled)
+        Refresh-NativeLearningState
+        $message.Text='学習設定を保存しました。既存の辞書・履歴は残ります。'
+    } catch { Show-NativeGuiError ($_ | Out-String) }
+});$layout.Controls.Add($learningButton,1,9)
+$layout.RowStyles.Insert(9,[Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,54))
+function Refresh-NativeLearningState {
+    $current=Get-NativeInputPreferences
+    $learningStatus.Text=if($current.LearningEnabled){'Meltype経由の学習：有効'}else{'Meltype経由の学習：停止中'}
+    $learningButton.Text=if($current.LearningEnabled){'学習を停止'}else{'学習を再開'}
+}
+Refresh-NativeLearningState
+$message = Add-Label '画面を閉じると、タスクトレイに格納します。' 11 52
 $message.ForeColor = [Drawing.Color]::DimGray
 $icon = [Windows.Forms.NotifyIcon]::new(); $icon.Icon = $form.Icon; $icon.Text = 'Meltype · Google日本語入力'; $icon.Visible = -not [bool]$RenderTo
 $menu = [Windows.Forms.ContextMenuStrip]::new()
@@ -136,6 +177,7 @@ $icon.ContextMenuStrip = $menu; $icon.Add_DoubleClick({ $form.Show(); $form.Acti
 $form.Add_FormClosing({ if (-not $script:quitting -and -not $RenderTo -and $_.CloseReason -eq 'UserClosing') { $_.Cancel = $true; $form.Hide() } })
 $timer = [Windows.Forms.Timer]::new(); $timer.Interval = 1000
 $timer.Add_Tick({
+    if($learningButton){Refresh-NativeLearningState}
     if ($showEvent.WaitOne(0)) { $form.Show(); $form.Activate() }
     if ($script:actionProcess -and $script:actionProcess.HasExited) {
         try {

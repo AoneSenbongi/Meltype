@@ -1,5 +1,11 @@
 # 現在の状態
 
+## 現在の追加作業（未公開）
+
+2026年10月7日、管理画面へ読点「、／，／,」、句点「。／．／.」の個別選択と保存、学習停止・再開ボタンを実装。Native BrokerとGoogle変換器、共有入力コアは利用者のLocalAppData/MeltypeNativeGoogle/input-preferences.jsonを参照する。新しい日本語入力へ反映し、英語は半角を維持する。学習停止は新しいMeltype経由の変換・言語・Google学習を止め、既存の辞書・履歴を保持する。通常のGoogle日本語入力を直接使う際の設定は変えない。仕様はdocs/INPUT_PREFERENCES.md。Android側も独立した作業先で同じ設定を実装した。
+
+共有・Windows212/212、Googleへの接続を抑える停止・途中停止のテスト、実Googleで9組合せのライブ変換・Space・確定後の句読点保持が通過した。Native Brokerのコンパイルも確認。Windows PowerShell 5で設定上書き時のFile.Replaceのnull引数問題を再現し、NullStringに修正して9組合せ・停止再開・破損設定の試験が通過。既存のGUI操作状態試験も通過。管理画面の描画を画像で確認しREADMEへ埋め込んだ。導入済みPCの入力サービス・DLL登録・辞書は変更していない。experimental-build/native-ime-packageへ更新用ファイルを準備済み。GoogleからTSF実文書への未確定・確定・取消試験も通過。GitHubの公開内容は変更していない。
+
 ## 目的と対象
 
 公開済みWindows Native Google 1.0.2を基に、Windows検索欄の日本語入力問題を調査・修正する。この文書はPC版だけを扱い、Android版は`E:/Prog/Meltype/Android/source/docs/CURRENT_STATE.md`に記録する。新しいチャットへ移さず、このチャットで開発を続ける。
@@ -103,3 +109,15 @@ AssetsはMeltype-Native-Google-windows-x64-20261007-023356.zipと同名の.sha25
 ユーザー指示により1.0.4の主配布をEXEインストーラーへ変更し、デスクトップショートカットを追加する。ZIP候補の公開は保留。仕様はdocs/NATIVE_INSTALLER.md。作成ツールInno Setupのダウンロード・導入をまとめた操作は自動審査にblocked by policyで拒否された。既存ツール調査とソース・回帰試験の準備を進める。
 
 承認を受けて署名・公式SHA-256を確認したInno Setup 6.7.3をE:/Prog/Meltype/Tools/InnoSetup/compilerへ導入した。NSIS候補は配布ファイルを取得できず採用しない。NativeInstaller・Invoke-NativeSetupとInno Setup定義を実装。通常権限の新規導入・既存更新・取消・削除失敗と別アカウント拒否を隔離試験で確認。Windows PowerShellの日本語読込用にBOMを付けた。ショートカットを実際のCOMで隔離フォルダーへ作成・削除し、デスクトップの作成解除と他導入先のリンク保持を確認。GUIと更新・復旧6本も通過。ここからセットアップEXEをビルドする。現在の導入済みIMEと利用者デスクトップは変更していない。
+
+## セットアップ版1.0.4の現在候補
+
+2026年10月7日、主配布をEXEへ変更。distributions/Meltype-Native-Google-1.0.4-Setup.exe（82,787,661バイト）、SHA-256 13726E5573C14F767213A74A37AF2DF6C8B9CF468535DCB9D0C3EFE752ADFABA、対応ソースb15ee1b043aab60b216783752556d121f97c8fce。本家v1.0.3対応は維持。旧ZIP候補は公開しない。GUI6本、NativeInstallerの隔離試験、実COMショートカット試験が通過。Inno Setup同一定義を使った隔離パッケージでファイル配置・デスクトップリンク・アプリ一覧登録・ヘルパー実行と、削除時の全解除・バックアップ保持を確認（experimental-build/setup-smoke-7fc9548ab9fd464895a61edbcbe7f404）。別AppIdと隔離リンクパスを使い、実IMEを変更していない。最終EXEのDefender検査は脅威なし。セットアップによる実IME登録と別PCは未確認。実PCのデスクトップへ既存管理画面を開くショートカットを作成した。導入済みコア・DLL登録・入力サービスは変更していない。作成ツールはユーザー承認後にEドライブへ導入したInno Setup 6.7.3。公開候補と本文はexperimental-build/release-1.0.4-publication.json、docs/RELEASE_1_0_4.md。通常Release・README/セキュリティ/ソースpushは今回の内容への確認待ち。
+
+## 1.0.4の公開結果
+
+2026年10月7日、最終本文とセットアップEXEへのユーザー承認後、b15ee1b043aab60b216783752556d121f97c8fceをgoogle-native-imeへpushし、native-google-1.0.4を通常Releaseとして公開した。公開先https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.4。draft=false、prerelease=false、本文の一致をAPIで確認。AssetsはMeltype-Native-Google-1.0.4-Setup.exe（82,787,661バイト）と同名.sha256。両AssetsのサイズとGitHub digestをローカルSHA-256と照合し一致を確認。EXEのSHA-256は13726E5573C14F767213A74A37AF2DF6C8B9CF468535DCB9D0C3EFE752ADFABA。公開結果はexperimental-build/release-1.0.4-published.json。README・セキュリティ説明・本家v1.0.3対応ソースも公開済み。導入済みPCのコア/DLLは今回変更していない。セットアップによる実IME登録・別PCの確認は未実施。状態資料の公開結果はローカル保存のみ。
+
+## このPCの入力サービス復旧
+
+2026年10月7日、ユーザーが管理画面は開くが入力できないと報告。導入済みRootはC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-status。入力サービスのプロセスがなく、直近の起動ログは成功のみで停止理由は未特定。既存のStart-NativeIme.ps1を通常権限で実行して起動し直し、Native broker readyとActivate native=0x00000000を確認。名前付きパイプの準備完了=True。DLL登録・コア・辞書の更新は行っていない。ユーザーが「行けたわ」と入力の復旧を確認した。停止理由の特定は未完了。

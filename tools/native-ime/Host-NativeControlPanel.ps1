@@ -13,15 +13,15 @@ $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'Meltype 1.0.3 · Google日本語入力'
-$form.ClientSize = [Drawing.Size]::new(600, 480)
-$form.MinimumSize = [Drawing.Size]::new(616, 519)
+$form.ClientSize = [Drawing.Size]::new(600, 530)
+$form.MinimumSize = [Drawing.Size]::new(616, 569)
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = [Drawing.Color]::White
 $form.Font = [Drawing.Font]::new('Yu Gothic UI', 10)
 $form.Icon = [Drawing.SystemIcons]::Application
 $layout = [Windows.Forms.TableLayoutPanel]::new()
 $layout.Dock = 'Fill'; $layout.Padding = [Windows.Forms.Padding]::new(24)
-$layout.ColumnCount = 2; $layout.RowCount = 9
+$layout.ColumnCount = 2; $layout.RowCount = 10
 foreach ($n in 0..1) { $layout.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,50)) | Out-Null }
 $form.Controls.Add($layout)
 function Add-Label([string]$Text, [int]$Row, [int]$Height = 34) {
@@ -51,6 +51,7 @@ function Show-NativeGuiError([string]$Details) {
 function Start-Action([string]$Action) {
     if ($script:actionProcess) { return }
     if ($buttons.ContainsKey($Action) -and -not $buttons[$Action].Enabled) { return }
+    if ($Action -eq 'Uninstall' -and [Windows.Forms.MessageBox]::Show('Meltype Native版の登録、自動起動、ショートカットを削除してGoogle日本語入力へ戻します。Google日本語入力と辞書・学習履歴は残ります。続けますか？','Meltype',[Windows.Forms.MessageBoxButtons]::YesNo,[Windows.Forms.MessageBoxIcon]::Question,[Windows.Forms.MessageBoxDefaultButton]::Button2) -ne [Windows.Forms.DialogResult]::Yes) { return }
     try {
         $route = Get-NativeGuiAction $workspace $Action
         $script:resultFile = Join-Path $workspace ('experimental-build/gui-' + [Guid]::NewGuid().ToString('N') + '.json')
@@ -73,11 +74,13 @@ function Add-Button([string]$Text, [int]$Column, [int]$Row, [string]$Action) {
     $layout.Controls.Add($button,$Column,$Row); $buttons[$Action] = $button
     return $button
 }
-foreach ($row in 3..6) { $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,50)) | Out-Null }
+foreach ($row in 3..7) { $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,50)) | Out-Null }
 Add-Button 'インストール' 0 3 'Install' | Out-Null
-Add-Button 'この版に更新' 1 3 'Update' | Out-Null
-(Add-Button '起動' 0 4 'Start').Enabled = $false
-(Add-Button '停止してGoogleに戻る' 1 4 'Stop').Enabled = $false
+(Add-Button 'アンインストール' 1 3 'Uninstall').Enabled = $false
+Add-Button 'この版に更新' 0 4 'Update' | Out-Null
+$layout.SetColumnSpan($buttons.Update, 2)
+(Add-Button '起動' 0 5 'Start').Enabled = $false
+(Add-Button '停止してGoogleに戻る' 1 5 'Stop').Enabled = $false
 $script:refreshingAutoStart = $false
 $autoToggle = [Windows.Forms.CheckBox]::new()
 $autoToggle.Text = 'Windows起動時に自動で起動する'
@@ -88,7 +91,7 @@ $autoToggle.Add_CheckedChanged({
         Start-Action $(if ($autoToggle.Checked) { 'Enable' } else { 'Disable' })
     }
 })
-$layout.Controls.Add($autoToggle, 0, 5); $layout.SetColumnSpan($autoToggle, 2)
+$layout.Controls.Add($autoToggle, 0, 6); $layout.SetColumnSpan($autoToggle, 2)
 function Open-NativeGoogleDialog([string]$Mode) {
     try { Start-Process -FilePath (Get-NativeGoogleTool) -ArgumentList ('--mode='+$Mode) }
     catch { Show-NativeGuiError ($_ | Out-String) }
@@ -98,26 +101,24 @@ foreach ($item in @(@('単語登録','word_register_dialog',0),@('辞書を管�
     $button.FlatStyle = 'Flat'; $button.FlatAppearance.BorderColor = [Drawing.Color]::LightGray
     $mode = $item[1]
     $button.Add_Click({ Open-NativeGoogleDialog $mode }.GetNewClosure())
-    $layout.Controls.Add($button,[int]$item[2],6)
+    $layout.Controls.Add($button,[int]$item[2],7)
 }
 $footer = [Windows.Forms.FlowLayoutPanel]::new(); $footer.Dock = 'Fill'
-$layout.Controls.Add($footer,0,7); $layout.SetColumnSpan($footer,2)
+$layout.Controls.Add($footer,0,8); $layout.SetColumnSpan($footer,2)
 $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,42)) | Out-Null
-foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Backup'),@('アンインストール','Uninstall'))) {
+foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Backup'))) {
     $button = [Windows.Forms.Button]::new(); $button.Text = $item[0]; $button.AutoSize = $true; $operation = $item[1]
     $button.Add_Click({
         try {
             switch ($operation) {
                 'Settings' { Start-Process (Get-NativeGoogleTool) -ArgumentList '--mode=config_dialog' }
                 'Backup' { $root = (Get-NativeGuiContext $workspace).Root; $folder = Join-Path $root 'backups'; New-Item -ItemType Directory $folder -Force | Out-Null; Start-Process explorer.exe -ArgumentList (ConvertTo-NativeGuiArgument $folder) }
-                'Uninstall' { if ([Windows.Forms.MessageBox]::Show('Meltype Native版の登録、自動起動、ショートカットを削除してGoogle日本語入力へ戻します。Google日本語入力と辞書・学習履歴は残ります。続けますか？','Meltype','YesNo','Question') -eq 'Yes') { Start-Action 'Uninstall' } }
             }
         } catch { Show-NativeGuiError ($_ | Out-String) }
     }.GetNewClosure())
-    if ($operation -eq 'Uninstall') { $buttons.Uninstall = $button; $button.Enabled = $false }
     $footer.Controls.Add($button)
 }
-$message = Add-Label '画面を閉じると、タスクトレイに格納します。' 8 52
+$message = Add-Label '画面を閉じると、タスクトレイに格納します。' 9 52
 $message.ForeColor = [Drawing.Color]::DimGray
 $icon = [Windows.Forms.NotifyIcon]::new(); $icon.Icon = $form.Icon; $icon.Text = 'Meltype · Google日本語入力'; $icon.Visible = -not [bool]$RenderTo
 $menu = [Windows.Forms.ContextMenuStrip]::new()

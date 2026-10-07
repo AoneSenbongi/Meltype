@@ -1,4 +1,4 @@
-﻿param([switch]$Tray, [string]$RenderTo)
+param([switch]$Tray, [string]$RenderTo)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
@@ -12,7 +12,7 @@ $mutex = [Threading.Mutex]::new($false, ('Local\Meltype.NativePanel.' + $sid), [
 $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\Meltype.NativePanel.Show.' + $sid))
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Meltype 1.0.3 · Google日本語入力'
+$form.Text = 'Meltype 1.0.4 · Google日本語入力'
 $form.ClientSize = [Drawing.Size]::new(600, 530)
 $form.MinimumSize = [Drawing.Size]::new(616, 569)
 $form.StartPosition = 'CenterScreen'

@@ -4,7 +4,7 @@
 $ErrorActionPreference = 'Stop'
 
 # Meltype のインストール。ビルド済みの app フォルダーを %LOCALAPPDATA%\Programs\Meltype にコピーし、
-# スタートアップに登録して起動する。管理者権限は不要。.NET は app の dotnet フォルダーに同梱しているので、インストール不要。
+# スタートアップとスタートメニューに登録して起動する。管理者権限は不要。.NET は app の dotnet フォルダーに同梱しているので、インストール不要。
 
 $source = Join-Path $PSScriptRoot 'app'
 $target = Join-Path $env:LOCALAPPDATA 'Programs\Meltype'
@@ -48,11 +48,13 @@ if (Test-Path -LiteralPath $oldProgram) { Remove-Item -LiteralPath $oldProgram -
 New-Item -ItemType Directory -Force -Path $target | Out-Null
 Copy-Item -Path (Join-Path $source '*') -Destination $target -Recurse -Force
 
-# コピーした直後にウイルス対策ソフトが Meltype.exe を隔離することがある (キーボードの入力を扱うソフトなので誤検知されやすい)
+# コピーした直後にウイルス対策ソフトが Meltype.exe を隔離することがある。誤検知かどうかはここでは判断できない。
 if (-not (Test-Path -LiteralPath $exe)) {
     Write-Host "コピーした Meltype.exe が見つかりません: $exe"
     Write-Host 'ウイルス対策ソフトが Meltype を止めた可能性があります。'
-    Write-Host 'Windows セキュリティ →「ウイルスと脅威の防止」→「保護の履歴」で Meltype を「許可」してから、もう一度 Install.cmd を実行してください。'
+    Write-Host 'Windows セキュリティ →「ウイルスと脅威の防止」→「保護の更新」で定義を更新し、公式の ZIP を再ダウンロードして再検査してください。'
+    Write-Host 'Windows セキュリティ →「ウイルスと脅威の防止」→「保護の履歴」で検出名を確認してください。誤検知かどうかは、この状態だけでは判断できません。'
+    Write-Host '保護を無効にしたり「許可」に変更したりせず、版と検出名を https://github.com/yksr-melt/Meltype/issues に報告してください (個人名やパスは隠してください)。'
     exit 1
 }
 
@@ -83,13 +85,18 @@ if (Test-Path -LiteralPath $uninstallSource) {
     Set-ItemProperty -Path $key -Name EstimatedSize -Value $size -Type DWord
 }
 
-$startup = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
+# 自動起動と、スタートメニュー・Windows 検索からの起動用 (現在のユーザー)
 $shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut((Join-Path $startup 'Meltype.lnk'))
-$shortcut.TargetPath = $exe
-$shortcut.WorkingDirectory = $target
-$shortcut.Description = 'Meltype: 日本語と英語を自動で打ち分ける'
-$shortcut.Save()
+foreach ($folderName in 'Startup', 'Programs') {
+    $folder = [Environment]::GetFolderPath($folderName)
+    New-Item -ItemType Directory -Force -Path $folder | Out-Null
+    $shortcut = $shell.CreateShortcut((Join-Path $folder 'Meltype.lnk'))
+    $shortcut.TargetPath = $exe
+    $shortcut.WorkingDirectory = $target
+    $shortcut.IconLocation = "$exe,0"
+    $shortcut.Description = 'Meltype: 日本語と英語を自動で打ち分ける'
+    $shortcut.Save()
+}
 
 # 管理者として実行していても、Meltype はふつうの権限で起動する (エクスプローラーから起動すると、ふつうの権限になる)。
 # 管理者として動かすと、次のインストール・アンインストールでも管理者権限が必要になってしまう。

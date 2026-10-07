@@ -83,6 +83,52 @@ public sealed class FocusInspector : IDisposable
 
     public FocusInfo Current => _info;
 
+
+    private Func<UiAutomation.Element, bool>? _selectionMatches;
+    private long _selectionSequence;
+    private IntPtr _selectionForeground;
+
+    /// <summary>UIA 専用スレッドで選択文字を取得する。待つのは UI スレッドだけで、フックでは呼ばない。</summary>
+    public string? SelectedText(int waitMs = 250)
+    {
+        string? result = null;
+        var sequence = Interlocked.Read(ref _focusSequence);
+        var foreground = Native.GetForegroundWindow();
+        var done = new ManualResetEventSlim();
+        Enqueue(() =>
+        {
+            try
+            {
+                _selectionMatches = null;
+                if (!CanCapture || Input.ForegroundTracker.IsOwnWindow(foreground) ||
+                    sequence != Interlocked.Read(ref _focusSequence) || foreground != Native.GetForegroundWindow()) return;
+                if (Automation()?.Focused() is not { IsPassword: false, IsReadOnly: false } element) return;
+                result = element.SelectedText(out _selectionMatches);
+                _selectionSequence = sequence;
+                _selectionForeground = foreground;
+            }
+            finally { done.Set(); }
+        });
+        return done.Wait(waitMs) && sequence == Interlocked.Read(ref _focusSequence) && foreground == Native.GetForegroundWindow() ? result : null;
+    }
+
+    public bool SelectionUnchanged(int waitMs = 250)
+    {
+        var result = false;
+        var done = new ManualResetEventSlim();
+        Enqueue(() =>
+        {
+            try
+            {
+                result = CanCapture && _selectionSequence == Interlocked.Read(ref _focusSequence) &&
+                    _selectionForeground == Native.GetForegroundWindow() &&
+                    Automation()?.Focused() is { IsPassword: false, IsReadOnly: false } element && _selectionMatches?.Invoke(element) == true;
+            }
+            finally { done.Set(); }
+        });
+        return done.Wait(waitMs) && result && _selectionSequence == Interlocked.Read(ref _focusSequence) && _selectionForeground == Native.GetForegroundWindow();
+    }
+
     /// <summary>
     /// キャレット (入力位置) の画面上の四角形を UI Automation で調べる (Chrome・Discord など、Windows のキャレットを使わないアプリ用)。
     /// このクラスのスレッドで調べ、最大 waitMs 待つ。取れなければ null。

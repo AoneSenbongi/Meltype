@@ -119,6 +119,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         composition.InputAllowed = () => KeyboardLayoutPolicy.AllowsInput(_settings);
         // 変換ボックスで確定した文字と、Meltype が送り直したキーも、今の行の追いかけに入れる (自分で送ったキーはフックに届かない)。
         composition.Controller.Committed += text => _line.Append(text);
+        composition.Controller.ReconversionCommitted += () => InvalidateLine();
         composition.KeyReplayed += e => TrackLine(e);
         composition.MouseReplayed += () => InvalidateLine();
         composition.Focus.Invalidate();
@@ -208,11 +209,13 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         // Meltype キーボードが IME を OFF に戻すときに、再変換中の文字 (選択していた文字) が消える (#19)。
         if (settings.Enabled && e.Vk == VirtualKeys.Convert && !e.Injected && !composition.Gate.IsCaptured)
         {
+            // 変換キーは Meltype に渡す。選択文字の取得・再変換は UI スレッドで行う。
+            if (composition.Gate.OnKey(e, StartsComposition)) return true;
             if (e.IsDown)
             {
                 lock (_swallowedToggleUps) _swallowedToggleUps.Add(e.Vk);
                 MaskAltRelease();
-                Log.Info("変換キー: Meltype キーボードの使用中は Microsoft IME の再変換を使わない (選択した文字が消えるため)");
+                Log.Info("変換キー: この入力先では Meltype の再変換を開始できません。");
             }
             return true;
         }
@@ -345,18 +348,19 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         var settings = _settings;
         if (!settings.Enabled || settings.Mode != InputMode.Keyboard || !KeyboardLayoutPolicy.AllowsInput(settings)) return false;
         var letter = VirtualKeys.IsLetter(e.Vk);
+        var reconvert = e.Vk == VirtualKeys.Convert;
         // 句読点・かぎかっこ・長音・数字・記号のキー (Shift を押して打つ ＃＄％（）＠ なども) でも変換ボックスを開く。
         // 日本語の中では全角、英語の中では半角になる。
         var punctuation = e.Vk is >= 0x30 and <= 0x39 or >= 0xBA and <= 0xC0 or >= 0xDB and <= 0xDF or 0xE2;
         // かな入力 (JIS): かなのキー (数字・記号のキーも含む) はすべて入力を始める。
         if (settings.InputStyle == InputStyle.Kana && !_keyboardDirect && KanaDetector.IsKanaKey(e.Vk)) punctuation = true;
-        if (_keyboardDirect)
+        if (_keyboardDirect && !reconvert)
         {
             // 英数状態: ローマ字かどうかを判定するために、単語の打ち始めの英字だけを受け取る。
             // 英語と分かった単語の続きは、区切り (Space など) まで素通しする。
             if (!letter || !settings.DirectModeAutoDetect || settings.ForApp(_foreground.Current.ProcessName).DetectionLevel == DetectionLevel.Manual || _directEnglishWord) return false;
         }
-        else if (!letter && !punctuation)
+        else if (!reconvert && !letter && !punctuation)
         {
             return false;
         }
@@ -365,7 +369,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         // 文字入力欄 (パスワード以外) にフォーカスがあるときだけ。ショートカットキーやゲームの操作を横取りしない。
         if (_composition?.Focus.CanCapture != true && _composition?.Focus.CanCaptureWaiting() != true) return false;
         // コードエディター・ターミナル: コードの中は英数のまま通す (補完もそのまま効く)。コメント・文字列の中は日本語を判定する。
-        if (!_keyboardDirect && IsCodeApp(settings))
+        if (!reconvert && !_keyboardDirect && IsCodeApp(settings))
         {
             var code = InCode(settings);
             var kind = code ? LineKind.Code : LineKind.Comment;

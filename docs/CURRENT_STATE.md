@@ -91,3 +91,5 @@ AssetsはMeltype-Native-Google-windows-x64-20261007-023356.zipと同名の.sha25
 1.0.4の配布ZIPはdistributions/Meltype-Native-Google-windows-x64-20261007-160630.zip。対応ソース92a647a、SHA-256 E4C3E4B856556356A6F3D378E4229B1B64E78C9E2892E6E9980AF87C601FE784。関連試験6本、必須ファイル・管理スクリプト・版番号・ペイロードハッシュ・個人ログ除外を確認。本文はdocs/RELEASE_1_0_4.md、公開計画はexperimental-build/release-1.0.4-publication.jsonに保存。通常Releaseの新規公開とソースpushは今回の内容への承認待ち。
 
 ユーザー指示により本家v1.0.3の取り込みを1.0.4公開の前提とした。管理画面のみのZIPと公開計画は旧候補であり公開しない。タグを取得して差分確認中。新版を再ビルド・検証し、変更後の本文とZIPへの承認を受ける。
+
+本家v1.0.3をマージし、競合したREADMEはFork向け導入説明を維持して本家の脅威検出案内を反映した。共通コア、常駐Windows実装、Mac・Linuxソース、候補辞書と回帰テストを取り込んだ。208/208の試験が通過。品質コーパスは1242/1243（apinoerrorの判定1件が期待と異なる）で既定合格基準を満たす。Native Brokerの選択範囲取得・置換は未実装のため、本家の再変換はNative IMEでは未対応と資料へ明記。タグv1.0.3の本家csproj内部版番号は1.0.2。これから配布ペイロード再ビルドとNative連携を検証する。

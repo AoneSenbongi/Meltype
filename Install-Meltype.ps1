@@ -26,14 +26,18 @@ if (Test-Path -LiteralPath (Join-Path $mozcBin 'meltype_mozc_helper.exe')) {
 $exe = Join-Path $output 'Meltype.exe'
 if (-not (Test-Path -LiteralPath $exe)) { throw "Meltype.exe が作成されませんでした: $exe" }
 
-# 自動起動 (現在のユーザーのスタートアップ フォルダー)
-$startup = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
+# 自動起動と、スタートメニュー・Windows 検索からの起動用 (現在のユーザー)
 $shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut((Join-Path $startup 'Meltype.lnk'))
-$shortcut.TargetPath = $exe
-$shortcut.WorkingDirectory = $output
-$shortcut.Description = 'Meltype: 入力開始時に日本語入力を自動判定する'
-$shortcut.Save()
+foreach ($folderName in 'Startup', 'Programs') {
+    $folder = [Environment]::GetFolderPath($folderName)
+    New-Item -ItemType Directory -Force -Path $folder | Out-Null
+    $shortcut = $shell.CreateShortcut((Join-Path $folder 'Meltype.lnk'))
+    $shortcut.TargetPath = $exe
+    $shortcut.WorkingDirectory = $output
+    $shortcut.IconLocation = "$exe,0"
+    $shortcut.Description = 'Meltype: 入力開始時に日本語入力を自動判定する'
+    $shortcut.Save()
+}
 
 Start-Process -FilePath $exe -WorkingDirectory $output
 Write-Host 'Meltype をインストールして起動しました。タスクトレイのアイコンから設定・ログ・一時停止 (Ctrl+半角/全角) ができます。'

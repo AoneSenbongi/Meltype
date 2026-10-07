@@ -305,7 +305,7 @@ def main():
         bus.request_name("org.freedesktop.IBus.Meltype", 0)
     else:
         # 手で起動したとき (試すとき): コンポーネントを登録する
-        component = IBus.Component.new("org.freedesktop.IBus.Meltype", "Meltype", "1.0.1", "GPL-3.0-or-later", "Yukishiro", "https://github.com/yksr-melt/Meltype", "", "")
+        component = IBus.Component.new("org.freedesktop.IBus.Meltype", "Meltype", "1.0.2", "GPL-3.0-or-later", "Yukishiro", "https://github.com/yksr-melt/Meltype", "", "")
         component.add_engine(IBus.EngineDesc.new("meltype", "Meltype", "Meltype", "ja", "GPL-3.0-or-later", "Yukishiro", "", "default"))
         bus.register_component(component)
     loop.run()

@@ -41,9 +41,11 @@ function Stop-Meltype {
 Stop-Meltype
 
 foreach ($name in 'Meltype.lnk', 'AutoIME.lnk') {
-    $shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Startup\$name"
+    $shortcut = Join-Path ([Environment]::GetFolderPath('Startup')) $name
     if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut -Force }
 }
+$shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Meltype.lnk'
+if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut -Force }
 
 $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Meltype'
 if (Test-Path -LiteralPath $key) { Remove-Item -LiteralPath $key -Recurse -Force }

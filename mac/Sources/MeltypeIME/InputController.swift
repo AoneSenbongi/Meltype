@@ -83,6 +83,24 @@ final class MeltypeInputController: IMKInputController {
         guard let client = self.client() as? IMKTextInput,
               let string = candidateString?.string,
               let index = candidateList.firstIndex(of: string) else { return }
+        // クリックした候補が候補ウィンドウで選ばれているので、覚えている位置も合わせる。
+        windowIndex = index
+        apply(NativeCore.shared.selectCandidate(session, index: index), to: client)
+    }
+
+    /// 候補ウィンドウの中で選択が動いた (マウスで選んだときなど)。本体の選択も合わせる。
+    /// 本体の選択を候補ウィンドウに反映しているとき (selectingFromCore) にも呼ばれるので、そのときは何もしない。
+    /// moveDown / moveUp の通知が遅れて届くと古い番号に戻してしまうので、マウスの操作のときだけ受け付ける。
+    private var selectingFromCore = false
+
+    override func candidateSelectionChanged(_ candidateString: NSAttributedString!) {
+        let mouseTypes: [NSEvent.EventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged]
+        guard !selectingFromCore,
+              let type = NSApp.currentEvent?.type, mouseTypes.contains(type),
+              let client = self.client() as? IMKTextInput,
+              let string = candidateString?.string,
+              let index = candidateList.firstIndex(of: string) else { return }
+        windowIndex = index
         apply(NativeCore.shared.selectCandidate(session, index: index), to: client)
     }
 
@@ -190,11 +208,18 @@ final class MeltypeInputController: IMKInputController {
     private func updateCandidates(_ view: CompositionView) {
         guard let window = candidatesWindow else { return }
         if view.converting && view.candidates.count > 1 {
-            candidateList = view.candidates
-            window.update()
-            window.show(kIMKLocateCandidatesBelowHint)
+            // 作り直し・選択で候補ウィンドウから candidateSelectionChanged が来ても、本体に返さない。
+            selectingFromCore = true
+            defer { selectingFromCore = false }
+            // 一覧を作り直すと選択が先頭に戻るので、中身が変わったとき (別の文節に移ったときなど) だけ作り直す。
+            if candidateList != view.candidates || !window.isVisible() {
+                candidateList = view.candidates
+                window.update()
+                window.show(kIMKLocateCandidatesBelowHint)
+                windowIndex = 0
+            }
             if view.selectedIndex >= 0 && view.selectedIndex < view.candidates.count {
-                window.selectCandidate(withIdentifier: window.candidateIdentifier(atLineNumber: view.selectedIndex))
+                selectInWindow(window, index: view.selectedIndex)
             }
             scheduleMeaning(view)
         } else {
@@ -202,6 +227,21 @@ final class MeltypeInputController: IMKInputController {
             candidateList = []
             window.hide()
         }
+    }
+
+    /// 候補ウィンドウで今選ばれている候補の番号 (一覧を作り直すと先頭に戻る)。
+    private var windowIndex = 0
+
+    /// 候補ウィンドウの選択を index 番目の候補に合わせる。
+    /// selectCandidate(withIdentifier:) では選択が動かず、selectedCandidate() も今の選択とずれることがある (macOS 26)。
+    /// なので、選択の位置はこちらで覚えておき、矢印キーと同じ moveDown / moveUp でその差だけ動かす。
+    private func selectInWindow(_ window: IMKCandidates, index: Int) {
+        let step = index > windowIndex ? #selector(NSResponder.moveDown(_:)) : #selector(NSResponder.moveUp(_:))
+        guard window.responds(to: step) else { return }
+        for _ in 0..<abs(index - windowIndex) {
+            window.perform(step, with: nil)
+        }
+        windowIndex = index
     }
 
     /// 入力欄のキャレットの前後の文字列 (それぞれ 20 文字まで)。取れなければ nil。

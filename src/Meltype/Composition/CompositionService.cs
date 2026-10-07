@@ -239,6 +239,37 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
 
     // ---- ICompositionHost ----
 
+    private ReconversionSelection? _reconversionSelection;
+
+    public ReconversionSelection? GetReconversionSelection()
+    {
+        // 再変換のときは、IME の逆変換で出てくる読みを使う。
+        _reconversionSelection = null;
+        if (Focus.SelectedText() is not { } text) return null;
+        var reading = GuessReading(text);
+        if (string.IsNullOrWhiteSpace(reading))
+        {
+            Diagnostics.Log.Info("再変換: 選択文字の読みを取得できませんでした。");
+            return null;
+        }
+        return _reconversionSelection = new ReconversionSelection(text, reading);
+    }
+
+    public bool TryReplaceSelection(ReconversionSelection selection, string text)
+    {
+        // 選択範囲が変わったか確認できないときは、置換を取り消す
+        if (!ReferenceEquals(selection, _reconversionSelection) || !InputAllowed() || !Focus.SelectionUnchanged())
+        {
+            _reconversionSelection = null;
+            Diagnostics.Log.Info("再変換: 選択範囲が変わったか確認できないため、置換を取り消しました。");
+            return false;
+        }
+
+        _reconversionSelection = null;
+        CommitText(text);
+        return true;
+    }
+
     /// <summary>前面のアプリで、確定した文字を貼り付けで入れるか (設定の「貼り付けで入力するアプリ」)。</summary>
     public Func<bool> PasteCommit { get; set; } = () => false;
 

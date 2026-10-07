@@ -50,6 +50,8 @@ internal sealed class ReportDialog : Form
         var logBox = new GroupBox { Dock = DockStyle.Fill, Text = "最近のログ (編集できます)", Padding = new Padding(8) };
         logBox.Controls.Add(_log);
 
+        var reportBox = new GroupBox { Dock = DockStyle.Bottom, Height = 150, Text = "報告する", Padding = new Padding(8) };
+
         var copy = new Button { Text = "ログをコピー", AutoSize = true };
         var open = new Button { Text = "フォームで報告 (おすすめ・アカウント不要)", AutoSize = true };
         var close = new Button { Text = "閉じる", AutoSize = true, DialogResult = DialogResult.Cancel };
@@ -79,24 +81,26 @@ internal sealed class ReportDialog : Form
                 Diagnostics.Log.Warn($"報告の画面を開けませんでした: {ex.Message}");
             }
         };
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Padding = new Padding(6) };
-        buttons.Controls.AddRange([close, open, copy, copied]);
+
+        // GitHub のアカウントがある人向け (返事や修正の通知が届く)。公開 (1.0.0) まではリポジトリが非公開なので出さない。
+        if (AppInfo.IsPublicRelease) reportBox.Controls.Add(GitHubLinks());
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Padding = new Padding(6), Margin = new Padding(0, 4, 0, 0) };
+        buttons.Controls.AddRange(close, open, copy, copied);
+        reportBox.Controls.Add(buttons);
 
         Controls.Add(logBox);
-        // GitHub のアカウントがある人向け (返事や修正の通知が届く)。公開 (1.0.0) まではリポジトリが非公開なので出さない。
-        if (AppInfo.IsPublicRelease) Controls.Add(GitHubLinks());
         Controls.Add(environmentBox);
         Controls.Add(intro);
-        Controls.Add(buttons);
+        Controls.Add(reportBox);
         CancelButton = close;
     }
 
     /// <summary>「GitHub で報告: 不具合 / 変換・判定の間違い / 改善の提案」のリンク。</summary>
     private Control GitHubLinks()
     {
-        const string prefix = "GitHub のアカウントがある人は GitHub で報告 (返事や修正の通知が届きます): ";
+        const string prefix = "GitHub のアカウントがある人は GitHub で報告 (返事や修正の通知が届きます)\n報告リンク: ";
         (string Text, string Template)[] kinds = [("不具合", "1-bug.yml"), ("変換・判定の間違い", "2-misdetection.yml"), ("改善の提案", "4-idea.yml")];
-        var link = new LinkLabel { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(10, 4, 10, 4), Text = prefix + string.Join(" / ", kinds.Select(k => k.Text)) };
+        var link = new LinkLabel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(10, 4, 10, 4), Text = prefix + string.Join(" / ", kinds.Select(k => k.Text)) };
         link.Links.Clear();
         var start = prefix.Length;
         foreach (var (text, template) in kinds)

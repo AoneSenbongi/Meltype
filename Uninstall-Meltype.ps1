@@ -7,14 +7,16 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-$shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\Meltype.lnk'
-if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut -Force }
+foreach ($folderName in 'Startup', 'Programs') {
+    $shortcut = Join-Path ([Environment]::GetFolderPath($folderName)) 'Meltype.lnk'
+    if (Test-Path -LiteralPath $shortcut) { Remove-Item -LiteralPath $shortcut -Force }
+}
 Get-Process Meltype, meltype_mozc_helper -ErrorAction SilentlyContinue | Stop-Process -Force
 
 if ($RemoveData) {
     $data = Join-Path $env:LOCALAPPDATA 'Meltype'
     if (Test-Path -LiteralPath $data) { Remove-Item -LiteralPath $data -Recurse -Force }
-    Write-Host 'Meltype を停止し、自動起動と設定・学習データを削除しました。'
+    Write-Host 'Meltype を停止し、自動起動・スタートメニューのショートカットと設定・学習データを削除しました。'
 } else {
-    Write-Host 'Meltype を停止し、自動起動から外しました。設定と学習データは %LOCALAPPDATA%\Meltype に残っています (-RemoveData で削除)。'
+    Write-Host 'Meltype を停止し、自動起動・スタートメニューのショートカットを削除しました。設定と学習データは %LOCALAPPDATA%\Meltype に残っています (-RemoveData で削除)。'
 }

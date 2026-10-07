@@ -38,6 +38,12 @@ powershell -ExecutionPolicy Bypass -File .\Build-Package.ps1
 自己診断は、設定・判定・辞書・変換エンジン・Windows の候補 API・UI Automation・各画面・タスクトレイ・データの保存を、キーボードフックを掛けずに一通り動かします。UI Automation は WPF に頼らず COM で直接使っているので、WPF 一式は同梱していません。
 インストール先は `%LOCALAPPDATA%\Programs\Meltype` で、管理者権限は不要です。配布用のファイルの元は [packaging/](../packaging/) にあります。
 
+GitHub Actions の配布ジョブは、ZIP の公開前に Microsoft Defender の定義を更新し、完成したフォルダーと ZIP を検査します。検出・検査エラー・Defender が無効の場合は、Artifacts と Releases への公開を止めます。手元で配布する場合も、管理者の PowerShell で `tools/Scan-WindowsPackage.ps1 -Path @('dist/Meltype', 'dist/Meltype-<version>-windows.zip')` を実行してください。
+
+検査は駆除なしで行い、検出内容をコマンド出力に残します。脅威が検出されたら対象のファイル・版・ハッシュ・Defender の定義の版を確認し、誤検知が疑われる場合は [Microsoft の審査窓口](https://www.microsoft.com/en-us/wdsi/filesubmission) に提出してください。検査の成功はその時点の判定であり、安全性や将来の判定を保証しません。
+
+検査失敗時の処理は `powershell -NoProfile -File tools/Test-WindowsPackageScan.ps1` で確認できます。
+
 ## 動作の仕組み
 
 どちらのモードも、キーボードフック (`WH_KEYBOARD_LL`) を専用スレッドで受けます。Meltype が送り直したキーには印 (`dwExtraInfo = "MELT"`) を付け、自分では判定しません。

@@ -1,6 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (C) 2026 Yukishiro
-
 using Meltype.Config;
 using Meltype.Learning;
 
@@ -68,6 +65,12 @@ public sealed class ScoreEngine
         if (letters.Length == 0)
         {
             return Result(input.IsFinal ? Verdict.Unknown : Verdict.Undecided, letters, contributions, "入力なし");
+        }
+
+        // 明らかな英字キー (q, x, v, l) はローマ字の一部として読めても、英語として確定する。
+        if (letters.Length == 1 && letters is "l" or "q" or "v" or "x")
+        {
+            return Result(Verdict.English, letters, contributions, "明らかな英字キー");
         }
 
         var useRomaji = settings.InputStyle != InputStyle.Kana;

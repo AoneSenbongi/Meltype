@@ -65,6 +65,29 @@ internal sealed class UiAutomation
         public bool IsReadOnly => Get(ValueIsReadOnlyProperty) is true;
         public string Value => Get(ValueValueProperty) as string ?? "";
 
+        /// <summary>単一の選択範囲を取得。無ければ null。</summary>
+        private IUIAutomationTextRange? SelectionRange()
+        {
+            if (_element.GetCurrentPattern(TextPatternId, out var value) < 0 || value is not IUIAutomationTextPattern pattern ||
+                pattern.GetSelection(out var ranges) < 0 || ranges is null || ranges.get_Length(out var count) < 0 || count != 1 ||
+                ranges.GetElement(0, out var range) < 0) return null;
+            return range;
+        }
+
+        /// <summary>単一の選択範囲を取得し、同じ範囲・文字が選択されているか確かめる関数を返す。</summary>
+        public string? SelectedText(out Func<Element, bool>? matches)
+        {
+            matches = null;
+            var range = SelectionRange();
+            // 長文の誤選択を再変換に渡さない。超過を検知するため取得は上限 + 1 文字。
+            const int limit = 128;
+            if (range is null || range.GetText(limit + 1, out var text) < 0 || string.IsNullOrEmpty(text) || text.Length > limit) return null;
+            matches = current => current.SelectionRange() is { } selected &&
+                range.Compare(selected, out var same) >= 0 && same &&
+                selected.GetText(limit + 1, out var actual) >= 0 && actual == text;
+            return text;
+        }
+
         public Rectangle? Bounds =>
             Get(BoundingRectangleProperty) is double[] { Length: 4 } r && r[2] > 0 && r[3] > 0 && !double.IsInfinity(r[2])
                 ? new Rectangle((int)r[0], (int)r[1], (int)r[2], (int)r[3])
@@ -178,7 +201,7 @@ internal sealed class UiAutomation
     private interface IUIAutomationTextRange
     {
         [PreserveSig] int Clone(out IUIAutomationTextRange range);
-        [PreserveSig] int Compare();
+        [PreserveSig] int Compare(IUIAutomationTextRange range, [MarshalAs(UnmanagedType.Bool)] out bool equal);
         [PreserveSig] int CompareEndpoints();
         [PreserveSig] int ExpandToEnclosingUnit();
         [PreserveSig] int FindAttribute();

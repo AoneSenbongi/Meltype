@@ -133,6 +133,8 @@ $loaded = Invoke-SelfTest '参照をたどって削った後'
 foreach ($file in Get-ChildItem (Join-Path $runtime 'shared') -Recurse -Filter '*.dll') {
     if ($file.Length -le 512KB -or -not (Test-Managed $file.FullName)) { continue }
     if ($loaded -notcontains $file.BaseName) {
+        # System.Reflection.Metadata.dll は ClipBoard.SetText() で使われるため continue する
+        if ($file.Name -eq 'System.Reflection.Metadata.dll') { continue }
         Write-Host "使わないので削除: $($file.Name) ($([math]::Round($file.Length / 1MB, 1)) MB)"
         Remove-Item -LiteralPath $file.FullName
     }

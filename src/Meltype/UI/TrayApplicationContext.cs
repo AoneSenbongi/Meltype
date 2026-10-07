@@ -249,7 +249,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         }
         _reportDialog = new ReportDialog(_engine.Settings);
         _reportDialog.FormClosed += (_, _) => _reportDialog = null;
-        _reportDialog.Show();
+        _reportDialog.ShowDialog();
     }
 
     private static void ToggleStartup()

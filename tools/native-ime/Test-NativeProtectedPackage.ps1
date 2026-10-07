@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
 . (Join-Path $PSScriptRoot 'NativeProtectedPackage.ps1')
 $base=Get-NativeProtectedBase
@@ -28,6 +28,7 @@ function Start-Process {
  return [pscustomobject]@{ExitCode=0}
 }
 Invoke-NativeProtectedDeploy -Stage $stage -Destination $valid -Runtime 'fixture-pwsh.exe' -ResultFile $resultFile -PreviousPackage $previous -PreviousRegistration User|Out-Null
+if($script:captured.Arguments -notcontains '-ExecutionPolicy' -or $script:captured.Arguments -notcontains 'Bypass'){throw 'Protected helper inherits restrictive execution policy'}
 if($script:captured.Verb -ne 'RunAs' -or $script:captured.Window -ne 'Hidden' -or $script:captured.Arguments -notcontains '-ManifestHash' -or $script:captured.Arguments -notcontains 'User'){throw 'Deployment arguments lost elevation, immutable manifest or old scope'}
 Invoke-NativeProtectedDeploy -Destination $valid -Runtime 'fixture-pwsh.exe' -ResultFile $resultFile -PreviousPackage $previous -PreviousRegistration Machine -RestoreOnly|Out-Null
 if($script:captured.Arguments -notcontains '-RestoreOnly' -or $script:captured.Arguments -notcontains 'Machine'){throw 'Restoration scope is wrong'}

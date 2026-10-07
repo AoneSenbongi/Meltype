@@ -63,6 +63,7 @@ function Start-Action([string]$Action) {
         $script:actionProcess = Start-Process @parameters
         $message.Text = '処理中です。完了するまでお待ちください。'
         foreach ($button in $buttons.Values) { $button.Enabled = $false }
+        $autoToggle.Enabled = $false
     } catch { Show-NativeGuiError ($_ | Out-String) }
 }
 function Add-Button([string]$Text, [int]$Column, [int]$Row, [string]$Action) {
@@ -77,8 +78,17 @@ Add-Button 'インストール' 0 3 'Install' | Out-Null
 Add-Button 'この版に更新' 1 3 'Update' | Out-Null
 (Add-Button '起動' 0 4 'Start').Enabled = $false
 (Add-Button '停止してGoogleに戻る' 1 4 'Stop').Enabled = $false
-Add-Button '自動起動を有効にする' 0 5 'Enable' | Out-Null
-Add-Button '自動起動を無効にする' 1 5 'Disable' | Out-Null
+$script:refreshingAutoStart = $false
+$autoToggle = [Windows.Forms.CheckBox]::new()
+$autoToggle.Text = 'Windows起動時に自動で起動する'
+$autoToggle.Dock = 'Fill'; $autoToggle.Margin = [Windows.Forms.Padding]::new(8)
+$autoToggle.Enabled = $false
+$autoToggle.Add_CheckedChanged({
+    if (-not $script:refreshingAutoStart -and -not $script:actionProcess) {
+        Start-Action $(if ($autoToggle.Checked) { 'Enable' } else { 'Disable' })
+    }
+})
+$layout.Controls.Add($autoToggle, 0, 5); $layout.SetColumnSpan($autoToggle, 2)
 function Open-NativeGoogleDialog([string]$Mode) {
     try { Start-Process -FilePath (Get-NativeGoogleTool) -ArgumentList ('--mode='+$Mode) }
     catch { Show-NativeGuiError ($_ | Out-String) }
@@ -93,17 +103,18 @@ foreach ($item in @(@('単語登録','word_register_dialog',0),@('辞書を管�
 $footer = [Windows.Forms.FlowLayoutPanel]::new(); $footer.Dock = 'Fill'
 $layout.Controls.Add($footer,0,7); $layout.SetColumnSpan($footer,2)
 $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,42)) | Out-Null
-foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Backup'),@('削除','Uninstall'))) {
+foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Backup'),@('アンインストール','Uninstall'))) {
     $button = [Windows.Forms.Button]::new(); $button.Text = $item[0]; $button.AutoSize = $true; $operation = $item[1]
     $button.Add_Click({
         try {
             switch ($operation) {
                 'Settings' { Start-Process (Get-NativeGoogleTool) -ArgumentList '--mode=config_dialog' }
                 'Backup' { $root = (Get-NativeGuiContext $workspace).Root; $folder = Join-Path $root 'backups'; New-Item -ItemType Directory $folder -Force | Out-Null; Start-Process explorer.exe -ArgumentList (ConvertTo-NativeGuiArgument $folder) }
-                'Uninstall' { if ([Windows.Forms.MessageBox]::Show('Native版の登録を削除し、Google日本語入力へ戻します。辞書と履歴は残ります。','Meltype','YesNo','Question') -eq 'Yes') { Start-Action 'Uninstall' } }
+                'Uninstall' { if ([Windows.Forms.MessageBox]::Show('Meltype Native版の登録、自動起動、ショートカットを削除してGoogle日本語入力へ戻します。Google日本語入力と辞書・学習履歴は残ります。続けますか？','Meltype','YesNo','Question') -eq 'Yes') { Start-Action 'Uninstall' } }
             }
         } catch { Show-NativeGuiError ($_ | Out-String) }
     }.GetNewClosure())
+    if ($operation -eq 'Uninstall') { $buttons.Uninstall = $button; $button.Enabled = $false }
     $footer.Controls.Add($button)
 }
 $message = Add-Label '画面を閉じると、タスクトレイに格納します。' 8 52
@@ -142,15 +153,26 @@ $timer.Add_Tick({
             foreach ($action in $buttons.Keys) { $buttons[$action].Enabled = if ($action -eq 'Install') { -not $context.Installed } else { $context.Installed } }
             if ($buttons.ContainsKey('Start')) { $buttons.Start.Enabled = $context.Installed -and -not $running }
             if ($buttons.ContainsKey('Stop')) { $buttons.Stop.Enabled = $context.Installed -and $running }
+            if ($autoToggle) {
+                $script:refreshingAutoStart = $true
+                try {
+                    $autoToggle.Checked = [bool]($context.Installed -and $autoEnabled)
+                    $autoToggle.Enabled = [bool]$context.Installed
+                } finally { $script:refreshingAutoStart = $false }
+            }
             $buttons.Update.Enabled = $false
             $buttons.Update.Enabled = Test-NativeUpdateRequired $workspace $context
             $buttons.Update.Text = if ($context.Installed -and -not $buttons.Update.Enabled) { 'この版は適用済み' } else { 'この版に更新' }
-        } catch { $status.Text = '状態を確認できません。少し待ってから画面を開き直してください。' }
+        } catch { if ($autoToggle) { $autoToggle.Enabled = $false }; $status.Text = '状態を確認できません。少し待ってから画面を開き直してください。' }
     }
 })
 try {
     if ($RenderTo) {
         $status.Text = 'インストール済み  ·  入力サービス：起動中  ·  自動起動：有効'
+        $buttons.Install.Enabled = $false; $buttons.Start.Enabled = $false; $buttons.Stop.Enabled = $true
+        $buttons.Uninstall.Enabled = $true
+        $script:refreshingAutoStart = $true
+        try { $autoToggle.Checked = $true; $autoToggle.Enabled = $true } finally { $script:refreshingAutoStart = $false }
         $form.Show(); $form.PerformLayout(); [Windows.Forms.Application]::DoEvents()
         $bitmap = [Drawing.Bitmap]::new($form.Width,$form.Height)
         try { $form.DrawToBitmap($bitmap,[Drawing.Rectangle]::new(0,0,$form.Width,$form.Height)); $bitmap.Save($RenderTo,[Drawing.Imaging.ImageFormat]::Png) } finally { $bitmap.Dispose() }

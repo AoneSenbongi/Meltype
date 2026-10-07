@@ -1,4 +1,4 @@
-function Get-NativeProtectedBase {
+﻿function Get-NativeProtectedBase {
     return Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) 'MeltypeNativeGoogle'
 }
 function Assert-NativeProtectedDestination([string]$Destination) {
@@ -30,12 +30,12 @@ function Assert-NativeProtectedAcl([string]$Path) {
     }
 }
 function Invoke-NativeProtectedDeploy([string]$Stage,[string]$Destination,[string]$Runtime,[string]$ResultFile,[string]$PreviousPackage,[string]$PreviousRegistration,[switch]$RestoreOnly) {
-    $arguments=@('-NoProfile','-File',(ConvertTo-NativeGuiArgument (Join-Path $PSScriptRoot 'Install-ProtectedNativePackage.ps1')),'-Destination',(ConvertTo-NativeGuiArgument $Destination),'-UserSid',([Security.Principal.WindowsIdentity]::GetCurrent().User.Value),'-ResultFile',(ConvertTo-NativeGuiArgument $ResultFile))
+    $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',(ConvertTo-NativeGuiArgument (Join-Path $PSScriptRoot 'Install-ProtectedNativePackage.ps1')),'-Destination',(ConvertTo-NativeGuiArgument $Destination),'-UserSid',([Security.Principal.WindowsIdentity]::GetCurrent().User.Value),'-ResultFile',(ConvertTo-NativeGuiArgument $ResultFile))
     if($RestoreOnly){$arguments+='-RestoreOnly'}else{$arguments+=@('-Stage',(ConvertTo-NativeGuiArgument $Stage),'-ManifestHash',(Get-NativeFileSha256 (Join-Path $Stage 'manifest.json')))}
     if($PreviousPackage){$arguments+=@('-PreviousPackage',(ConvertTo-NativeGuiArgument $PreviousPackage),'-PreviousRegistration',$(if($PreviousRegistration -eq 'Machine'){'Machine'}else{'User'}),'-PreviousDllHash',(Get-NativeFileSha256 (Join-Path $PreviousPackage 'MeltypeNative64.dll')),'-PreviousControlHash',(Get-NativeFileSha256 (Join-Path $PreviousPackage 'native-ime-control.exe')))}
     $process=Start-Process -FilePath $Runtime -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -PassThru -Wait
     try {
-        if(-not(Test-Path -LiteralPath $ResultFile)){throw 'Protected package operation did not return a result.'}
+        if(-not(Test-Path -LiteralPath $ResultFile)){throw ('Protected package operation did not return a result. Helper exit code: '+$process.ExitCode)}
         $result=Get-Content -LiteralPath $ResultFile -Raw|ConvertFrom-Json
         if($null -eq $result.Success){throw 'Protected package operation returned an invalid result.'}
     } catch {

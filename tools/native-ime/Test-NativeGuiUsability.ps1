@@ -1,14 +1,14 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
 $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Host-NativeControlPanel.ps1'),[ref]$tokens,[ref]$errors)
 if($errors){throw 'GUI parse failed'}
 $tick=$ast.Find({param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'Add_Tick'},$true)
-function Get-NativeGuiContext {return @{Installed=$true}}
+function Get-NativeGuiContext {return @{Installed=$script:fixtureInstalled}}
 function Test-NativeUpdateRequired {return $false}
-function Get-ItemProperty {return $null}
+function Get-ItemProperty {if($script:fixtureAuto){return [pscustomobject]@{MeltypeNativeGoogle="fixture"}};return $null}
 function Test-Path {param($LiteralPath) return $script:fixtureRunning}
-$workspace='fixture'; $sid='fixture'; $script:actionProcess=$null
+$script:fixtureInstalled=$true; $workspace='fixture'; $sid='fixture'; $script:actionProcess=$null
 $showEvent=[pscustomobject]@{}; $showEvent|Add-Member ScriptMethod WaitOne {param($timeout) return $false}
 $status=[pscustomobject]@{Text=''}
 $buttons=@{}
@@ -18,6 +18,29 @@ foreach($running in @($true,$false)){
  & $tick.Arguments[0].ScriptBlock.GetScriptBlock()
  if($buttons.Start.Enabled -eq $running -or $buttons.Stop.Enabled -ne $running){throw "Start/Stop buttons do not match running=$running"}
 }
+$autoToggle=[pscustomobject]@{Enabled=$true;Checked=$false}
+foreach($installed in @($true,$false)){
+ foreach($auto in @($true,$false)){
+  $script:fixtureInstalled=$installed; $script:fixtureAuto=$auto
+  $buttons.Uninstall=[pscustomobject]@{Enabled=$true;Text=''}
+  & $tick.Arguments[0].ScriptBlock.GetScriptBlock()
+  if($autoToggle.Enabled -ne $installed -or $autoToggle.Checked -ne ($installed -and $auto) -or $buttons.Uninstall.Enabled -ne $installed){throw 'Auto-start toggle/uninstall do not follow installed state'}
+ }
+}
+$script:fixtureInstalled=$true
+$script:toggleCalls=[Collections.Generic.List[string]]::new()
+function Start-Action([string]$Action){$script:toggleCalls.Add($Action)}
+$changed=$ast.FindAll({param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'Add_CheckedChanged'},$true)
+if($changed.Count -ne 1){throw 'Only auto-start must be a setting toggle'}
+foreach($checked in @($true,$false)){
+ $autoToggle.Checked=$checked
+ & $changed[0].Arguments[0].ScriptBlock.GetScriptBlock()
+}
+if($script:toggleCalls -join ',' -ne 'Enable,Disable'){throw 'Toggle actions are routed incorrectly'}
+$script:toggleCalls.Clear();$script:refreshingAutoStart=$true
+foreach($event in $changed){& $event.Arguments[0].ScriptBlock.GetScriptBlock()}
+if($script:toggleCalls.Count){throw 'Refreshing state triggered a setting change'}
+$script:refreshingAutoStart=$false
 $errorText="Protected package operation did not return a result.`n発生場所 C:\fixture.ps1:44`n+ throw failure`nFullyQualifiedErrorId: failure"
 $human=Get-NativeGuiErrorMessage $errorText
 if($human -match 'Protected package|FullyQualified|発生場所|throw' -or $human -notmatch '管理者' -or $human -notmatch '確認'){throw 'Raw protected package failure remains in user message'}
@@ -35,4 +58,4 @@ try{
   if($button.FlatStyle -ne [Windows.Forms.FlatStyle]::Flat -or $button.FlatAppearance.BorderColor.ToArgb() -ne [Drawing.Color]::LightGray.ToArgb() -or -not $button.TabStop){throw 'Dictionary buttons still have default blue focus styling or lost keyboard access'}
  }
 }finally{$layout.Dispose()}
-Write-Output 'PASS: running/stopped buttons, Japanese error guidance and neutral dictionary styling'
+Write-Output 'PASS: start/stop actions, auto-start setting, uninstall availability, Japanese guidance and dictionary styling'

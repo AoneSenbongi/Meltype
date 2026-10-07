@@ -76,7 +76,7 @@ public static class MeltypeNativeBroker
         if(!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl,1,out var descriptor,out _)) throw new Win32Exception(Marshal.GetLastWin32Error());
         try {
             var attributes=new SecurityAttributes {Length=Marshal.SizeOf<SecurityAttributes>(),Descriptor=descriptor};
-            var raw=CreateNamedPipe(@"\\.\pipe\"+name,3|0x40000000u|(first?0x80000u:0),8,16,4096,4096,0,ref attributes);
+            var raw=CreateNamedPipe(@"\\.\pipe\"+name,3|0x40000000u|(first?0x80000u:0),8,32,4096,4096,0,ref attributes);
             if(raw==new IntPtr(-1)) {
                 var error=Marshal.GetLastWin32Error();
                 if(error==5) throw new UnauthorizedAccessException("Pipe creation denied");
@@ -86,6 +86,18 @@ public static class MeltypeNativeBroker
             try {return new NamedPipeServerStream(PipeDirection.InOut,true,false,handle);}
             catch {handle.Dispose();throw;}
         } finally {LocalFree(descriptor);}
+    }
+    public static async Task<NamedPipeServerStream> WaitForSearchListener(string name, bool first, string packageSid, CancellationToken stop)
+    {
+        while (true)
+        {
+            stop.ThrowIfCancellationRequested();
+            try { return CreateSearchListener(name, first, packageSid); }
+            catch (Win32Exception e) when (!first && e.NativeErrorCode == 231)
+            {
+                await Task.Delay(100, stop);
+            }
+        }
     }
     private static byte[] TokenInfo(IntPtr token,int kind)
     {
@@ -116,7 +128,7 @@ public static class MeltypeNativeBroker
     }
     public static string PipeName => "Meltype.NativeComposition." + WindowsIdentity.GetCurrent().User.Value;
     public static NamedPipeServerStream CreateListener(string name, bool first)
-        => new NamedPipeServerStream(name, PipeDirection.InOut, 16, PipeTransmissionMode.Byte,
+        => new NamedPipeServerStream(name, PipeDirection.InOut, 32, PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | (first ? PipeOptions.FirstPipeInstance : 0));
     private sealed class Host : ICompositionHost
     {
@@ -226,7 +238,7 @@ public static class MeltypeNativeBroker
         {
             while (!stop.IsCancellationRequested)
             {
-                var pipe = CreateSearchListener(PipeName, first, searchSid);
+                var pipe = await WaitForSearchListener(PipeName, first, searchSid, stop);
                 first = false;
                 try { await pipe.WaitForConnectionAsync(stop); }
                 catch { pipe.Dispose(); throw; }

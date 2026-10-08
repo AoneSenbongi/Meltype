@@ -1,6 +1,6 @@
 # 現在の状態
 
-## 本家1.0.4対応版の公開準備（確認待ち）
+## 本家1.0.4対応版1.0.5を公開済み
 
 2026年10月8日、指定された本家v1.0.4（55c8a29）を444578bで競合なく取り込み、Native Google 1.0.5として再構築した。対応仕様はdocs/UPSTREAM_1_0_4.md。共通コアのローマ字変換・日英・かなキー判定を更新し、常駐版のQt向け貼り付け修正はソースに保持する。Native版は引き続きTSFで入力し、クリップボード経路を追加しない。導入・更新でのBaseVersionは1.0.4へ変更した。
 
@@ -8,7 +8,7 @@
 
 新しい配布候補のソースは33d332f294a4829aa127d726ada6ec4f67d4fa1e。distributions/Meltype-Native-Google-1.0.5-Setup.exeは82,823,135バイト、SHA256=06312F0B9F827539998526C5C191A91D011482694CE8E46A4C61F07D69DC94EA。公開本文docs/RELEASE_1_0_5.mdとexperimental-build/release-1.0.5-publication.jsonを差し替えた。利用者指定の「英語入力の句読点は半角のピリオド・カンマ」「枠が満杯のときは」「Google日本語入力のインストールが必要」も反映済み。
 
-現在このPCで動くのは本家1.0.3ベース・ソース6ab7b32の旧候補であり、今回の1.0.4対応版は適用していない。旧EXEと.sha256はdistributions/archive/native-google-1.0.5-base-1.0.3、旧公開候補はrelease-1.0.5-before-upstream-1.0.4.jsonへ退避した。新しい配布物の実機更新、新規導入・削除・別PC・Windows 11検索欄と長期的な停止改善は未確認。GitHubへの公開は今回の文言・配布物を確認してもらうまで保留する。公開先AoneSenbongi/Meltype、タグnative-google-1.0.5、通常Release、添付はEXEと.sha256を予定する。
+現在このPCで動くのは本家1.0.3ベース・ソース6ab7b32の旧候補であり、今回の1.0.4対応版は適用していない。旧EXEと.sha256はdistributions/archive/native-google-1.0.5-base-1.0.3、旧公開候補はrelease-1.0.5-before-upstream-1.0.4.jsonへ退避した。新しい配布物の実機更新、新規導入・削除・別PC・Windows 11検索欄と長期的な停止改善は未確認。2026年10月8日、最新の本文・本家1.0.4対応EXEと.sha256を提示した後、ユーザーの「いいよ」を受けて公開した。公開先はhttps://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.5。google-native-imeとリリースタグの対象は33d332f、draft=false・prerelease=falseの通常Release。承認本文と公開本文が一致し、EXE・.sha256の名前・サイズ・GitHub側SHA-256が候補と一致することを確認した。最新Releaseも1.0.5で、既定ブランチgoogle-native-imeのREADME・SECURITYを更新済み。公開結果はexperimental-build/release-1.0.5-published.json。今回の公開作業ではPCへの適用は行っていない。
 
 ## 修正版1.0.5をこのPCへ適用
 

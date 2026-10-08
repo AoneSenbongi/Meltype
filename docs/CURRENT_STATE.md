@@ -1,6 +1,6 @@
 # 現在の状態
 
-## Native版は旧変換を維持し、1.1.0の予測だけを使う（適用準備中）
+## Native版は旧変換を維持し、1.1.0の予測だけを使う（このPCへ適用済み）
 
 2026年10月8日、利用者は学習履歴が失われたように見えると報告し、例として「しらんひと→知らん人」を提示。その後、変換は以前のものへ戻し、1.1.0から予測だけ取り込む方針を指定した。特定語だけの優先登録は行わない。Native Brokerの判定器は公開1.0.5の標準ローマ字・日本語辞書・判定条件を使い、旧候補順と文節操作を選ぶ。1.1.0のMeltype同梱語句をGoogle変換へ優先適用する設定を外し、予測でのみ参照する。常駐版の1.1.0動作は維持する。
 
@@ -8,7 +8,13 @@ Googleの現在のユーザー辞書・設定・暗号鍵は適用前backups/202
 
 文中のzh／zj／zk／zlが英字のまま残る不具合と、Native DLLが先頭の[を捕捉しない不具合を修正前に再現した。日本語の直後はSpaceなしで矢印にし、puzzle内は変えない。先頭の[は未確定入力に含め、後続の日本語では「、英語では[とする。英語の空白で確定を挟んでも閉じ括弧の幅を保持する。仕様はdocs/UPSTREAM_1_1_0.md。Googleへの接続処理は公開1.0.5から変更しない。
 
-共通・Windows294件、旧アセンブリとの固定入力比較、GoogleからTSF文書へのライブ変換・予測の確定取消、実Native DLLの先頭[捕捉、AppContainerからの実Google変換と通信先検証を通過した。Native捕捉テストは--eligibility-onlyでサービスへの変換・確定を送らない。Google連携の試験では学習を無効にした。この構成のPC適用・GitHub公開はまだ実施していない。
+共通・Windows294件、旧アセンブリとの固定入力比較、GoogleからTSF文書へのライブ変換・予測の確定取消、実Native DLLの先頭[捕捉、AppContainerからの実Google変換と通信先検証を通過した。Native捕捉テストは--eligibility-onlyでサービスへの変換・確定を送らない。Google連携の試験では学習を無効にした。
+
+検証済みソース5d16c1aをこのPCへ適用。登録先C:/Program Files/MeltypeNativeGoogle/package-f49c21803dee4a65b1f1004b3236fbc0、管理先installed/1.0.5。NativeVersion=1.0.5とアセンブリ版1.1.0は表示上維持するが、Native変換の基準は公開1.0.5（本家1.0.4）で、予測は1.1.0。バックアップはbackups/local-native-prediction-only-5a42c19c22e046d9b7e9705400ad8b56とbackups/20261008-235220。後者の辞書・設定・履歴11ファイルのコピー一致を確認し、更新後のGoogle history.db・config1.db・encrypt_key.db・user_dictionary.dbは直前バックアップと完全一致。学習有効・自動起動有効を保持した。
+
+実サービスへ別の通信セッションから、確定を伴わない固定入力を送り、「知らん人」、文中の全方向矢印、日本語・英語の括弧、Tab予測とEsc取消を確認。実アプリの入力欄へ書き込まず、新しい学習は行っていない。管理画面の実UIで起動無効・停止有効・この版は適用済み無効を確認した。証跡はexperimental-build/native-prediction-only-applied.json、installed-input.txt、learning-preserved.json、panel.txt。開いている入力アプリは新DLLを読み込むため開き直す必要がある。元の順位差の原因は未確定で、Googleの論理的な全履歴の完全性は未検証。
+
+未公開ZIPはdistributions/Meltype-Native-Google-windows-x64-20261008-234839.zip、SHA256=BAA625C6B99D9DDB1BC71DD30EC72EA76DFF91E6E379B9B06662FAAA2C865C8A。ソース・manifest・全ペイロード一致と個人履歴の非同梱、Defender定義1.459.576.0で検出なしを確認。GitHub公開は未実施で、公開には今回の内容・版番号・配布物への確認が必要。
 
 ## 本家1.1.0対応版をこのPCへ適用済み
 

@@ -14,7 +14,7 @@
 
 起動ボタン問題の利用者環境での原因は未確定。現行コードは通信パイプの有無で稼働を判定し、状態確認の例外時に古い有効状態を残していた。固有の試験用Mutexと実GUIタイマーで、サービスがMutexを保持しているのに通信パイプを検出できない状態では起動ボタンが有効になることを修正前に再現した。起動Mutexによる判定へ変更し、起動・停止状態、状態取得失敗と更新判定失敗時の全操作無効化を試験した。仕様はdocs/NATIVE_GUI.md、試験はTest-NativeGuiRunningState.ps1。既存のGUI状態・更新判定・トレイ・インストーラー試験も通過した。導入済みIMEと管理画面は変更していない。
 
-修正版の配布候補を構築・検査済み。対応ソース6ab7b32、EXE distributions/Meltype-Native-Google-1.0.5-Setup.exe（82,824,388バイト、SHA256=5D0B7EDAF65C2B07B5E1047E4E2245B25C9BEA9A104563D1612C2F495EEF37D3）。配布先のGUIと稼働判定コードが試験済みソースと一致することを確認した。ZIP・完成EXEともDefender定義1.459.576.0で検出なし。完成EXEによる実IME登録・削除と、報告された環境での症状解消は未確認。再現・回帰試験は現代PowerShellとWindows PowerShell 5で通過した。本文docs/RELEASE_1_0_5.mdにも起動ボタンの修正を追加し、experimental-build/release-1.0.5-publication.jsonを修正版へ更新した。旧候補はrelease-1.0.5-before-start-fix.jsonへ保存した。残作業はユーザーによる確認と公開。公開先AoneSenbongi/Meltype、タグnative-google-1.0.5、通常Releaseを予定するが、ユーザーが再確認するまでpush・Release・添付物の公開変更を行わない。
+修正版の配布候補を構築・検査済み。対応ソース6ab7b32、EXE distributions/Meltype-Native-Google-1.0.5-Setup.exe（82,824,388バイト、SHA256=5D0B7EDAF65C2B07B5E1047E4E2245B25C9BEA9A104563D1612C2F495EEF37D3）。配布先のGUIと稼働判定コードが試験済みソースと一致することを確認した。ZIP・完成EXEともDefender定義1.459.576.0で検出なし。完成EXEによる実IME登録・削除と、報告された環境での症状解消は未確認。再現・回帰試験は現代PowerShellとWindows PowerShell 5で通過した。本文docs/RELEASE_1_0_5.mdにも起動ボタンの修正を追加し、experimental-build/release-1.0.5-publication.jsonを修正版へ更新した。旧候補はrelease-1.0.5-before-start-fix.jsonへ保存した。2026年10月8日にユーザーが公開再開と文言提示を求めたため、Release本文をこのPCでの更新と実画面確認結果を含む内容へ整理し、公開候補JSONを更新した。添付EXEとSHA-256は適用済みと同じものを維持する。本文への承認はまだ取得していない。残作業はユーザーによる今回の文言・添付物への確認と公開。公開先AoneSenbongi/Meltype、タグnative-google-1.0.5、通常Releaseを予定するが、ユーザーが再確認するまでpush・Release・添付物の公開変更を行わない。
 
 ## 通信枠32への変更とこのPCへの適用
 

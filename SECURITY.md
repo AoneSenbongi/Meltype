@@ -1,12 +1,12 @@
 # このForkのセキュリティと入力データの扱い
 
-対象はAoneSenbongi/MeltypeのWindows Native Google版1.0.4です。元のMeltype常駐版とは処理方式、権限、保存場所が異なります。元作者やGoogleの公式配布版ではありません。
+対象はAoneSenbongi/MeltypeのWindows Native Google版1.0.5です。元のMeltype常駐版とは処理方式、権限、保存場所が異なります。元作者やGoogleの公式配布版ではありません。
 
 以下は公開ソースと配布設定を確認した説明です。安全性の保証や第三者によるセキュリティ監査の結果ではありません。各Releaseの変更点と対応するソースも確認してください。
 
 ## Windows Native Google版
 
-未公開の新版では管理画面の「学習を停止／学習を再開」でMeltype経由の新しい変換・日英判別・Google変換の学習を切り替えます。停止しても既存の辞書・履歴は残ります。停止時に実行中の学習は完了する場合があり、過去の学習を取り消す操作ではありません。Google日本語入力を直接使用する場合の学習設定は変更しません。句読点と学習の設定は `%LOCALAPPDATA%/MeltypeNativeGoogle/input-preferences.json` に保存します。
+1.0.5では管理画面の「学習を停止／学習を再開」でMeltype経由の新しい変換・日英判別・Google変換の学習を切り替えます。停止しても既存の辞書・履歴は残ります。停止時に実行中の学習は完了する場合があり、過去の学習を取り消す操作ではありません。Google日本語入力を直接使用する場合の学習設定は変更しません。句読点と学習の設定は `%LOCALAPPDATA%/MeltypeNativeGoogle/input-preferences.json` に保存します。
 
 ### 入力処理と通信
 

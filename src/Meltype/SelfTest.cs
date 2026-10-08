@@ -120,6 +120,21 @@ internal static class SelfTest
             }
         });
 
+        Check("クリップボード", () =>
+        {
+            // 報告の画面の「ログをコピー」・ログの画面の「コピー」・貼り付けで入力するアプリが使う。
+            // WinForms のクリップボードは、実行時に System.Reflection.Metadata を読み込む。配布用にランタイムを削るとき、
+            // 「自己診断で読み込まれなかった大きなアセンブリを削る」でこれも消えてしまい、コピーできなくなる (#41)。
+            // ここで実際にコピーして、削りすぎていないことと、これからもコピーできることを確かめる。
+            // 中身は、テキストだったときだけ元に戻す (自己診断は作る人の PC で動くため)。
+            var saved = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+            var text = $"Meltype 自己診断 {Guid.NewGuid():N}";
+            Clipboard.SetText(text);
+            var copied = Clipboard.GetText() == text;
+            if (saved is not null) Clipboard.SetText(saved);
+            return copied ? "コピーできる" : "コピーできない";
+        });
+
         report.AppendLine(failed == 0 ? "すべて OK" : $"{failed} 件失敗");
         // 配布用パッケージの作成で、使わない部品を削るのに使う (Build-Package.ps1)。
         report.AppendLine("LOADED: " + string.Join(" ", AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name).Order()));

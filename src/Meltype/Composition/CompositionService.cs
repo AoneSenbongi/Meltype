@@ -276,7 +276,11 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     public void CommitText(string text)
     {
         EnsureSystemImeClosed();
-        if (PasteCommit() && TryPaste(text)) return;
+        if (PasteCommit() && TryPaste(text))
+        {
+            Diagnostics.Log.Info($"確定した文字を貼り付けで入力しました ({text.Length} 文字)。");
+            return;
+        }
         var inputs = new List<Native.INPUT>(text.Length * 2);
         foreach (var c in text)
         {
@@ -290,11 +294,14 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     private IDataObject? _savedClipboard;
     private System.Windows.Forms.Timer? _restoreClipboard;
 
-    /// <summary>
-    /// 確定した文字をクリップボード経由 (Ctrl+V) で入れる。1 文字ずつのキーとして送ると、最初の文字を打った数だけくり返すアプリがある
-    /// (DaVinci Resolve、#5)。元のクリップボードの中身は、アプリが貼り付け終わるのを少し待ってから戻す。
-    /// 続けて確定したときは、最初に取っておいた中身を戻す。クリップボードを使えなければ false (1 文字ずつ送る)。
-    /// </summary>
+    /// <summary>Windows のクリップボード履歴に保持しない</summary>
+    private static readonly string[] ClipboardHistoryExclusions =
+    [
+        "ExcludeClipboardContentFromMonitorProcessing",
+        "CanIncludeInClipboardHistory",
+        "CanUploadToCloudClipboard",
+    ];
+
     private bool TryPaste(string text)
     {
         if (text.Length == 0) return true;
@@ -302,7 +309,7 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         {
             if (_restoreClipboard is null) _savedClipboard = Clipboard.GetDataObject();
             else _restoreClipboard.Stop();
-            Clipboard.SetText(text);
+            Clipboard.SetDataObject(PasteData(text), copy: true);
             KeyInjector.SendShortcut(VirtualKeys.Control, 0x56); // Ctrl+V
             _restoreClipboard ??= new System.Windows.Forms.Timer { Interval = 500 };
             _restoreClipboard.Tick -= RestoreClipboard;
@@ -315,6 +322,17 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             Diagnostics.Log.Warn($"クリップボードを使えないので、1 文字ずつ送ります: {ex.Message}");
             return false;
         }
+    }
+
+    private static DataObject PasteData(string text)
+    {
+        var data = new DataObject();
+        data.SetText(text);
+        foreach (var format in ClipboardHistoryExclusions)
+        {
+            data.SetData(format, autoConvert: false, new MemoryStream([0, 0, 0, 0]));
+        }
+        return data;
     }
 
     private void RestoreClipboard(object? sender, EventArgs e)

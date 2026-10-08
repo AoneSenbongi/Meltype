@@ -115,7 +115,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     public void AttachComposition(Composition.CompositionService composition)
     {
         _composition = composition;
-        composition.PasteCommit = () => _settings.UsesPaste(_foreground.Current.ProcessName);
+        composition.PasteCommit = () => PastePolicy.ShouldPaste(_settings, _foreground.Current.ProcessName, IsQt(_foreground.Current.Window));
         composition.InputAllowed = () => KeyboardLayoutPolicy.AllowsInput(_settings);
         // 変換ボックスで確定した文字と、Meltype が送り直したキーも、今の行の追いかけに入れる (自分で送ったキーはフックに届かない)。
         composition.Controller.Committed += text => _line.Append(text);
@@ -136,6 +136,17 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
 
     /// <summary>Meltype キーボードが入力を受け付ける状態か (半角/全角 で直接入力にしていない)。</summary>
     public bool IsKeyboardActive => _settings.Enabled && _settings.Mode == InputMode.Keyboard && !_keyboardDirect && KeyboardLayoutPolicy.AllowsInput(_settings);
+
+    /// <summary>
+    /// #95の対応として、Qtアプリでは確定した文字を貼り付けで入れる。
+    /// </summary>
+    private static bool IsQt(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return false;
+        var className = new System.Text.StringBuilder(64);
+        Native.GetClassName(window, className, className.Capacity);
+        return PastePolicy.IsQtWindowClass(className.ToString());
+    }
 
     public bool KeyboardDirect
     {

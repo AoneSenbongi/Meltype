@@ -4,7 +4,9 @@
 
 2026年10月8日、GitHub APIで最新公開版がnative-google-1.0.4、対応ソースb15ee1bであることを確認。ユーザーの最新版リリース依頼を受け、未公開の句読点設定・学習停止と通信枠32の修正を1.0.5として配布する準備を開始した。本家ベースは1.0.3を維持する。版番号・README・SECURITY・導入説明を更新し、共通・Windows212件、句読点9組合せ・学習停止再開（現代PowerShellとWindows PowerShell 5）、GUI状態・更新判定、候補再描画、通信枠32・待機・取消、通信権限と隔離AppContainerからGoogleへのライブ変換・候補・確定、インストーラー処理の分岐が通過した。現在のIME登録と稼働中パッケージは変更していない。
 
-残作業は配布物の再構築・検査と公開内容の確認。公開候補本文はdocs/RELEASE_1_0_5.md。GitHubへのpush・Release作成・配布物の変更は今回の内容への確認を受けてから行う。
+配布候補を構築済み。対応ソースはf996ce89c31898d2f7791ac7c181734b9fd370af。distributions/Meltype-Native-Google-1.0.5-Setup.exe（82,818,500バイト、SHA256=3A73EE4C489D64AF631B77F2D72115CCAA30800BE28C12BC4BBF0883AFF6D1C2）と.sha256を公開候補とする。ソースZIPのコミット一致と個人データのパスがないことを確認し、ZIP・完成EXEともDefender定義1.459.576.0で検出なし。完成EXEによる実IMEの登録・削除と別PCでの導入は未確認。追加のショートカット実COM試験と保護された配置・更新失敗時復旧の隔離試験も通過した。
+
+残作業は公開内容へのユーザー確認と公開実行。本文はdocs/RELEASE_1_0_5.md、本文・タグ・対象ソース・添付物・ハッシュを固定した候補はexperimental-build/release-1.0.5-publication.json。通常Release（draft=false、prerelease=false）、タグnative-google-1.0.5、公開先AoneSenbongi/Meltypeのgoogle-native-imeブランチを予定する。GitHubへのpush・Release作成・配布物の変更は今回の内容への確認を受けてから行う。状態資料の後続更新は配布候補ソースに含めていない。
 
 ## 通信枠32への変更とこのPCへの適用
 

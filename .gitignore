@@ -35,3 +35,6 @@ backups/
 distributions/
 Meltype-Settings.exe
 gui-preview.png
+
+# Local installer deployment (runtime and user-specific installation files)
+installed/

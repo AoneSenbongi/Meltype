@@ -1,4 +1,13 @@
-﻿function Get-NativeGuiContext([string]$SourceRoot) {
+﻿function Test-NativeBrokerRunning([string]$UserSid) {
+    $mutex = $null
+    try {
+        $mutex = [Threading.Mutex]::OpenExisting(('Local\Meltype.NativeComposition.' + $UserSid + '.Mutex'))
+        return $true
+    } catch [Threading.WaitHandleCannotBeOpenedException] {
+        return $false
+    } finally { if ($mutex) { $mutex.Dispose() } }
+}
+function Get-NativeGuiContext([string]$SourceRoot) {
     $key = 'Registry::HKEY_CURRENT_USER\Software\Classes\CLSID\{F2D11628-2679-4DCC-9327-657EF2C1A450}\InprocServer32'
     $installed = Test-Path -LiteralPath $key
     $machine=$false

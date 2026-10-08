@@ -1,12 +1,12 @@
 # 現在の状態
 
-## Windows 1.0.5の公開準備
+## Windows 1.0.5の公開準備（公開保留）
 
-2026年10月8日、GitHub APIで最新公開版がnative-google-1.0.4、対応ソースb15ee1bであることを確認。ユーザーの最新版リリース依頼を受け、未公開の句読点設定・学習停止と通信枠32の修正を1.0.5として配布する準備を開始した。本家ベースは1.0.3を維持する。版番号・README・SECURITY・導入説明を更新し、共通・Windows212件、句読点9組合せ・学習停止再開（現代PowerShellとWindows PowerShell 5）、GUI状態・更新判定、候補再描画、通信枠32・待機・取消、通信権限と隔離AppContainerからGoogleへのライブ変換・候補・確定、インストーラー処理の分岐が通過した。現在のIME登録と稼働中パッケージは変更していない。
+2026年10月8日、GitHub APIで公開最新版がnative-google-1.0.4、対応ソースb15ee1bであることを確認。未公開の句読点設定・学習停止と通信枠32を1.0.5として配布する準備を進めている。本家ベースは1.0.3。最初の配布候補f996ce8は構築・Defender検査済みだったが、ユーザーから「ちょっと待って」と公開保留、および起動後も起動ボタンを押せる問題の修正依頼を受けたため、この候補は公開しない。
 
-配布候補を構築済み。対応ソースはf996ce89c31898d2f7791ac7c181734b9fd370af。distributions/Meltype-Native-Google-1.0.5-Setup.exe（82,818,500バイト、SHA256=3A73EE4C489D64AF631B77F2D72115CCAA30800BE28C12BC4BBF0883AFF6D1C2）と.sha256を公開候補とする。ソースZIPのコミット一致と個人データのパスがないことを確認し、ZIP・完成EXEともDefender定義1.459.576.0で検出なし。完成EXEによる実IMEの登録・削除と別PCでの導入は未確認。追加のショートカット実COM試験と保護された配置・更新失敗時復旧の隔離試験も通過した。
+起動ボタン問題の利用者環境での原因は未確定。現行コードは通信パイプの有無で稼働を判定し、状態確認の例外時に古い有効状態を残していた。固有の試験用Mutexと実GUIタイマーで、サービスがMutexを保持しているのに通信パイプを検出できない状態では起動ボタンが有効になることを修正前に再現した。起動Mutexによる判定へ変更し、起動・停止状態、状態取得失敗と更新判定失敗時の全操作無効化を試験した。仕様はdocs/NATIVE_GUI.md、試験はTest-NativeGuiRunningState.ps1。既存のGUI状態・更新判定・トレイ・インストーラー試験も通過した。導入済みIMEと管理画面は変更していない。
 
-残作業は公開内容へのユーザー確認と公開実行。本文はdocs/RELEASE_1_0_5.md、本文・タグ・対象ソース・添付物・ハッシュを固定した候補はexperimental-build/release-1.0.5-publication.json。通常Release（draft=false、prerelease=false）、タグnative-google-1.0.5、公開先AoneSenbongi/Meltypeのgoogle-native-imeブランチを予定する。GitHubへのpush・Release作成・配布物の変更は今回の内容への確認を受けてから行う。状態資料の後続更新は配布候補ソースに含めていない。
+残作業は修正版配布候補の構築・検査。本文docs/RELEASE_1_0_5.mdにも起動ボタンの修正を追加した。以前のexperimental-build/release-1.0.5-publication.jsonは古い候補であり、修正版の完成後に更新する。公開先AoneSenbongi/Meltype、タグnative-google-1.0.5、通常Releaseを予定するが、ユーザーが再確認するまでpush・Release・添付物の公開変更を行わない。
 
 ## 通信枠32への変更とこのPCへの適用
 

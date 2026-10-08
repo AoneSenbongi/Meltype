@@ -188,10 +188,12 @@ $timer.Add_Tick({
     }
     if (-not $script:actionProcess) {
         try {
+            foreach ($button in $buttons.Values) { $button.Enabled = $false }
+            if ($autoToggle) { $autoToggle.Enabled = $false }
             $context = Get-NativeGuiContext $workspace
             $auto = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue
             $autoEnabled = $auto -and $auto.PSObject.Properties['MeltypeNativeGoogle']
-            $running = Test-Path -LiteralPath ('\\.\pipe\Meltype.NativeComposition.' + $sid)
+            $running = Test-NativeBrokerRunning $sid
             $status.Text = if ($context.Installed) { 'インストール済み  ·  入力サービス：' + $(if($running){'起動中'}else{'停止中'}) + '  ·  自動起動：' + $(if($autoEnabled){'有効'}else{'無効'}) } else { '未インストール' }
             foreach ($action in $buttons.Keys) { $buttons[$action].Enabled = if ($action -eq 'Install') { -not $context.Installed } else { $context.Installed } }
             if ($buttons.ContainsKey('Start')) { $buttons.Start.Enabled = $context.Installed -and -not $running }
@@ -206,7 +208,7 @@ $timer.Add_Tick({
             $buttons.Update.Enabled = $false
             $buttons.Update.Enabled = Test-NativeUpdateRequired $workspace $context
             $buttons.Update.Text = if ($context.Installed -and -not $buttons.Update.Enabled) { 'この版は適用済み' } else { 'この版に更新' }
-        } catch { if ($autoToggle) { $autoToggle.Enabled = $false }; $status.Text = '状態を確認できません。少し待ってから画面を開き直してください。' }
+        } catch { foreach ($button in $buttons.Values) { $button.Enabled = $false }; if ($autoToggle) { $autoToggle.Enabled = $false }; $status.Text = '状態を確認できません。少し待ってから画面を開き直してください。' }
     }
 })
 try {

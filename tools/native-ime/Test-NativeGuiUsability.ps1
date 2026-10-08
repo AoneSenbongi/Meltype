@@ -8,6 +8,7 @@ function Get-NativeGuiContext {return @{Installed=$script:fixtureInstalled}}
 function Test-NativeUpdateRequired {return $false}
 function Get-ItemProperty {if($script:fixtureAuto){return [pscustomobject]@{MeltypeNativeGoogle="fixture"}};return $null}
 function Test-Path {param($LiteralPath) return $script:fixtureRunning}
+function Test-NativeBrokerRunning {param($UserSid) return $script:fixtureRunning}
 $script:fixtureInstalled=$true; $workspace='fixture'; $sid='fixture'; $script:actionProcess=$null
 $showEvent=[pscustomobject]@{}; $showEvent|Add-Member ScriptMethod WaitOne {param($timeout) return $false}
 $status=[pscustomobject]@{Text=''}

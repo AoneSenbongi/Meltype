@@ -9,6 +9,44 @@ using Meltype.Input;
 
 public static class NativeCompositionTrace
 {
+    public static string RunPrediction(string path)
+    {
+        using var stream = File.Create(path);
+        using var writer = new BinaryWriter(stream, Encoding.Unicode);
+        writer.Write(Encoding.ASCII.GetBytes("MTTSF1\n"));
+        var host = new Host(writer);
+        var gate = new CaptureGate(() => { });
+        var google = new GoogleImeConverter(learning: false);
+        var phrases = new PhraseHistory(null);
+        const string prediction = "今日はgoogleで検索";
+        phrases.Remember("きょうはぐーぐるでけんさく", prediction);
+        var controller = new CompositionController(gate, CompositionDetector.CreateDefault(), google, host,
+            new CompositionOptions { LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false,
+                Predictor = new Predictor(phrases, null, null), Predictions = () => true, LearningEnabled = () => false });
+        long time = 1000;
+        void Key(int vk)
+        {
+            foreach (var up in new[] { false, true })
+            {
+                gate.OnKey(new KeyEvent(vk, 0, false, up, false, time++), e => !e.IsUp);
+                controller.Pump();
+            }
+        }
+        foreach (var c in "kyouha") Key(char.ToUpperInvariant(c));
+        var live = host.View?.Text;
+        if (host.View?.Predictions?.Contains(prediction) != true || host.Commits != 0) throw new InvalidOperationException("Prediction missing during Google live conversion");
+        Key(0x09);
+        if (host.View?.Text != prediction || host.View.SelectedPrediction != 0) throw new InvalidOperationException("Tab preview differs from selected prediction");
+        Key(0x1B);
+        if (host.View?.Text != live || host.View.SelectedPrediction != -1) throw new InvalidOperationException("Escape did not restore typed preview");
+        Key(0x09);
+        Key(0x0D);
+        if (host.Document != prediction || host.Commits != 1 || phrases.Count != 1) throw new InvalidOperationException("Prediction commit differs from preview");
+        foreach (var c in "nihongo") Key(char.ToUpperInvariant(c));
+        Key(0x1B);
+        if (host.View != null || host.Cancels != 1) throw new InvalidOperationException("Cancellation removed the wrong composition");
+        return "PASS: Google live conversion + prediction Tab preview, Escape restore, Enter commit; isolated phrase fixture, learning disabled.";
+    }
     private sealed class Host : ICompositionHost
     {
         private readonly BinaryWriter _trace;

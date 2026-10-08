@@ -8,6 +8,16 @@
 3. GitHub Actions が Windows (build.yml)・Mac (mac.yml)・Linux (linux.yml) の zip を作り、リリースに添付する。
 4. 公開版 (1.0.0 以降) なら、利用者の Meltype が自動で更新する (Windows)。
 
+## 同梱の .NET の更新
+
+配布物の .NET の版はどこにも固定していない。ビルドのたびに setup-dotnet (`10.0.x`) がその時の最新の SDK・ランタイムを入れ、
+Windows は `Build-Package.ps1` がインストール済みの最新の 10.0 のランタイムを `app\dotnet` に同梱し、Mac・Linux は NativeAOT で組み込む。
+なので .NET に新しいパッチ (セキュリティ修正など) が出たら、コードを変えずに版を上げてリリースし直せばよい。
+
+`.github/workflows/dotnet-update.yml` が毎週水曜日に、最新リリースの Windows の zip に入っている版と Microsoft が公開している最新の版を比べ、
+新しい版が出ていれば「同梱の .NET を <版> に更新する (リリースし直す)」の Issue を立てる (Actions の画面から手動でも実行できる)。
+.NET のメジャー版を上げる (net10.0 → net11.0) ときは、`*.csproj` の `TargetFramework` と workflow の `dotnet-version` を手で変える。
+
 ## コード署名 (任意。1.0.0 の後でよい)
 
 署名しなくても配布できます (README に「詳細情報」→「実行」の案内と、zip の SHA-256 の確かめ方を書いている)。

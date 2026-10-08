@@ -17,6 +17,8 @@ using Meltype.Input;
 
 public static class MeltypeNativeBroker
 {
+    private static readonly string DataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Meltype");
+    private static readonly Lazy<PhraseHistory> Phrases = new(() => new PhraseHistory(Path.Combine(DataDirectory, "phrases.txt")));
     // This Windows 10 package was verified from SearchApp's token and package identity.
     public static string SearchPackageSid => PackageSid("Microsoft.Windows.Search_cw5n1h2txyewy");
     [StructLayout(LayoutKind.Sequential)] private struct SecurityAttributes { public int Length; public IntPtr Descriptor; public int Inherit; }
@@ -156,10 +158,14 @@ public static class MeltypeNativeBroker
             var preferences = new Meltype.Config.InputPreferenceStore(Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MeltypeNativeGoogle", "input-preferences.json"));
             var google = new GoogleImeConverter(learning) { LearningEnabled = () => preferences.Current.LearningEnabled };
+            var userDictionary = new UserDictionary(Path.Combine(DataDirectory, "userdict.txt"));
+            var history = new ConversionHistory(Path.Combine(DataDirectory, "conversions.json"));
             var controller = new CompositionController(gate, CompositionDetector.CreateDefault(), google, host,
                 new CompositionOptions { FullWidthCommaPeriod = true, Comma = () => preferences.Current.Comma[0],
-                    Period = () => preferences.Current.Period[0], LearningEnabled = () => preferences.Current.LearningEnabled,
-                    LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false });
+                    Period = () => preferences.Current.Period[0], LearningEnabled = () => learning && preferences.Current.LearningEnabled,
+                    LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false,
+                    UserDictionary = userDictionary, Predictor = new Predictor(Phrases.Value, userDictionary, history),
+                    Predictions = () => true });
             var request = new byte[32];
             try
             {
@@ -194,12 +200,7 @@ public static class MeltypeNativeBroker
                             output.Write(action.Kind);
                             WriteText(output, action.Text);
                         }
-                        output.Write(host.View?.Converting == true ? 1 : 0);
-                        output.Write(host.View?.SelectedIndex ?? -1);
-                        var candidates = host.View?.Candidates;
-                        var count = Math.Min(candidates?.Count ?? 0, 256);
-                        output.Write(count);
-                        for (var i = 0; i < count; i++) WriteText(output, candidates[i]);
+                        WriteCandidateView(output, host.View);
                     }
                     if (buffer.Length > 1048576) throw new InvalidDataException("Response too large");
                     var payload = buffer.ToArray();
@@ -212,6 +213,17 @@ public static class MeltypeNativeBroker
             catch (Exception e) { Console.Error.WriteLine("Native broker client error: " + e.GetType().Name); }
             // A disconnected client has no submit/learning operation. Its controller is discarded.
         }
+    }
+    // Keep protocol v1: TSF draws either Google conversion candidates or typing predictions.
+    public static void WriteCandidateView(BinaryWriter output, CompositionView view)
+    {
+        var predicting = view?.Converting != true && view?.Predictions?.Count > 0;
+        var candidates = predicting ? view.Predictions : view?.Candidates;
+        var count = Math.Min(candidates?.Count ?? 0, 256);
+        output.Write((view?.Converting == true || predicting) && count > 0 ? 1 : 0);
+        output.Write(predicting ? view.SelectedPrediction : view?.SelectedIndex ?? -1);
+        output.Write(count);
+        for (var i = 0; i < count; i++) WriteText(output, candidates[i]);
     }
     private static void WriteText(BinaryWriter writer, string value)
     {

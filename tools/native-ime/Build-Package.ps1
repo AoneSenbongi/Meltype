@@ -1,16 +1,18 @@
-param([Parameter(Mandatory)][string]$Runtime, [string]$Compiler = 'g++.exe')
+param([Parameter(Mandatory)][string]$Runtime, [string]$Compiler = 'g++.exe', [string]$JsonGenerator = $env:MELTYPE_JSON_GENERATOR)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $build = Join-Path $workspace 'experimental-build'
 $Runtime = (Resolve-Path -LiteralPath $Runtime).Path
 New-Item -ItemType Directory -Path $build -Force | Out-Null
 Set-Content (Join-Path $build 'runtime-path.txt') $Runtime -Encoding UTF8
-& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Build-WithBundledCompiler.ps1') -TestFilter NativeInput
+& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Build-WithBundledCompiler.ps1') -TestFilter NativeInput -JsonGenerator $JsonGenerator
 if ($LASTEXITCODE -ne 0) { throw 'Managed build or input tests failed' }
 & (Join-Path $PSScriptRoot 'Build-NativeTextService.ps1') -Compiler $Compiler
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Generate-NativeCompositionTrace.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Google conversion trace failed' }
 & (Join-Path $PSScriptRoot 'Build-NativeComposition.ps1') -Compiler $Compiler -GoogleTrace
+& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePredictionTrace.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Google prediction -> TSF document verification failed' }
 $stage = Join-Path $build 'native-ime-package'
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 $files = @('MeltypeNative64.dll', 'native-ime-control.exe', 'Meltype.Core.dll', 'Meltype.dll')

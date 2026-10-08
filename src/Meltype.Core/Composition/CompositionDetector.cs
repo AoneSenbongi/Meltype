@@ -38,7 +38,7 @@ public sealed class CompositionDetector
 
     public static CompositionDetector CreateDefault(string? userDictionaryDirectory = null)
     {
-        var romaji = new RomajiDetector();
+        var romaji = RomajiDetector.CreateDefault(userDictionaryDirectory);
         var japaneseWords = DictionarySource.Load("japanese.txt", userDictionaryDirectory).ToList();
         var japanese = new DictionaryDetector(japaneseWords, romaji);
         var proper = ProperNouns.Load(userDictionaryDirectory);
@@ -401,7 +401,9 @@ public sealed class CompositionDetector
         {
             if (lower.Contains('c') && _romaji.Analyze(RomajiDetector.ReadCRow(lower)) is { IsValid: true, Partial: "" or "n" }) return false;
             // v 行 (va = ゔぁ): 辞書の英単語 (video) でなければ日本語 (vanpaia → ゔぁんぱいあ → ヴァンパイア)。
+            // スペルチェッカーの 5 文字以上の英単語 (invite、private) は、ゔぃ と読める綴りでも英語 (いんviteしました になっていた: issue #69)。
             if (lower.Contains('v') && !lower.Contains('l') && !lower.Contains('x') && !inDictionary && !_proper.Contains(lower) &&
+                !(lower.Length >= 5 && IsSpellWord(lower) && IsCommonJapanese?.Invoke(lower) != true) &&
                 _romaji.AnalyzeFragment(lower) is { IsValid: true, Partial: "" or "n" })
             {
                 return false;
@@ -472,6 +474,14 @@ public sealed class CompositionDetector
         if (!analysis.IsValid)
         {
             if (!exact && !prefix) return false;
+            // 日本語のすぐ後ろの短い英単語 (thin) が、変換ボックスの綴り (thi = てぃ) では最後まで読めて、続き (gu) とも読めるなら、
+            // 外来語のカタカナ (hosu|thin|gu = ホスティング) を打っている途中。英単語にしない (ほすthinぐ になっていた: issue #153)。
+            if (before < 0 && !atEnd && lower.Length <= 4 && next is { Length: > 0 } && char.IsAsciiLetter(next[0]) &&
+                _romaji.AnalyzeFragment(lower) is { IsValid: true, Partial: "" or "n" } &&
+                _romaji.AnalyzeFragment(lower + next.ToLowerInvariant()).IsValid)
+            {
+                return false;
+            }
             if (!exact && smallKanaSpelling) return false;
             // 日本語のすぐ後ろの 2 文字の語で、変換ボックスでは読める綴り (こ + we = こうぇ、wi = うぃ) は日本語。
             if (smallKanaSpelling && lower.Length <= 2 && before < 0) return false;
@@ -539,6 +549,8 @@ public sealed class CompositionDetector
             var head = Raw(units, start, k);
             if (!head.All(char.IsAsciiLetter)) continue;
             if (lowerStart && !(head.Length >= 3 && IsKnownCapitalizedWord(head))) continue;
+            // 大文字の略語に小文字が続いた形 (AIde、AIni) は語ではない。略語 (AI) の後ろがローマ字 (dekiru) と見る (issue #129)
+            if (IsAcronymWithLowerTail(head)) continue;
             // 後ろは小文字のローマ字 (長音の - を含んでもよい: TSyu-za- の yu-za-)。
             var rest = Raw(units, k, n) + pending;
             // 後ろが助詞 1 つだけ (OCR|wo、English|ga) なら 2 文字でもよい
@@ -566,6 +578,17 @@ public sealed class CompositionDetector
             if (head.Length >= 3 && IsKnownCapitalizedWord(head) || head.Length >= 4 && IsSpellWord(head.ToLowerInvariant())) return k;
         }
         return -1;
+    }
+
+    /// <summary>
+    /// 大文字 2 文字以上の後ろに小文字が続く (AIde・GPTni)。iOS・IDEs のような知っている書き方でなければ、
+    /// 1 つの語ではなく、略語 + ローマ字の打ち始め。
+    /// </summary>
+    private bool IsAcronymWithLowerTail(string head)
+    {
+        var upper = 0;
+        while (upper < head.Length && char.IsAsciiLetterUpper(head[upper])) upper++;
+        return upper >= 2 && upper < head.Length && head[upper..].All(char.IsAsciiLetterLower) && !IsKnownCapitalizedWord(head);
     }
 
     // - を付けて使う英語の接頭辞 (e-mail、re-do、co-op、x-ray)。接頭辞 + - + 3 文字以上の英単語なら英語。
@@ -611,7 +634,22 @@ public sealed class CompositionDetector
         }
         var name = Raw(units, start, end) + (end == n ? pending : "");
         if (!name.Any(char.IsAsciiLetter)) return -1;
-        return mention || name.Contains('_') ? end : -1;
+        if (mention || name.Contains('_')) return end;
+        // メールアドレスの @ より前 (tanaka@、yamada.taro@): @ を打ったら、その前も英字のまま。
+        // @ の後ろのドメインは、上の @ の後ろの決まりで英字になる (たなか@gmail.com になっていた: issue #59)。
+        if (start == 0 || units[start - 1].Raw is " " or "<" or "(" or "\"" or "'" or ":" or ",")
+        {
+            var local = end;
+            while (local + 1 < n && units[local].Raw is "." or "-" or "+" && IsNameUnit(units[local + 1]))
+            {
+                local++;
+                while (local < n && IsNameUnit(units[local])) local++;
+            }
+            // @ の後ろに英字が続いたとき (ドメインを打ち始めた) だけ。あと@3人 (ato@3nin) のような @ は日本語のまま
+            var domainStarts = local + 1 < n ? units[local + 1].Raw is [var first, ..] && char.IsAsciiLetter(first) : local + 1 == n && pending is [var p, ..] && char.IsAsciiLetter(p);
+            if (local < n && units[local].Raw == "@" && domainStarts) return local + 1;
+        }
+        return -1;
     }
 
     /// <summary>

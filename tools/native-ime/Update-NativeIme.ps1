@@ -72,7 +72,7 @@ try {
         if (Test-Path -LiteralPath $targetLauncher) { Copy-Item -LiteralPath $targetLauncher -Destination $backup }
         Copy-Item -LiteralPath $launcher -Destination $targetLauncher -Force
     }
-    $context.State | Add-Member NoteProperty BaseVersion '1.0.4' -Force
+    $context.State | Add-Member NoteProperty BaseVersion '1.1.0' -Force
     $context.State | Add-Member NoteProperty NativeVersion '1.0.5' -Force
     $context.State | ConvertTo-Json | Set-Content (Join-Path $context.Root 'experimental-build/native-ime-install.json') -Encoding UTF8
     if ($autoEnabled) { & (Join-Path $PSScriptRoot 'Set-InstalledNativeAutoStart.ps1') }

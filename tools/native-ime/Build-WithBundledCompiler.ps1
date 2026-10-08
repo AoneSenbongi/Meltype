@@ -1,6 +1,6 @@
 ﻿# Build in the workspace using the Roslyn compiler and .NET reference assemblies
 # already bundled with this Codex host. No global SDK installation is required.
-param([string]$TestFilter = 'Google', [switch]$VerifyGoogle, [switch]$VerifyLearning, [switch]$BuildOnly)
+param([string]$TestFilter = 'Google', [switch]$VerifyGoogle, [switch]$VerifyLearning, [switch]$BuildOnly, [string]$JsonGenerator = $env:MELTYPE_JSON_GENERATOR)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $sourceRoot = $workspace
@@ -11,7 +11,7 @@ $baseReferences = [System.Collections.Generic.List[Microsoft.CodeAnalysis.Metada
 foreach ($dll in Get-ChildItem (Join-Path $PSHOME 'ref') -Filter '*.dll') {
     $baseReferences.Add([Microsoft.CodeAnalysis.MetadataReference]::CreateFromFile($dll.FullName))
 }
-foreach ($name in @('System.Windows.Forms.dll','System.Windows.Forms.Primitives.dll','System.Drawing.Common.dll','System.Private.Windows.Core.dll','System.Private.Windows.GdiPlus.dll')) {
+foreach ($name in @('System.Windows.Forms.dll','System.Windows.Forms.Primitives.dll','System.Drawing.Common.dll','System.Private.Windows.Core.dll','System.Private.Windows.GdiPlus.dll','Accessibility.dll')) {
     $file = Join-Path $PSHOME $name
     if (Test-Path $file) { $baseReferences.Add([Microsoft.CodeAnalysis.MetadataReference]::CreateFromFile($file)) }
 }
@@ -39,6 +39,20 @@ function Build-Project([string]$project, [string[]]$dependencies, [string[]]$fri
     $options = [Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions]::new($kind).WithAllowUnsafe($true).WithNullableContextOptions([Microsoft.CodeAnalysis.NullableContextOptions]::Enable)
     if ($entry) { $options = $options.WithMainTypeName($entry) }
     $compilation = $compiler::Create($project, $trees, $refs, $options)
+    if ($project -eq 'Meltype.Core') {
+        if (-not $JsonGenerator -or -not (Test-Path -LiteralPath $JsonGenerator)) {
+            throw 'Set MELTYPE_JSON_GENERATOR to the .NET SDK System.Text.Json.SourceGeneration.dll path.'
+        }
+        $generatorAssembly = [Reflection.Assembly]::LoadFrom($JsonGenerator)
+        $incremental = [Microsoft.CodeAnalysis.IIncrementalGenerator][Activator]::CreateInstance($generatorAssembly.GetType('System.Text.Json.SourceGeneration.JsonSourceGenerator'))
+        $generator = [Microsoft.CodeAnalysis.GeneratorExtensions]::AsSourceGenerator($incremental)
+        $driver = [Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver]::Create([Microsoft.CodeAnalysis.ISourceGenerator[]]@($generator), $null, $parseOptions, $null)
+        [Microsoft.CodeAnalysis.Compilation]$updated = $compilation
+        $generatorDiagnostics = [System.Collections.Immutable.ImmutableArray[Microsoft.CodeAnalysis.Diagnostic]]::Empty
+        $driver = $driver.RunGeneratorsAndUpdateCompilation($compilation, [ref]$updated, [ref]$generatorDiagnostics, [Threading.CancellationToken]::None)
+        if (@($generatorDiagnostics | Where-Object Severity -EQ 'Error').Count) { throw ($generatorDiagnostics -join "`n") }
+        $compilation = $updated
+    }
     $resources = [System.Collections.Generic.List[Microsoft.CodeAnalysis.ResourceDescription]]::new()
     if ($project -eq 'Meltype.Core') {
         foreach ($file in Get-ChildItem (Join-Path $sourceRoot 'dictionaries') -Filter '*.txt') {

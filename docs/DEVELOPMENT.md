@@ -19,6 +19,8 @@ powershell -ExecutionPolicy Bypass -File .\Uninstall-Meltype.ps1 -RemoveData # �
 ```
 
 必要なもの: Windows 10 / 11 (x64 / ARM64)、.NET 10 SDK、Microsoft IME (漢字変換に使います)。
+Meltype IME (入力欄に直接入力) も入れるときは、Visual Studio Build Tools の「C++ によるデスクトップ開発」(MSVC と Windows SDK) も要ります (無ければ Meltype IME を入れずに続けます。ARM64 では入れません)。
+アンインストール (`Uninstall-Meltype.ps1`) では、Meltype IME の登録も外します (登録してあれば、管理者権限の確認が出ます)。
 
 ## 協力者に渡すテスト版
 

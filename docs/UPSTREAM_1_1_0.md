@@ -12,4 +12,6 @@
 
 ## 検証と適用
 
+本家のソース生成によるJSON処理に合わせ、Roslynによる構築には.NET SDKの`System.Text.Json.SourceGeneration.dll`が必要になる。`Build-Package.ps1`の`-JsonGenerator`、または環境変数`MELTYPE_JSON_GENERATOR`で指定する。配布物の実行時にはSDKは不要。
+
 共通コアの回帰試験、予測の表示・選択・確定・取消、学習停止、Google連携とTSF候補表示の試験を行う。まずローカルで構築する。PCへの適用状態と公開状態は別に記録し、GitHub公開には内容の確認を取る。

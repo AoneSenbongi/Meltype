@@ -68,6 +68,69 @@ internal static class SessionFacadeTests
     }
 
     [Test]
+    public static void AutoCorrect_ReplacesPreviousWord()
+    {
+        // i を確定したあと、want で英文と分かったら i を確定し直す (前の文字を消して入れ直す)
+        var session = Create();
+        Type(session, "i ");
+        var results = Type(session, "want ");
+        Assert.True(results.SelectMany(r => r.Commits).Any(c => c.DeleteBefore > 0), "前の語を確定し直す");
+    }
+
+    [Test]
+    public static void AutoCorrect_TellsWhatToDelete()
+    {
+        // 確定し直すときは、消す文字 (前に確定した文字) も渡す。DLL は入力欄の文字が同じときだけ消す
+        var session = Create();
+        // i の確定 (Space で変換したものは、次の w で確定する) → want の確定のときに確定し直す
+        var commits = Type(session, "i want ").SelectMany(r => r.Commits).ToList();
+        var index = commits.FindIndex(c => c.DeleteBefore > 0);
+        Assert.True(index > 0, "前の語を確定し直す");
+        var first = commits[0].Text;
+        var correction = commits[index];
+        Assert.Equal(first, correction.Expect);
+        Assert.Equal(first.Length, correction.DeleteBefore);
+        Assert.True(new SessionResult(true, [correction], null).ToJson().Contains("\"expect\":"), "JSON にも入れる");
+    }
+
+    [Test]
+    public static void Commits_WithoutDeleteHaveNoExpect()
+    {
+        var session = Create();
+        var commit = Type(session, "kyouha\n")[^1].Commits.Single();
+        Assert.True(commit.Expect is null, "消さない確定には付けない");
+        Assert.True(!new SessionResult(true, [commit], null).ToJson().Contains("expect"), "JSON にも入れない");
+    }
+
+    [Test]
+    public static void AutoCorrect_NotAfterKeyPassedToApp()
+    {
+        // 確定したあと、アプリに渡したキー (矢印など) でキャレットが動いたかもしれない: 消す位置がずれるので確定し直さない
+        // Enter で確定したあとも、次の語で確定し直す (動かさなければ)
+        var control = Create();
+        Type(control, "i\n");
+        Assert.True(Type(control, "want ").SelectMany(r => r.Commits).Any(c => c.DeleteBefore > 0), "動かさなければ確定し直す");
+
+        var session = Create();
+        Type(session, "i\n");
+        var left = session.HandleKey(VirtualKeys.Left, null, false, false, false, false);
+        Assert.True(!left.Consumed, "変換していないときの矢印はアプリに渡す");
+        var results = Type(session, "want ");
+        Assert.True(!results.SelectMany(r => r.Commits).Any(c => c.DeleteBefore > 0), "関係ない文字を消さない");
+    }
+
+    [Test]
+    public static void AutoCorrect_NotAfterCaretMovedOutside()
+    {
+        // OS の IME がアプリに通したキー・クリックで動いたと知らせてきた (Meltype IME の "moved")
+        var session = Create();
+        Type(session, "i\n");
+        session.ForgetLastCommit();
+        var results = Type(session, "want ");
+        Assert.True(!results.SelectMany(r => r.Commits).Any(c => c.DeleteBefore > 0), "関係ない文字を消さない");
+    }
+
+    [Test]
     public static void ShortcutWhileComposing_CommitsThenPassesTheKey()
     {
         var session = Create();
@@ -101,7 +164,38 @@ internal static class SessionFacadeTests
     public static void Json_IsEscaped()
     {
         var result = new SessionResult(true, [new TextEdit(2, "a\"b\\c\n")], new CompositionView("x", ["y"], 0, true, "h", ["x"], 0));
-        const string expected = """{"consumed":true,"commits":[{"deleteBefore":2,"text":"a\"b\\c\n"}],"view":{"text":"x","converting":true,"selectedIndex":0,"selectedClause":0,"hint":"h","candidates":["y"],"clauses":["x"],"suggestion":null,"meaning":null}}""";
+        const string expected = """{"consumed":true,"commits":[{"deleteBefore":2,"text":"a\"b\\c\n"}],"view":{"text":"x","converting":true,"selectedIndex":0,"selectedClause":0,"hint":"h","candidates":["y"],"clauses":["x"],"suggestion":null,"meaning":null,"notes":[null]}}""";
         Assert.Equal(expected, result.ToJson());
+    }
+
+    [Test]
+    public static void SigilWord_PassesToTheAppUntilSpace()
+    {
+        // #193: 先頭の /review は打つたびにアプリへ渡し (補完を選べるように)、空白の後は日本語に戻る。
+        var session = Create();
+        Assert.True(Type(session, "/review").All(r => !r.Consumed && r.View is null), "/review はそのままアプリへ");
+        Assert.True(!Type(session, " ")[0].Consumed, "空白もアプリへ");
+        Assert.Equal("きょう", Type(session, "kyou")[^1].View?.Text);
+        // google を確定した後の空白に続く @ も。
+        session = Create();
+        Type(session, "google ");
+        Assert.True(Type(session, "@file").All(r => !r.Consumed), "空白の後の @file はアプリへ");
+    }
+
+    [Test]
+    public static void SigilWord_UsesTextBeforeCaret()
+    {
+        // キャレットの前の文字を教えてもらえば、それで決める (taro@ は対象外、"> " の後は対象)。
+        var session = Create();
+        Assert.True(Type(session, "@", before: "taro")[0].Consumed, "前が英字なら @ は変換ボックスへ");
+        session = Create();
+        session.HandleKey(VirtualKeys.Left, null, false, false, false, false);
+        Assert.True(!Type(session, "/", before: "> ")[0].Consumed, "前が空白なら / はアプリへ");
+        // 前の文字を打ったのを見ていれば、空 (前の文字を読めないアプリ) より自分の記録を信じる。
+        session = Create();
+        session.Direct = true;
+        Type(session, "taro");
+        session.Direct = false;
+        Assert.True(Type(session, "@", before: "")[0].Consumed, "taro と打った後の @ は変換ボックスへ");
     }
 }

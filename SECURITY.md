@@ -22,7 +22,9 @@ Native Google 1.0.2では、起動時に同名パイプが先に存在した場�
 
 1.0.4では、管理画面の詳しいエラー情報を導入先の `experimental-build/gui-error-<ID>.txt` へ保存します。ファイルパスやWindowsのユーザー名が含まれる場合があるため、報告前に内容を確認してください。ログを自動送信する処理はありません。
 
-Googleの辞書・既存学習を利用します。Forkの学習を有効にし、Google側も「学習する」に設定した場合は、選んだ変換結果との一致を確認してからGoogleへ確定を通知します。Native版ではMeltype独自の永続学習は接続していません。
+Googleの辞書・既存学習を利用します。Forkの学習を有効にし、Google側も「学習する」に設定した場合は、選んだ変換結果との一致を確認してからGoogleへ確定を通知します。公開済みNative Google 1.0.5ではMeltype独自の永続学習は接続していません。
+
+本家1.1.0対応の開発版は、予測用の日本語の確定語句・読み・利用回数・最終利用日時を`%LOCALAPPDATA%\Meltype\phrases.txt`に最大3,000件保存します。同じ入力サービス内の各入力欄で共有し、同時更新は順番に処理します。学習停止中は追加・更新せず、既存履歴の参照を続けます。予測履歴、Meltypeのユーザー辞書と変換履歴、同梱英単語辞書から予測し、外部の予測APIへ入力を送信しません。履歴は暗号化していません。ファイルを削除して予測履歴を消す場合は、先に入力サービスを停止してください。
 
 Googleのユーザーデータは通常、`%USERPROFILE%\AppData\LocalLow\Google\Google Japanese Input`にあります。自動起動用の設定は`%LOCALAPPDATA%\MeltypeNativeGoogle`、登録状態と起動ログは導入先の`experimental-build`に保存します。
 

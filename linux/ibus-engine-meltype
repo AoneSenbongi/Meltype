@@ -33,6 +33,7 @@ _lib.meltype_commit.restype = ctypes.c_void_p
 _lib.meltype_select_candidate.argtypes = [ctypes.c_void_p, ctypes.c_int]
 _lib.meltype_select_candidate.restype = ctypes.c_void_p
 _lib.meltype_set_direct.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.meltype_set_can_delete.argtypes = [ctypes.c_void_p, ctypes.c_int]
 _lib.meltype_free.argtypes = [ctypes.c_void_p]
 _lib.meltype_report_url.argtypes = [ctypes.c_char_p]
 _lib.meltype_report_url.restype = ctypes.c_void_p
@@ -151,6 +152,12 @@ class MeltypeEngine(IBus.Engine):
         # 別の入力欄・アプリに移るときは、未確定の内容をそのまま確定する。
         if self._session:
             self._apply(_result(_lib.meltype_commit(self._session)))
+
+    def do_set_capabilities(self, caps):
+        # 周りの文字 (surrounding text) に対応していない入力欄では、確定済みの文字を消せない。
+        # 消せないのに確定し直すと、元の文字が残ったまま書き足される (api → apiあぴ) ので、本体に確定し直しをやめさせる。
+        if self._session:
+            _lib.meltype_set_can_delete(self._session, 1 if caps & IBus.Capabilite.SURROUNDING_TEXT else 0)
 
     def do_focus_in(self):
         self.register_properties(self._properties)

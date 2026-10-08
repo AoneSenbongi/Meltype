@@ -289,6 +289,21 @@ internal sealed class SettingsForm : Form
                 s => combo.SelectedIndex = values.IndexOf(property.GetValue(s)!),
                 s => property.SetValue(s, values[Math.Max(0, combo.SelectedIndex)]));
         }
+        if (type == typeof(string) && property.Name == nameof(Settings.CompositionFont))
+        {
+            // この PC のフォントから選ぶ。先頭は既定 (空)
+            using var installed = new System.Drawing.Text.InstalledFontCollection();
+            var families = installed.Families.Select(f => f.Name).Where(n => n.Length > 0 && !n.StartsWith('@')).Distinct().OrderBy(n => n, StringComparer.CurrentCulture).ToList();
+            var combo = DropDown([DefaultFontChoice, .. families]);
+            return new Binding(property, combo,
+                s =>
+                {
+                    var name = (string?)property.GetValue(s) ?? "";
+                    if (name.Length > 0 && !combo.Items.Contains(name)) combo.Items.Add(name); // 今は無いフォントでも選んだままにする
+                    combo.SelectedItem = name.Length == 0 ? DefaultFontChoice : name;
+                },
+                s => property.SetValue(s, combo.SelectedItem is string name && name != DefaultFontChoice ? name : ""));
+        }
         if (type == typeof(int))
         {
             var number = new NumericUpDown { Minimum = 0, Maximum = 60000, Width = 120, Anchor = AnchorStyles.Left };
@@ -429,6 +444,8 @@ internal sealed class SettingsForm : Form
             return column;
         }
     }
+
+    private const string DefaultFontChoice = "既定 (Yu Gothic UI)";
 
     private ComboBox DropDown(string[] items)
     {

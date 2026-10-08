@@ -38,3 +38,5 @@ gui-preview.png
 
 # Local installer deployment (runtime and user-specific installation files)
 installed/
+native/tip/bin/
+native/tip/obj/

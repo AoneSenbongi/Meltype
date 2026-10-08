@@ -38,6 +38,7 @@ internal static class AppPaths
     public static string ConversionHistoryFile => Path.Combine(DataDirectory, "conversions.json");
     public static string TranslationHistoryFile => Path.Combine(DataDirectory, "translations.json");
     public static string LanguageMemoryFile => Path.Combine(DataDirectory, "languages.json");
+    public static string PhraseHistoryFile => Path.Combine(DataDirectory, "phrases.txt");
     public static string UserDictionaryFile => Path.Combine(DataDirectory, "userdict.txt");
     public static string LogFile => Path.Combine(DataDirectory, "meltype.log");
 

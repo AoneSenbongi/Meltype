@@ -21,6 +21,15 @@ enable_input_source() {
     killall TextInputMenuAgent 2>/dev/null || true
     echo "入力ソースに Meltype を追加しました"
 }
+
+# 入力ソースの登録をやり直す (#134)。Meltype.app を入れ替えるとき、バンドルが無い一瞬に入力ソースの
+# 走査が走ると、macOS は登録を消す。消えたあとは、バンドルを戻して走査し直しても戻らないことがあり、
+# これまではログアウトするしかなかった。TISRegisterInputSource なら実行中でも戻せる。
+register_input_source() {
+    local tool="$TARGET/Meltype.app/Contents/MacOS/MeltypeRegisterInputSource"
+    "$tool" "$TARGET/Meltype.app" ||
+        echo "入力ソースに登録できませんでした。ログアウトしてログインし直すと直ります。" >&2
+}
 [[ "${1:-}" == "--no-install" ]] && INSTALL=0
 
 case "$(uname -m)" in
@@ -47,6 +56,8 @@ echo "== 3/3 Meltype.app を組み立て"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 BIN="$(swift build -c release --show-bin-path)"
 cp "$BIN/MeltypeIME" "$APP/Contents/MacOS/Meltype"
+# 入力ソースの登録をやり直す小さな道具 (#134)。install.sh が入れ替えたあとに呼ぶ。
+cp "$BIN/RegisterInputSource" "$APP/Contents/MacOS/MeltypeRegisterInputSource"
 # azooKey が使う llama.framework などの動的なフレームワークも同梱する。
 # 入れていなかったため、1.0.0 は起動できなかった (dyld: Library not loaded: @rpath/llama.framework、#13)。
 for framework in "$BIN"/*.framework; do
@@ -101,6 +112,8 @@ if [[ $INSTALL -eq 1 ]]; then
     cp -R "$APP" "$TARGET/"
     echo "インストールしました: $TARGET/Meltype.app"
     enable_input_source
-    echo "初めてのときは、いったんログアウトしてログインし直してから、"
-    echo "システム設定 → キーボード → 入力ソース →「編集…」→「+」→ 日本語 → Meltype を追加してください。"
+    register_input_source
+    echo "入力メニューで Meltype を選んでください。"
+    echo "出てこなければ、システム設定 → キーボード → 入力ソース →「編集…」→「+」→ 日本語 → Meltype を追加し、"
+    echo "それでも出てこなければ、いったんログアウトしてログインし直してください。"
 fi

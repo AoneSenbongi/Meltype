@@ -233,6 +233,7 @@ public sealed class CompositionController
     private bool _converting;
     private bool? _lastCommitEnglish;
     private string? _lastCommitText;
+    private readonly Stack<bool> _squareBrackets = new();
     private string? _precedingText;
     private string? _followingText;
     private long _lastCommitTime = long.MinValue / 2;
@@ -402,6 +403,7 @@ public sealed class CompositionController
     {
         _lastCommitEnglish = null;
         _lastCommitText = null;
+        _squareBrackets.Clear();
         _correctable.Clear();
     }
 
@@ -706,6 +708,7 @@ public sealed class CompositionController
     /// </summary>
     private void BeginComposition()
     {
+        _text.PreviousSquareBracketIsEnglish = _squareBrackets.TryPeek(out var ascii) && ascii;
         _text.KanaInput = _options.KanaInput();
         _text.Punctuation = _options.Punctuation();
         var id = ++_compositionId;
@@ -1045,7 +1048,7 @@ public sealed class CompositionController
                 AddOldKana(clause);
                 AddTranslations(clause);
                 AddRawCandidates(clause);
-                MoveEmojiLast(clause);
+                if (!_detector.LegacyGoogleConversion) MoveEmojiLast(clause);
             }
             clauses.AddRange(japanese);
         }
@@ -1285,12 +1288,13 @@ public sealed class CompositionController
     {
         var text = _precedingText;
         if (string.IsNullOrEmpty(text) || LanguageOf(text) != false) return null;
-        var start = text.LastIndexOfAny(SentenceEnds);
+        var start = text.LastIndexOfAny(_detector.LegacyGoogleConversion ? LegacySentenceEnds : SentenceEnds);
         text = text[(start + 1)..].Trim();
         return text.Length == 0 ? null : text.Length > 10 ? text[^10..] : text;
     }
 
     private static readonly char[] SentenceEnds = ['。', '．', '！', '？', '\n', '\r'];
+    private static readonly char[] LegacySentenceEnds = ['。', '！', '？', '\n', '\r'];
 
     private static readonly HashSet<string> Particles = ["は", "が", "を", "に", "で", "と", "も", "へ", "の", "や", "か", "から", "まで", "より"];
 
@@ -1314,16 +1318,16 @@ public sealed class CompositionController
         var candidates = Distinct(inContext);
         foreach (var word in _options.UserDictionary?.Lookup(reading) ?? []) if (!candidates.Contains(word)) candidates.Add(word);
         if (Convert(reading) is var standalone && !candidates.Contains(standalone)) candidates.Add(standalone);
-        foreach (var extra in _options.Candidates?.LookupWords(reading) ?? [])
+        foreach (var extra in (_detector.LegacyGoogleConversion ? _options.Candidates?.Lookup(reading) : _options.Candidates?.LookupWords(reading)) ?? [])
         {
             if (!candidates.Contains(extra)) candidates.Add(extra);
         }
         var katakana = CompositionText.ToKatakana(reading);
-        foreach (var kana in new[] { reading, katakana, CompositionText.ToHalfWidthKatakana(katakana) })
+        foreach (var kana in _detector.LegacyGoogleConversion ? new[] { reading, katakana } : new[] { reading, katakana, CompositionText.ToHalfWidthKatakana(katakana) })
         {
             if (!candidates.Contains(kana)) candidates.Add(kana);
         }
-        foreach (var emoji in EmojiBlock(reading))
+        foreach (var emoji in _detector.LegacyGoogleConversion ? [] : EmojiBlock(reading))
         {
             if (!candidates.Contains(emoji)) candidates.Add(emoji);
         }
@@ -1454,12 +1458,12 @@ public sealed class CompositionController
     /// </summary>
     private void Resize(int delta)
     {
-        if (_clauses[_selectedClause].IsEnglish && !ReadAsJapanese(_selectedClause)) return;
+        if (_clauses[_selectedClause].IsEnglish && (_detector.LegacyGoogleConversion || !ReadAsJapanese(_selectedClause))) return;
         var current = _clauses[_selectedClause];
         var next = _selectedClause + 1 < _clauses.Count ? _clauses[_selectedClause + 1] : null;
         if (next is { IsEnglish: true })
         {
-            if (delta < 0) next = null;
+            if (_detector.LegacyGoogleConversion || delta < 0) next = null;
             else next = ReadAsJapanese(_selectedClause + 1) ? _clauses[_selectedClause + 1] : null;
         }
 
@@ -1548,7 +1552,7 @@ public sealed class CompositionController
         if (fixEnglish && !converting && _text.Mode == DisplayMode.Auto) text = FixEnglishTypo(text);
         var english = converting ? _clauses.All(c => c.IsEnglish) : _text.IsAlphanumericAt(final: true);
         // F6 / F7 / F9 / F10 で、はっきり英字 / かなを選んで確定した語も、後から確定し直さない。
-        var chosen = converting ? _clauses.Any(c => c.Changed) : _text.Mode != DisplayMode.Auto;
+        var chosen = converting ? _clauses.Any(c => c.Changed) : !_detector.LegacyGoogleConversion && _text.Mode != DisplayMode.Auto;
         if (_reconversion is { } selection)
         {
             if (_host.TryReplaceSelection(selection, text + suffix))
@@ -1671,10 +1675,10 @@ public sealed class CompositionController
             replacement = _detector.Romaji.ConvertLenient(previous.Raw.ToLowerInvariant(), final: true);
             // ローマ字として読んでもよく使う語の読みにならない語 (issue → いっすえ、api → あぴ) は英語のまま (issue #121, #124)。
             // sushi → すし のように、日本語の語として読めるときだけ直す。
-            if (_options.RomajiTypos is { } lexicon && !lexicon.IsWord(replacement)) return;
+            if (!_detector.LegacyGoogleConversion && _options.RomajiTypos is { } lexicon && !lexicon.IsWord(replacement)) return;
         }
         // ユーザーが英字 / かなに直して覚えた語 (F10 で英字にした api) は、覚えたとおりなら書き換えない (issue #124)。
-        if (targets.Any(t => _options.Languages?.Get(t.Raw.ToLowerInvariant()) == t.English)) return;
+        if (!_detector.LegacyGoogleConversion && targets.Any(t => _options.Languages?.Get(t.Raw.ToLowerInvariant()) == t.English)) return;
         var original = string.Concat(targets.Select(t => t.Text));
         if (replacement is null || replacement == original) return;
 
@@ -1762,6 +1766,11 @@ public sealed class CompositionController
         _converting = false;
         _clauses = [];
         if (text.Length == 0) return;
+        foreach (var c in text)
+        {
+            if (c is '[' or '「') _squareBrackets.Push(c == '[');
+            else if (c is ']' or '」' && _squareBrackets.Count > 0) _squareBrackets.Pop();
+        }
         if (_options.SpaceAroundEnglish()) text = AddSpacesAroundEnglish(text, _precedingText, _followingText);
         CorrectPreviousCommit(raw, english);
         // 英語とも日本語とも読める語を、文脈を決めずに (選び直さずに) 確定したときだけ、後で確定し直せるようにしておく。

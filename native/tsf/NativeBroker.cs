@@ -160,11 +160,11 @@ public static class MeltypeNativeBroker
             var google = new GoogleImeConverter(learning) { LearningEnabled = () => preferences.Current.LearningEnabled };
             var userDictionary = new UserDictionary(Path.Combine(DataDirectory, "userdict.txt"));
             var history = new ConversionHistory(Path.Combine(DataDirectory, "conversions.json"));
-            var controller = new CompositionController(gate, CompositionDetector.CreateDefault(), google, host,
+            var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: true), google, host,
                 new CompositionOptions { FullWidthCommaPeriod = true, Comma = () => preferences.Current.Comma[0],
                     Period = () => preferences.Current.Period[0], LearningEnabled = () => learning && preferences.Current.LearningEnabled,
                     LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false,
-                    UserDictionary = userDictionary, Predictor = new Predictor(Phrases.Value, userDictionary, history),
+                    Predictor = new Predictor(Phrases.Value, userDictionary, history),
                     Predictions = () => true });
             var request = new byte[32];
             try

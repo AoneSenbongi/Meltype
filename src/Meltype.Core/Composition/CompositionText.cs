@@ -37,6 +37,7 @@ public sealed class CompositionText
     public bool FullWidthCommaPeriod { get; set; }
     public Func<char?> Comma { get; set; } = () => null;
     public Func<char?> Period { get; set; } = () => null;
+    public bool PreviousSquareBracketIsEnglish { get; set; }
 
     public IReadOnlyList<CompositionUnit> Units => _units;
     public string Pending => _pending.ToString();
@@ -93,7 +94,9 @@ public sealed class CompositionText
     public void Append(char c)
     {
         if (c is 'h' or 'j' or 'k' or 'l' && Pending == "z" &&
-            (_units.Count == 0 || !char.IsAsciiLetter(_units[^1].Raw[^1])))
+            (_units.Count == 0 || !char.IsAsciiLetter(_units[^1].Raw[^1]) ||
+                (_units[^1].Kana != "っ" && _units[^1].Kana.All(k => k is >= 'ぁ' and <= 'ゖ' or 'ー') && !Segments().Last().IsEnglish &&
+                    !_detector.IsEnglishWordOrPrefix(Raw + c))))
         {
             _pending.Length--;
             Normalize(final: true);
@@ -165,10 +168,11 @@ public sealed class CompositionText
             // 英単語の最後の t の次に打った s は、t と合わせて ts (つ・つぃ) にしない
             // (commit + suru・site → こっみつる・こっみつぃて ではなく commitする・commitして)。
             // 読めない子音がいくつか残っていても同じ (reflect + sareta の ct + s → reflectされた。refェcつァれた になっていた: issue #77)。
-            if (_pending.Length >= 1 && _pending[^1] is 't' or 'T' && c is 's' or 'S' && _pending.ToString().All(char.IsAsciiLetter) &&
+            if ((_detector.LegacyGoogleConversion ? _pending.Length == 1 : _pending.Length >= 1) && _pending[^1] is 't' or 'T' && c is 's' or 'S' && _pending.ToString().All(char.IsAsciiLetter) &&
                 EndsWithEnglishWordFromUnit(_units.Count, _pending.ToString()))
             {
-                foreach (var letter in _pending.ToString()) _units.Add(new CompositionUnit(letter.ToString(), letter.ToString()));
+                if (_detector.LegacyGoogleConversion) _units.Add(new CompositionUnit(_pending.ToString(), _pending.ToString()));
+                else foreach (var letter in _pending.ToString()) _units.Add(new CompositionUnit(letter.ToString(), letter.ToString()));
                 _pending.Clear();
             }
             _pending.Append(c);
@@ -276,7 +280,7 @@ public sealed class CompositionText
         {
             letters = _units[i].Raw + letters;
             // 大文字の略語の途中 (AI の I) から始まる語 (Init) は見ない (AInitsuite の t と s を つ にまとめるように: issue #129)
-            if (i > 0 && char.IsAsciiLetterUpper(_units[i].Raw[0]) && _units[i - 1].Raw is [.., var before] && char.IsAsciiLetterUpper(before)) continue;
+            if (!_detector.LegacyGoogleConversion && i > 0 && char.IsAsciiLetterUpper(_units[i].Raw[0]) && _units[i - 1].Raw is [.., var before] && char.IsAsciiLetterUpper(before)) continue;
             if (letters.Length >= 4 && _detector.IsKnownEnglishWord(letters)) return true;
         }
         return false;
@@ -360,10 +364,11 @@ public sealed class CompositionText
         var lower = run.ToLowerInvariant();
         foreach (var unit in UnitWords)
         {
+            if (_detector.LegacyGoogleConversion && unit is "ppm" or "ppb" or "ppt" or "cc") continue;
             if (!lower.StartsWith(unit, StringComparison.Ordinal)) continue;
             // まだ続きを打つかもしれない。ただし同じ子音を重ねた単位 (cc) は、日本語なら っ + 次の音 で続きが要るので、
             // 打った時点で単位として見せる (50cc を打っている途中に 50っc と出ていた: issue #130)。
-            if (lower.Length == unit.Length && !final && !(unit is [var c1, var c2] && c1 == c2 && UnitWords.All(u => u == unit || !u.StartsWith(unit, StringComparison.Ordinal)))) return;
+            if (lower.Length == unit.Length && !final && (_detector.LegacyGoogleConversion || !(unit is [var c1, var c2] && c1 == c2 && UnitWords.All(u => u == unit || !u.StartsWith(unit, StringComparison.Ordinal))))) return;
             if (lower.Length > unit.Length && UnitWords.Any(u => u.Length > unit.Length && u.StartsWith(lower[..(unit.Length + 1)], StringComparison.Ordinal))) return;
             // 小文字の母音が続くなら、ローマ字の語の途中 (10mina → 10みな) かもしれないので単位にしない
             // ただし単位の最後の文字の前までがローマ字として読めない (51km|ijou の k) なら、母音とつなげても読めないので単位 (51km以上)
@@ -517,8 +522,7 @@ public sealed class CompositionText
     private static bool IsAsciiSymbol(string raw) => raw is [var c] && c is >= '!' and <= '~' && !char.IsAsciiLetterOrDigit(c);
 
     /// <summary>開きの記号と、その閉じの記号。</summary>
-    // [ ] は日本語の入力では「」なので、英語の前後でも半角にしない
-    private static readonly Dictionary<string, string> Openers = new() { ["("] = ")", ["{"] = "}", ["\""] = "\"", ["'"] = "'" };
+    private static readonly Dictionary<string, string> Openers = new() { ["["] = "]", ["("] = ")", ["{"] = "}", ["\""] = "\"", ["'"] = "'" };
 
     /// <summary>
     /// 開きの記号 (「(」「"」) は打った時点ではまだ後ろが分からないので全角になる。後ろが分かったら、
@@ -542,6 +546,15 @@ public sealed class CompositionText
             var nextIsEnglish = i + 1 < _units.Count ? offsets[i + 1] < english.Count && english[offsets[i + 1]] && char.IsAsciiLetter(_units[i + 1].Raw[0])
                 : Pending.Length > 0 && segments.Count > 0 && segments[^1].IsEnglish;
             var closing = Enumerable.Range(i + 1, _units.Count - i - 1).FirstOrDefault(k => _units[k].Raw == closer, -1);
+            if (_units[i].Raw == "[")
+            {
+                // 角括弧は直後の入力の言語に合わせる。日本語内の英単語だけでは開き括弧を変えない。
+                if (i != 0 || !nextIsEnglish) continue;
+                adjusted ??= [.. _units];
+                adjusted[i] = _units[i] with { Kana = "[" };
+                if (closing > i) adjusted[closing] = _units[closing] with { Kana = "]" };
+                continue;
+            }
             // 閉じの記号が英語の語のすぐ後ろ (間の記号 ! . は飛ばす: …Through!") なら、閉じも、間の記号も半角にする
             var afterEnglish = -1;
             if (closing > i)
@@ -965,7 +978,7 @@ public sealed class CompositionText
         ',' => SelectedComma,
         '.' => SelectedPeriod,
         '[' => '「',
-        ']' => '」',
+        ']' => PreviousSquareBracketIsEnglish && !_units.Any(u => u.Raw == "[") ? ']' : '」',
         // ASCII の括弧はチャット本文でもそのまま使われるため、入力した幅を保つ。
         '(' => '(',
         ')' => ')',

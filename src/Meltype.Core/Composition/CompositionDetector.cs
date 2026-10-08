@@ -36,14 +36,20 @@ public sealed class CompositionDetector
         _proper = proper ?? new ProperNouns();
     }
 
-    public static CompositionDetector CreateDefault(string? userDictionaryDirectory = null)
+    /// <summary>Native Google版は公開1.0.5の判定を使い、1.1.0の予測だけを追加する。</summary>
+    public bool LegacyGoogleConversion { get; init; }
+
+    internal bool IsEnglishWordOrPrefix(string raw) =>
+        _english.Words.ContainsWord(raw.ToLowerInvariant()) || _english.IsPrefix(raw.ToLowerInvariant());
+
+    public static CompositionDetector CreateDefault(string? userDictionaryDirectory = null, bool legacyGoogleConversion = false)
     {
-        var romaji = RomajiDetector.CreateDefault(userDictionaryDirectory);
-        var japaneseWords = DictionarySource.Load("japanese.txt", userDictionaryDirectory).ToList();
+        var romaji = legacyGoogleConversion ? new RomajiDetector() : RomajiDetector.CreateDefault(userDictionaryDirectory);
+        var japaneseWords = DictionarySource.Load(legacyGoogleConversion ? "native-japanese.txt" : "japanese.txt", userDictionaryDirectory).ToList();
         var japanese = new DictionaryDetector(japaneseWords, romaji);
         var proper = ProperNouns.Load(userDictionaryDirectory);
         var english = new EnglishDetector(DictionarySource.Load("english.txt", userDictionaryDirectory).Concat(proper.LowercaseWords));
-        return new CompositionDetector(romaji, japanese, english, new TypoDetector(japanese.Words), proper, new KanaDetector(japaneseWords, romaji));
+        return new CompositionDetector(romaji, japanese, english, new TypoDetector(japanese.Words), proper, new KanaDetector(japaneseWords, romaji)) { LegacyGoogleConversion = legacyGoogleConversion };
     }
 
     private static readonly Lazy<WordList> ReadableEnglish = new(() =>
@@ -403,7 +409,7 @@ public sealed class CompositionDetector
             // v 行 (va = ゔぁ): 辞書の英単語 (video) でなければ日本語 (vanpaia → ゔぁんぱいあ → ヴァンパイア)。
             // スペルチェッカーの 5 文字以上の英単語 (invite、private) は、ゔぃ と読める綴りでも英語 (いんviteしました になっていた: issue #69)。
             if (lower.Contains('v') && !lower.Contains('l') && !lower.Contains('x') && !inDictionary && !_proper.Contains(lower) &&
-                !(lower.Length >= 5 && IsSpellWord(lower) && IsCommonJapanese?.Invoke(lower) != true) &&
+                (LegacyGoogleConversion || !(lower.Length >= 5 && IsSpellWord(lower) && IsCommonJapanese?.Invoke(lower) != true)) &&
                 _romaji.AnalyzeFragment(lower) is { IsValid: true, Partial: "" or "n" })
             {
                 return false;
@@ -476,7 +482,7 @@ public sealed class CompositionDetector
             if (!exact && !prefix) return false;
             // 日本語のすぐ後ろの短い英単語 (thin) が、変換ボックスの綴り (thi = てぃ) では最後まで読めて、続き (gu) とも読めるなら、
             // 外来語のカタカナ (hosu|thin|gu = ホスティング) を打っている途中。英単語にしない (ほすthinぐ になっていた: issue #153)。
-            if (before < 0 && !atEnd && lower.Length <= 4 && next is { Length: > 0 } && char.IsAsciiLetter(next[0]) &&
+            if (!LegacyGoogleConversion && before < 0 && !atEnd && lower.Length <= 4 && next is { Length: > 0 } && char.IsAsciiLetter(next[0]) &&
                 _romaji.AnalyzeFragment(lower) is { IsValid: true, Partial: "" or "n" } &&
                 _romaji.AnalyzeFragment(lower + next.ToLowerInvariant()).IsValid)
             {
@@ -550,7 +556,7 @@ public sealed class CompositionDetector
             if (!head.All(char.IsAsciiLetter)) continue;
             if (lowerStart && !(head.Length >= 3 && IsKnownCapitalizedWord(head))) continue;
             // 大文字の略語に小文字が続いた形 (AIde、AIni) は語ではない。略語 (AI) の後ろがローマ字 (dekiru) と見る (issue #129)
-            if (IsAcronymWithLowerTail(head)) continue;
+            if (!LegacyGoogleConversion && IsAcronymWithLowerTail(head)) continue;
             // 後ろは小文字のローマ字 (長音の - を含んでもよい: TSyu-za- の yu-za-)。
             var rest = Raw(units, k, n) + pending;
             // 後ろが助詞 1 つだけ (OCR|wo、English|ga) なら 2 文字でもよい
@@ -618,7 +624,7 @@ public sealed class CompositionDetector
     /// @ の後ろ (Discord・X のメンション @kuraido) と、_ の入った語 (upah_setu、cafely_latte) は、ローマ字として読めても英字のまま。
     /// 英字・数字・_ が続く所までがユーザー名 (@ の後ろは、メールアドレスのドメインの . - も含める)。
     /// </summary>
-    private static int UserNameEnd(IReadOnlyList<CompositionUnit> units, int start, string pending)
+    private int UserNameEnd(IReadOnlyList<CompositionUnit> units, int start, string pending)
     {
         static bool IsNameUnit(CompositionUnit unit) => unit.Raw.Length > 0 && unit.Raw.All(c => char.IsAsciiLetterOrDigit(c) || c == '_');
         var n = units.Count;
@@ -635,6 +641,7 @@ public sealed class CompositionDetector
         var name = Raw(units, start, end) + (end == n ? pending : "");
         if (!name.Any(char.IsAsciiLetter)) return -1;
         if (mention || name.Contains('_')) return end;
+        if (LegacyGoogleConversion) return -1;
         // メールアドレスの @ より前 (tanaka@、yamada.taro@): @ を打ったら、その前も英字のまま。
         // @ の後ろのドメインは、上の @ の後ろの決まりで英字になる (たなか@gmail.com になっていた: issue #59)。
         if (start == 0 || units[start - 1].Raw is " " or "<" or "(" or "\"" or "'" or ":" or ",")

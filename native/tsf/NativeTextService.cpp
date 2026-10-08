@@ -327,6 +327,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (composition_->Active()) return true;
     if (!testing_ && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0 || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0)) return false;
     return (vk >= 'A' && vk <= 'Z') ||
+      ((vk == VK_OEM_4 || vk == VK_OEM_6) && (testing_ || GetKeyState(VK_SHIFT) >= 0)) ||
       ((vk == VK_OEM_COMMA || vk == VK_OEM_PERIOD) && (testing_ || GetKeyState(VK_SHIFT) >= 0));
   }
   HRESULT Key(ITfContext* context, WPARAM vk, LPARAM lparam, bool up, BOOL* eaten) {

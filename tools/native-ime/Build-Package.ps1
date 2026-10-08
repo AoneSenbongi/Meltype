@@ -11,6 +11,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Managed build or input tests failed' }
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Generate-NativeCompositionTrace.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Google conversion trace failed' }
 & (Join-Path $PSScriptRoot 'Build-NativeComposition.ps1') -Compiler $Compiler -GoogleTrace
+& (Join-Path $PSScriptRoot 'Test-NativeOpeningBracket.ps1')
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePredictionTrace.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Google prediction -> TSF document verification failed' }
 $stage = Join-Path $build 'native-ime-package'

@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
       composition->Release();
       std::printf("PASS: Google -> Meltype -> real TSF document: %d updates, %d commit, %d cancel\n", updates, commits, cancels);
     }
-    if (argc == 3) {
+    if (argc >= 3) {
       HMODULE library = LoadLibraryA(argv[2]);
       Expect(library != nullptr, "load native text service DLL");
       auto create = Export<HRESULT (WINAPI*)(ITfTextInputProcessor**)>(library, "CreateMeltypeNativeForTest");
@@ -294,6 +294,11 @@ int main(int argc, char** argv) {
       Check(service->QueryInterface(IID_ITfKeyEventSink, reinterpret_cast<void**>(&keys)), "native key sink");
       {
         Fixture f(thread, client);
+        BOOL bracketCaptured = FALSE;
+        Check(keys->OnTestKeyDown(f.context, VK_OEM_4, 0, &bracketCaptured), "opening bracket starts composition");
+        Expect(bracketCaptured, "opening bracket must remain in composition until following language is known");
+        const bool eligibilityOnly = argc > 3 && std::string(argv[3]) == "--eligibility-only";
+        if (!eligibilityOnly) {
         auto key = [&](int vk) {
           BOOL eaten = FALSE;
           Check(keys->OnTestKeyDown(f.context, vk, 0, &eaten), "test key down");
@@ -371,6 +376,7 @@ int main(int argc, char** argv) {
         Check(keys->OnTestKeyDown(f.context, 'A', 0, &eaten), "disabled context key");
         Expect(!eaten, "do not capture disabled input");
         disabled->Release(); compartments->Release();
+        }
       }
       Check(service->Deactivate(), "deactivate test service");
       keys->Release(); service->Release();
@@ -379,7 +385,7 @@ int main(int argc, char** argv) {
       thread->Deactivate(); thread->Release(); thread = nullptr;
       Expect(canUnload() == S_OK, "native service releases COM references");
       FreeLibrary(library);
-      std::puts("PASS: native DLL key sink -> resident broker -> Google -> real TSF document; Space/Enter/Escape, mode switching, focus loss, disabled/read-only protection");
+      std::puts(argc > 3 ? "PASS: native DLL captures opening bracket before composition; no broker requests or commits" : "PASS: native DLL key sink -> resident broker -> Google -> real TSF document; Space/Enter/Escape, mode switching, focus loss, disabled/read-only protection");
     }
     if (thread) { thread->Deactivate(); thread->Release(); }
     CoUninitialize();

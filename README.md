@@ -2,7 +2,7 @@
 
 [雪代／Yukishiro氏のMeltype](https://github.com/yksr-melt/Meltype)を基に、Windowsの入力欄へ未確定文字を表示するIMEと、インストール済みGoogle日本語入力との連携を追加した非公式Forkです。改良は`google-native-ime`ブランチで管理しています。Googleや元作者の公式配布版ではありません。
 
-開発中のソースは本家Meltype 1.1.0の予測候補・日英判定・辞書の改善を取り込んでいます。公開済みNative Google 1.0.5は本家1.0.4ベースです。PC版は`Meltype-Settings.exe`の管理画面からインストール、起動、停止、単語登録、辞書管理を操作できます。
+開発中のNative Google版は、本家Meltype 1.1.0から予測候補を取り込みます。自動変換・Space変換は公開1.0.5の判定とGoogle日本語入力を使い、Googleの辞書・学習履歴を保持します。公開済みNative Google 1.0.5は本家1.0.4ベースです。PC版は`Meltype-Settings.exe`の管理画面からインストール、起動、停止、単語登録、辞書管理を操作できます。
 
 ## 管理画面
 

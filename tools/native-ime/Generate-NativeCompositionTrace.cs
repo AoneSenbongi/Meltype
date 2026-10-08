@@ -20,7 +20,7 @@ public static class NativeCompositionTrace
         var phrases = new PhraseHistory(null);
         const string prediction = "今日はgoogleで検索";
         phrases.Remember("きょうはぐーぐるでけんさく", prediction);
-        var controller = new CompositionController(gate, CompositionDetector.CreateDefault(), google, host,
+        var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: true), google, host,
             new CompositionOptions { LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false,
                 Predictor = new Predictor(phrases, null, null), Predictions = () => true, LearningEnabled = () => false });
         long time = 1000;
@@ -102,7 +102,7 @@ public static class NativeCompositionTrace
         var host = new Host(writer);
         var gate = new CaptureGate(() => { });
         var google = new GoogleImeConverter(learning: false);
-        var controller = new CompositionController(gate, CompositionDetector.CreateDefault(), google, host,
+        var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: true), google, host,
             new CompositionOptions { LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false });
         long time = 1000;
         void Key(int vk)

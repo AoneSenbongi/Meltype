@@ -8,7 +8,9 @@
 
 共通・Windows290件が通過。Googleのライブ変換からTSF文書への28回更新・確定・取消に加え、固定の予測履歴からTabでプレビュー変更、Escで復帰、Enterで確定する16回更新のTSF試験が通過した。予測の候補送信・選択位置・通常変換の優先、候補再描画、通信枠32・取消、句読点9組合せ・学習停止、GUI起動状態・更新判定、更新取消時の復旧試験も通過。隔離AppContainerから実Google変換と接続先拒否を確認した。試験では学習を無効にし、予測固有の履歴はメモリー上の固定データだけを使った。
 
-本家のJSONソース生成に対応するため、Roslyn構築に.NET SDKのSystem.Text.Json.SourceGeneration.dllを渡すよう変更した。実行時のSDKは不要。BaseVersionは1.1.0、NativeVersionは配布版番号が未決定のため1.0.5を維持している。ローカルIMEパッケージをexperimental-build/native-ime-packageに構築済み。稼働中のIME・GitHubの公開済み1.0.5は変更していない。実際のCodex等での予測表示・操作、新しい版の管理者登録と実機適用は未確認。次は対応ソースを含むローカルZIPを作成し、適用を案内する。公開には内容の確認が必要。
+本家のJSONソース生成に対応するため、Roslyn構築に.NET SDKのSystem.Text.Json.SourceGeneration.dllを渡すよう変更した。実行時のSDKは不要。BaseVersionは1.1.0、NativeVersionは配布版番号が未決定のため1.0.5を維持している。ローカルIMEパッケージをexperimental-build/native-ime-packageに構築済み。稼働中のIME・GitHubの公開済み1.0.5は変更していない。実際のCodex等での予測表示・操作、新しい版の管理者登録と実機適用は未確認。公開には内容の確認が必要。
+
+対応ソース1872940d6927dbf1bd37da1636805bd2be916a7eを含むZIPはdistributions/Meltype-Native-Google-windows-x64-20261008-225612.zip（113,969,674バイト、SHA256=26EBEE7D6E166E03480BD6ABE27DA33B2D61AD6479CA5EBE024465EB632A4F6B）。manifestの全ファイル、対応ソースと現行実装、BaseVersion、個人設定・履歴のパスがないことを照合した。Defender定義1.459.576.0でZIPに検出なし。記録はexperimental-build/upstream-1.1.0-package-verified.json、upstream-1.1.0-scan-transfer.txt、upstream-1.1.0-tests.txt、upstream-1.1.0-prediction-tsf.txt。適用前の実状態を再確認し、このPCはNativeVersion=1.0.5／BaseVersion=1.0.3で起動中。次は利用者にこの候補の適用を案内し、必要な管理者確認を承認してもらった後に登録・稼働・実アプリでの予測候補を確認する。
 
 ## このPCへの本家1.0.4対応版適用（未完了）
 

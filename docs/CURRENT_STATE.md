@@ -1,5 +1,15 @@
 # 現在の状態
 
+## 本家1.1.0対応版をこのPCへ適用済み
+
+2026年10月8日、利用者の「取り敢えずこのPCに導入して」を受け、検証済みソース1872940と一致するペイロードを適用した。NativeVersion=1.0.5（公開版番号は未変更）、BaseVersion=1.1.0、コアのアセンブリ版1.1.0.0。登録先はC:/Program Files/MeltypeNativeGoogle/package-b8c6cc3490ec45be9fdf79a537e39364。全配置ファイルと検証済みmanifestのハッシュ一致、入力サービス起動、自動起動有効を確認した。
+
+旧パッケージ・C側管理スクリプト・状態・設定とE側管理ファイルをbackups/local-upstream-1.1.0-766ce239995b4cfbb5fa75588823e7c6に保存し、旧パッケージの一致を確認した。GoogleとMeltypeの辞書・設定・履歴の10ファイルはbackups/20261008-230439へ保存し、manifestのハッシュ一致を確認した。旧Program Filesパッケージは保持。既存の句読点・学習停止設定ファイルは適用前後で一致する。
+
+E:/Prog/Meltype/Windows/installed/1.0.5の管理ファイルを同じ候補へ同期し、既存ランタイム全ファイルの一致を確認した。デスクトップ・スタートメニューの管理画面リンクをE側へ設定し直した。UI Automationで起動無効・停止有効・この版は適用済み無効を確認した。別の通信セッションから稼働中の実サービスへ確定を伴わない固定の英字を送り、最大5件の予測、Tab選択、Esc解除・取消を確認した。実アプリの入力欄には何も書き込んでいない。記録はexperimental-build/upstream-1.1.0-applied.json、applied-panel.json、applied-predictions.txt（各upstream-1.1.0-接頭辞）。登録状態の管理先は既存のC側を保持するため、旧C側フォルダーは削除しない。
+
+GitHubの公開済み1.0.5は変更していない。実際のCodex等での予測の操作確認は利用者に依頼し、入力アプリを開き直すよう案内した。次の公開には版番号・内容・配布物の確認が必要。
+
 ## 本家1.1.0の予測候補をNative Googleへ取り込み（ローカル検証済み）
 
 2026年10月8日、利用者の依頼で本家v1.1.0を取り込み、Google変換・独自TSF・管理画面・検索向け通信制限・通信枠32・句読点の個別設定を維持した。仕様はdocs/UPSTREAM_1_1_0.md。NativeBrokerの既存プロトコルで入力中の予測を白い候補一覧へ送る。Tab／Shift+Tabで選択、Enterで確定、Escで選択解除し、SpaceはGoogleの文節変換に使う。本家の別TSFサービスへ登録は切り替えない。
@@ -12,7 +22,7 @@
 
 対応ソース1872940d6927dbf1bd37da1636805bd2be916a7eを含むZIPはdistributions/Meltype-Native-Google-windows-x64-20261008-225612.zip（113,969,674バイト、SHA256=26EBEE7D6E166E03480BD6ABE27DA33B2D61AD6479CA5EBE024465EB632A4F6B）。manifestの全ファイル、対応ソースと現行実装、BaseVersion、個人設定・履歴のパスがないことを照合した。Defender定義1.459.576.0でZIPに検出なし。記録はexperimental-build/upstream-1.1.0-package-verified.json、upstream-1.1.0-scan-transfer.txt、upstream-1.1.0-tests.txt、upstream-1.1.0-prediction-tsf.txt。適用前の実状態を再確認し、このPCはNativeVersion=1.0.5／BaseVersion=1.0.3で起動中。次は利用者にこの候補の適用を案内し、必要な管理者確認を承認してもらった後に登録・稼働・実アプリでの予測候補を確認する。
 
-## このPCへの本家1.0.4対応版適用（未完了）
+## このPCへの本家1.0.4対応版適用（1.1.0対応版の適用で終了）
 
 2026年10月8日、ユーザーがこのPCへ本家1.0.4対応版を適用するよう依頼した。公開済みEXEのSHA-256=06312F0B9F827539998526C5C191A91D011482694CE8E46A4C61F07D69DC94EAとソース33d332fを確認し、現行パッケージ・管理スクリプト・登録状態・設定をbackups/upstream-1.0.4-*へ退避して旧パッケージのハッシュ一致を確認した。詳細はexperimental-build/upstream-1.0.4-apply-before.json。
 

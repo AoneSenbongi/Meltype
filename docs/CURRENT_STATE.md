@@ -1,5 +1,5 @@
 # 現在の状態
-## 正式版1.0.7をこのPCへ適用済み・公開確認待ち
+## 正式版1.0.7をこのPCへ適用・公開済み
 
 2026年10月9日、利用者の依頼でrc.2のWindows 11検索修正とrc.1の管理画面再起動・オンライン更新を正式版1.0.7へ統合した。対応ソースはbe41abe73d10d3af4905e5d17cbe61a6249bf333。distributions/Meltype-Native-Google-1.0.7-Setup.exeのSHA-256は2C72E2C57878D743E779352B4359BDD9C913325E544BBFEBC6D9F3C3AA88018F。番号一致・GUI状態・更新機能の試験とmanifest全6ファイルの照合が通過した。
 
@@ -7,7 +7,7 @@
 
 直前バックアップinstalled/1.0.7/backups/20261009-163239とGoogle8ファイル・Meltype3ファイルの全11件が一致した。入力設定ファイルは適用前後とも存在せず既定値を使用する。旧版・登録・スクリプトの退避はbackups/release-1.0.7-20261009-110536。証跡はexperimental-build/release-1.0.7-applied.json、profile-preserved.json、panel.json、setup-retry.log（すべて同接頭辞）。Windows 11実検索欄はThinkPadの同修正候補版で利用者が確認済み。正式版のWin11実機適用と全キー操作は未確認。
 
-GitHubへのpush・Releaseは未実行。公開本文はdocs/RELEASE_1_0_7.md、候補はexperimental-build/release-1.0.7-publication.json（Approved=false、PublicationOnHold=true）、公開スクリプトはexperimental-build/Publish-ApprovedRelease-1.0.7.ps1。公開先AoneSenbongi/Meltype、ブランチgoogle-native-ime、タグnative-google-1.0.7、通常Release、添付はEXEと.sha256の2件。今回の本文・変更・配布物を利用者へ提示し、承認後に公開する。
+2026年10月9日、本文・公開先・変更・配布物の提示後、利用者の「まあ，いいか」で承認を取得。be41abeをgoogle-native-imeへpushし、native-google-1.0.7を通常Releaseとして公開した。公開先はhttps://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.7。承認本文docs/RELEASE_1_0_7.mdと公開本文の完全一致、draft=false・prerelease=false、EXEと.sha256の名前・サイズ・GitHub側SHA-256、最新Release指定を確認。README・SECURITYも同ソースへ更新済み。証跡はexperimental-build/release-1.0.7-published.json。公開によるPCへの再適用は行っていない。
 
 ## ThinkPadのWindows 11検索修正を統合（1.0.7-rc.3、未適用・未公開）
 

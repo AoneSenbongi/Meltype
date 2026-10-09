@@ -43,6 +43,7 @@ try {
     try{Assert-NativeInstallerUser 'S-1-5-21-999-999-999-999'}catch{$rejected=$true}
     if(-not $rejected){throw 'Another Windows account was accepted'}
     $iss=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'MeltypeSetup.iss'))
+    if($iss -match '\[Icons\]'){throw 'Setup must preserve old shortcut until successful IME update'}
     if($iss -notmatch 'PrivilegesRequired=lowest' -or $iss -notmatch 'ArchitecturesAllowed=x64os'){throw 'Installer privileges or architecture changed'}
     if($iss -notmatch 'function InitializeUninstall' -or $iss -notmatch 'Result := Result and \(Code = 0\)'){throw 'Uninstaller must stop on unregister failure'}
     Write-Output 'PASS: new install, existing ZIP update, desktop opt-out, cancellation, uninstall failure and account isolation. No installed IME changes.'

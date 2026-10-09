@@ -36,9 +36,6 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "desktopicon"; Description: "デスクトップに管理画面のショートカットを作成する"; GroupDescription: "ショートカット"
 [Files]
 Source: "{#PackageRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-[Icons]
-Name: "{userprograms}\Meltype Google日本語入力\Meltypeの管理画面"; Filename: "{app}\Meltype-Settings.exe"
-Name: "{userdesktop}\Meltype Google日本語入力"; Filename: "{app}\Meltype-Settings.exe"; Tasks: desktopicon
 [Run]
 Filename: "{app}\Meltype-Settings.exe"; Description: "管理画面を開く"; Flags: postinstall nowait skipifsilent runasoriginaluser
 [Code]

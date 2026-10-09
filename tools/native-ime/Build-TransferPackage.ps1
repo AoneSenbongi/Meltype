@@ -40,6 +40,7 @@ Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_IME_TRANSFER.md') -Des
 $stageDocs=Join-Path $stage 'docs'
 New-Item -ItemType Directory -Path $stageDocs -Force|Out-Null
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_SEARCH.md') -Destination (Join-Path $stageDocs 'NATIVE_SEARCH.md')
+Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_RELEASE_UPDATE.md') -Destination (Join-Path $stageDocs 'NATIVE_RELEASE_UPDATE.md')
 Set-Content (Join-Path $stage 'SOURCE_VERSION.txt') $version -Encoding ASCII
 $sourceArchive = Join-Path $stage 'corresponding-source.zip'
 & git -C $workspace archive --format=zip --output $sourceArchive HEAD

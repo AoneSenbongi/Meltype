@@ -7,6 +7,8 @@
 
 GUI状態、更新要否、更新失敗の復旧、インストーラー、通信失敗、改変ファイル・不完全な更新の拒否、RCから通常版への更新判定を検証。別利用者・別セッション・無関係のPowerShellを終了しないテストと、実プロセスの管理画面置換用の隔離試験が通過。PowerShell 7とWindows PowerShell 5で更新・再起動試験が通過。公開GitHub APIから1.0.6と添付SHA-256を取得し、現在候補から1.0.6へ戻さないことを確認。Nativeパッケージのビルド、GoogleからTSFへの変換・予測・先頭括弧の試験も通過した。試験でこのPCの登録や稼働版を切り替えていない。
 
+対応ソース39e0f5a2c4553a0096e9f6e1d28ac0f38eb99b4aから先行版インストーラーdistributions/Meltype-Native-Google-1.0.7-rc.1-Setup.exeを構築した（83,113,234バイト、SHA256=776005277B94315FDF26DADB935B7707CD46D9A89FE3E6709424EBF8A055D169）。同梱ソース・全ペイロード・管理スクリプトの一致と個人データ非同梱を確認し、Defender検査で検出なし。証跡はexperimental-build/release-1.0.7-rc.1-package-verified.jsonとrelease-1.0.7-rc.1-installer-verified.json。セットアップがIME更新前にショートカットを差し替えて旧画面を見失う問題も回帰試験で再現し、IME更新成功後にショートカットを作成するよう修正した。
+
 実際の新版Releaseからの一連のオンライン更新、このPCへの適用、GitHub公開は未実施。現在の公開版とこのPCは1.0.6。配布準備後、適用結果を確認する。公開には今回の本文・版番号・配布物への利用者の確認が必要。
 
 ## Windows 1.0.6を公開・このPCへ適用済み

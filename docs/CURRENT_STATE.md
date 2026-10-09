@@ -7,7 +7,9 @@ DeskMiniではrc.1の管理画面の自動再起動・オンライン更新を�
 
 新しい検索パッケージ試験で旧ソースにOS別選択メソッドがないことを再現し、修正後に境界19045/21999/22000/26200、両OSの既知SID、brokerと登録処理の一致が通過。このPCはWin10 build19045。Nativeパッケージのビルド・GoogleからTSF文書の変換・取消・予測・先頭括弧、GUI起動状態・操作性、オンライン更新の検証と拒否、管理画面自動置換、インストーラー、隔離更新の取消・起動失敗・登録失敗の復旧も通過。Googleを使う試験は学習無効。稼働中のIMEと管理画面は1.0.7-rc.1のままで変更していない。
 
-検索AppContainerの実DLL・broker・Google変換とSpace・Enter、双方の接続先確認、ACL拒否・相手SID拒否・追加サーバー拒否・同名占有拒否も通過した。配布物を作成後、ソース・番号・manifest・添付ハッシュを照合する。統合候補の実機適用とGitHub公開は未実施。外部公開には今回の本文・版番号・配布物への確認が必要。
+検索AppContainerの実DLL・broker・Google変換とSpace・Enter、双方の接続先確認、ACL拒否・相手SID拒否・追加サーバー拒否・同名占有拒否も通過した。配布ZIPとインストーラーを作成し、ソース・番号・manifest全6ファイル・配布スクリプトとSHA-256の一致、個人プロフィール・バックアップの非同梱を確認した。Windows PowerShell 5でもGUI起動状態と版番号一致が通過。統合候補の実機適用とGitHub公開は未実施。外部公開には今回の本文・版番号・配布物への確認が必要。
+
+対応ソースはb14af7195beb0a67b526e6a28d48ad09c3435c83。配布EXEはdistributions/Meltype-Native-Google-1.0.7-rc.3-Setup.exe（83,118,809バイト）、SHA-256=E956EA941CBE4F9041630DEEC6A4AD128E182D7590794FA444D2682E44D2560F。ZIPはdistributions/Meltype-Native-Google-windows-x64-20261009-105414.zip、SHA-256=CDBEB7F1FF5F65B9CC898E31A6BAA47EFFEB09105EDD59892F48254E7EF27635。検証結果はexperimental-build/release-1.0.7-rc.3-verified.json。DeskMiniの稼働版1.0.7-rc.1を読み取り確認した。ThinkPadの修正のみrc.2と統合候補rc.3を区別し、確認前に既存の両PCを差し替えない。
 ## 管理画面の自動再起動とオンライン更新（1.0.7-rc.1、このPCへ適用済み・未公開）
 
 2026年10月9日、利用者は別PCで更新後も旧1.0.3画面が表示され、終了・再起動で解消したと報告。更新後の管理画面の自動再起動と、GitHubを手動で開かず更新する操作を依頼した。仕様はdocs/NATIVE_RELEASE_UPDATE.md。更新成功後だけ同じ利用者・Windowsセッションの旧管理画面を終了して新版を開く。登録先と管理画面の保存先が異なる場合は、更新前のスタートメニューのショートカットも参照する。PC全体は再起動しない。失敗時は旧版の復旧と管理画面の保持を行う。

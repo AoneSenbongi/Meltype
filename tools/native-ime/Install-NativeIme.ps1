@@ -33,7 +33,7 @@ New-Item -Path $locationKey -Force|Out-Null
 New-ItemProperty -LiteralPath $locationKey -Name InstallRoot -Value $workspace -PropertyType String -Force|Out-Null
 Invoke-NativeProtectedDeploy -Stage $stage -Destination $package -Runtime $runtime -ResultFile (Join-Path $build ('protected-install-'+[Guid]::NewGuid().ToString('N')+'.json'))|Out-Null
 $registered=$true
-@{ PackageRoot = $package; Installed = (Get-Date).ToString('o'); UserSid = $identity.User.Value; Portable = [bool]$manifest.Portable; NativeVersion = '1.0.7-rc.3'; BaseVersion = '1.1.0'; NativeRegistration='Machine'; SearchPackage=(Get-NativeSearchPackageName) } |
+@{ PackageRoot = $package; Installed = (Get-Date).ToString('o'); UserSid = $identity.User.Value; Portable = [bool]$manifest.Portable; NativeVersion = '1.0.7'; BaseVersion = '1.1.0'; NativeRegistration='Machine'; SearchPackage=(Get-NativeSearchPackageName) } |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $build 'native-ime-install.json') -Encoding UTF8
 & (Join-Path $PSScriptRoot 'Set-NativeAutoStart.ps1')
 & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -WorkspaceRoot $workspace

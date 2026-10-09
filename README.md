@@ -2,11 +2,11 @@
 
 [雪代／Yukishiro氏のMeltype](https://github.com/yksr-melt/Meltype)を基に、Windowsの入力欄へ未確定文字を表示するIMEと、インストール済みGoogle日本語入力との連携を追加した非公式Forkです。改良は`google-native-ime`ブランチで管理しています。Googleや元作者の公式配布版ではありません。
 
-Native Google 1.0.6は、本家Meltype 1.1.0から予測候補を取り込みます。自動変換・Space変換は公開1.0.5の判定とGoogle日本語入力を使い、Googleの辞書・学習履歴を保持します。1.0.6では予測だけを追加し、変換は従来の方式を維持します。PC版は`Meltype-Settings.exe`の管理画面からインストール、起動、停止、単語登録、辞書管理を操作できます。
+Native Google 1.0.7は、本家Meltype 1.1.0から予測候補を取り込みます。自動変換・Space変換は公開1.0.5の判定とGoogle日本語入力を使い、Googleの辞書・学習履歴を保持します。1.0.6では予測だけを追加し、変換は従来の方式を維持します。PC版は`Meltype-Settings.exe`の管理画面からインストール、起動、停止、単語登録、辞書管理を操作できます。
 
 ## 管理画面
 
-未公開の先行版1.0.7-rc.3では、更新成功後に管理画面を自動で開き直します。「最新版を確認」から通常Releaseを確認し、更新を選ぶとSHA-256検証・ダウンロード・バックアップ・セットアップまで進められます。Windowsの管理者確認は必要です。公開済み1.0.6にはこの機能はまだ含まれません。[更新の仕様](docs/NATIVE_RELEASE_UPDATE.md)を参照してください。
+1.0.7では、更新成功後に管理画面を自動で開き直します。「最新版を確認」から通常Releaseを確認し、更新を選ぶとSHA-256検証・ダウンロード・バックアップ・セットアップまで進められます。Windowsの管理者確認は必要です。公開済み1.0.6にはこの機能はまだ含まれません。[更新の仕様](docs/NATIVE_RELEASE_UPDATE.md)を参照してください。
 
 ![先行版1.0.7-rc.1の管理画面プレビュー。「最新版を確認」を追加](docs/images/native-release-update.png)
 
@@ -28,7 +28,7 @@ Googleの既存辞書・学習履歴を使います。学習が有効なら、�
 必要なものはWindows 10／11のx64版と、インストール済みのGoogle日本語入力です。ARM版と32ビット版にはこのパッケージを使わないでください。ランタイムはインストーラーに同梱しているので、Codex・開発環境・別途の.NETインストールは不要です。
 
 1. Google日本語入力をインストールし、一度日本語を入力して動作を確認します。
-2. [Native Google 1.0.6 Release](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.6)から `Meltype-Native-Google-1.0.6-Setup.exe` を取得し、通常のダブルクリックで開きます。
+2. [Native Google 1.0.7 Release](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.7)から `Meltype-Native-Google-1.0.7-Setup.exe` を取得し、通常のダブルクリックで開きます。
 3. セットアップで保存先とデスクトップショートカットを確認します。必要な管理者確認を承認すると、導入または更新後にIMEが起動します。
 4. デスクトップまたはスタートメニューの「Meltypeの管理画面」から、起動・停止・辞書登録などを操作します。
 
@@ -80,7 +80,7 @@ Native版では、前後の確定文字の取得やMeltype独自の永続学習�
 
 Googleへの接続は非公式IPCを使っています。Googleの更新によって接続できなくなる可能性があります。Google本体のプログラムやシステム辞書は改造・同梱していません。
 
-Windows 10の検索欄では、1.0.3の開発用PCで日本語を入力できることを確認しました。未公開の1.0.7-rc.3にはWindows 11検索パッケージの通信修正を統合しています。修正のみの1.0.7-rc.2でThinkPadの検索欄の変換を確認済みですが、統合候補のWindows 11実機適用と一般のストアアプリは未確認です。動作しない入力先ではWin＋SpaceでGoogle日本語入力へ切り替えてください。検証範囲は[通常Releaseの説明](docs/NATIVE_RELEASE.md)に記載しています。
+Windows 10の検索欄では、1.0.3の開発用PCで日本語を入力できることを確認しました。1.0.7にはWindows 11検索パッケージの通信修正を統合しています。修正のみの1.0.7-rc.2でThinkPadの検索欄の変換を確認済みですが、正式版のWindows 11実機適用と一般のストアアプリは未確認です。動作しない入力先ではWin＋SpaceでGoogle日本語入力へ切り替えてください。検証範囲は[通常Releaseの説明](docs/NATIVE_RELEASE.md)に記載しています。
 
 不具合を報告する際は、アプリ名、入力した操作、期待した動作、実際の動作を記載してください。起動失敗時は画面のメッセージと、`experimental-build`内の`native-broker-errors.txt`・`native-broker-output.txt`も確認できます。
 

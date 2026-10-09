@@ -5,6 +5,7 @@ $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeProtectedPackage.ps1')
 $context = Get-NativeGuiContext $workspace
 $previousPanelRoot = Get-NativePanelShortcutRoot
+$previousVersion = $context.State.NativeVersion
 if (-not $context.Installed) { throw 'Install the native IME first.' }
 if (-not (Test-NativeUpdateRequired $workspace $context)) {
     Write-Output 'This release is already installed. No changes were made.'
@@ -100,4 +101,4 @@ try {
     & (Join-Path $context.Scripts 'Start-NativeIme.ps1')
     throw $failure
 }
-if(-not $NoRestartPanel){Restart-NativeControlPanel $workspace $context.Root $previousPanelRoot}
+if(-not $NoRestartPanel){Restart-NativeControlPanel $workspace $context.Root $previousPanelRoot $previousVersion}

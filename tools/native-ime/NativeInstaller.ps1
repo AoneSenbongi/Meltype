@@ -29,6 +29,7 @@ function Invoke-NativeInstaller([string]$Root,[string]$Mode,[bool]$Desktop) {
     }
     Get-NativeGoogleTool|Out-Null
     $previousPanelRoot=Get-NativePanelShortcutRoot
+    $previousVersion=$context.State.NativeVersion
     Assert-NativeUpdatePackage (Join-Path $Root 'experimental-build/native-ime-package')|Out-Null
     if($context.Installed) {
         & (Join-Path $Root 'tools/native-ime/Update-NativeIme.ps1') -NoRestartPanel
@@ -39,5 +40,5 @@ function Invoke-NativeInstaller([string]$Root,[string]$Mode,[bool]$Desktop) {
     if(-not $context.Installed){throw 'IMEの登録を確認できませんでした。管理画面からインストールをやり直してください。'}
     & (Join-Path $Root 'tools/native-ime/Set-NativeShortcuts.ps1') -WorkspaceRoot $Root -NoDesktop:(-not $Desktop)
     & (Join-Path $context.Scripts 'Start-NativeIme.ps1')
-    Restart-NativeControlPanel $Root $context.Root $previousPanelRoot
+    Restart-NativeControlPanel $Root $context.Root $previousPanelRoot $previousVersion
 }

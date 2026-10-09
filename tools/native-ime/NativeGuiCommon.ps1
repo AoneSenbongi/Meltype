@@ -203,10 +203,11 @@ function Get-NativePanelShortcutRoot {
         [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell)|Out-Null
     }
 }
-function Restart-NativeControlPanel([string]$NewRoot, [string]$PreviousRoot, [string]$PreviousPanelRoot) {
+function Restart-NativeControlPanel([string]$NewRoot, [string]$PreviousRoot, [string]$PreviousPanelRoot, [string]$PreviousVersion) {
     $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     $session=(Get-Process -Id $PID).SessionId
-    $paths=@($NewRoot,$PreviousRoot,$PreviousPanelRoot) | Where-Object { $_ } | ForEach-Object {
+    $previousVersionRoot=if($PreviousVersion -match '^\d+\.\d+\.\d+(?:-rc\.\d+)?$'){Join-Path (Split-Path $NewRoot -Parent) $PreviousVersion}
+    $paths=@($NewRoot,$PreviousRoot,$PreviousPanelRoot,$previousVersionRoot) | Where-Object { $_ } | ForEach-Object {
         [IO.Path]::GetFullPath((Join-Path $_ 'tools/native-ime/Host-NativeControlPanel.ps1'))
     }
     foreach($process in Get-CimInstance Win32_Process) {

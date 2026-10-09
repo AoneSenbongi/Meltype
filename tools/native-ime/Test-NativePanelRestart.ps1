@@ -26,4 +26,8 @@ try{
     $global:panelTestEvents.Clear()
     Restart-NativeControlPanel $fixture $fixture 'C:\other'
     if(($global:panelTestEvents -join ',') -ne 'Stop:101,Stop:104,OpenNew'){throw 'Previous shortcut panel was not replaced when registration root differs'}
+    $global:panelTestEvents.Clear()
+    $global:panelFixture += @{ProcessId=107;Name='pwsh.exe';SessionId=$session;CommandLine=('-File "'+(Join-Path (Split-Path $fixture -Parent) '1.0.6/tools/native-ime/Host-NativeControlPanel.ps1')+'"');Owner=$sid}
+    Restart-NativeControlPanel $fixture $fixture $null '1.0.6'
+    if(($global:panelTestEvents -join ',') -ne 'Stop:101,Stop:107,OpenNew'){throw 'Previous installed-version panel was not replaced when shortcut differs'}
 }finally{Remove-Item -LiteralPath (Join-Path $scripts 'Open-NativeControlPanel.ps1');Remove-Item -LiteralPath $scripts;Remove-Item -LiteralPath (Join-Path $fixture 'tools');Remove-Item -LiteralPath $fixture}

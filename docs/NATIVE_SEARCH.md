@@ -1,6 +1,12 @@
 ﻿# Windows検索欄への対応調査
 
-## 目的と確認済みの原因候補
+## Windows 11の検索パッケージ（1.0.7-rc.3統合候補）
+
+ThinkPadのWindows 11 build26200ではSearchHost.exeのパッケージがMicrosoftWindows.Client.CBS_cw5n1h2txyewyだった。Windows 10のMicrosoft.Windows.Searchに固定した通信許可では接続できないため、OSビルド22000以上はClient.CBS、未満は従来のWindows.Searchを選ぶ。brokerの許可SID、登録状態と診断試験を同じ選択に揃える。更新ではペイロード交換の有無にかかわらず状態のSearchPackageを更新する。
+
+許可対象を検索パッケージに限定し、双方の接続先確認と他のAppContainerの拒否を維持する。ThinkPad側では修正のみの1.0.7-rc.2で利用者が検索欄の変換を確認した。DeskMiniでは自動再起動・オンライン更新を保った1.0.7-rc.3として統合・検証する。全キー操作のWin11実機確認と統合候補のWin11実機適用は別途行う。
+
+## 初期調査
 
 検索欄でもMeltypeの日英判別とGoogleライブ変換を使えるようにする。2026年10月7日の読み取り専用診断では、このPCのSearchApp.exeはAppContainer、整合性レベルLow（4096）だった。MeltypeNative64.dllは読み込まれていなかった。ただし検索欄にフォーカスした状態の操作記録はまだないため、DLLがないことだけで直接の失敗箇所を確定しない。
 

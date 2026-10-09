@@ -1,10 +1,10 @@
-#ifndef PackageRoot
+﻿#ifndef PackageRoot
   #error PackageRoot is required
 #endif
 #ifndef OutputRoot
   #error OutputRoot is required
 #endif
-#define AppVersion "1.0.7-rc.1"
+#define AppVersion "1.0.7-rc.3"
 [Setup]
 AppId={{6955B1D0-7141-4D6D-BD2B-51303E8C28B1}
 AppName=Meltype Google日本語入力

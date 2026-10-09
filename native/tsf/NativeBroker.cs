@@ -19,8 +19,11 @@ public static class MeltypeNativeBroker
 {
     private static readonly string DataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Meltype");
     private static readonly Lazy<PhraseHistory> Phrases = new(() => new PhraseHistory(Path.Combine(DataDirectory, "phrases.txt")));
-    // This Windows 10 package was verified from SearchApp's token and package identity.
-    public static string SearchPackageSid => PackageSid("Microsoft.Windows.Search_cw5n1h2txyewy");
+    // Exact families observed in Windows 10 SearchApp and Windows 11 SearchHost tokens.
+    public static string SearchPackageForBuild(int build) => build >= 22000
+        ? "MicrosoftWindows.Client.CBS_cw5n1h2txyewy"
+        : "Microsoft.Windows.Search_cw5n1h2txyewy";
+    public static string SearchPackageSid => PackageSid(SearchPackageForBuild(Environment.OSVersion.Version.Build));
     [StructLayout(LayoutKind.Sequential)] private struct SecurityAttributes { public int Length; public IntPtr Descriptor; public int Inherit; }
     [DllImport("userenv",CharSet=CharSet.Unicode)] private static extern int DeriveAppContainerSidFromAppContainerName(string name,out IntPtr sid);
     [DllImport("advapi32")] private static extern IntPtr FreeSid(IntPtr sid);

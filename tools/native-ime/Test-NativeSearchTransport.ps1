@@ -35,8 +35,9 @@ public static class SearchTransportHarness {
 }
 '@
 Add-Type -TypeDefinition ((Get-Content (Join-Path $workspace 'native/tsf/NativeBroker.cs') -Raw)+$harness) -ReferencedAssemblies $references
-$family='Microsoft.Windows.Search_cw5n1h2txyewy'
-if([MeltypeNativeBroker]::SearchPackageSid -ne 'S-1-15-2-536077884-713174666-1066051701-3219990555-339840825-1966734348-1611281757'){throw 'Derived SID does not match the observed Windows Search identity'}
+$family=[MeltypeNativeBroker]::SearchPackageForBuild([Environment]::OSVersion.Version.Build)
+$expectedSid=if([Environment]::OSVersion.Version.Build -ge 22000){'S-1-15-2-283421221-3183566570-1718213290-751554359-3541592344-2312209569-3374928651'}else{'S-1-15-2-536077884-713174666-1066051701-3219990555-339840825-1966734348-1611281757'}
+if([MeltypeNativeBroker]::SearchPackageSid -ne $expectedSid){throw 'Derived SID does not match the observed Windows Search identity'}
 $results=@()
 foreach($case in @('Allowed','AclDenied','IdentityDenied')) {
  $profile='Meltype.Search.Test.'+[Guid]::NewGuid().ToString('N')

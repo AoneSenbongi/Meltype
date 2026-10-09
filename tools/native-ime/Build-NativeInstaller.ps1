@@ -16,9 +16,9 @@ foreach($name in @('Invoke-NativeSetup.ps1','NativeInstaller.ps1')){
 $output=Join-Path $root 'distributions'
 & $Compiler ('/DPackageRoot='+$package) ('/DOutputRoot='+$output) (Join-Path $PSScriptRoot 'MeltypeSetup.iss')
 if($LASTEXITCODE -ne 0){throw 'Installer compilation failed'}
-$exe=Join-Path $output 'Meltype-Native-Google-1.0.7-rc.1-Setup.exe'
+$exe=Join-Path $output 'Meltype-Native-Google-1.0.7-rc.3-Setup.exe'
 $hash=(Get-FileHash -LiteralPath $exe).Hash
 Set-Content ($exe+'.sha256') ($hash+'  '+(Split-Path $exe -Leaf)) -Encoding ASCII
-@{Version='1.0.7-rc.1';SourceCommit=$source;Installer=$exe;SHA256=$hash;Stage=$package}|ConvertTo-Json|Set-Content (Join-Path $root 'experimental-build/installer-build.json') -Encoding UTF8
+@{Version='1.0.7-rc.3';SourceCommit=$source;Installer=$exe;SHA256=$hash;Stage=$package}|ConvertTo-Json|Set-Content (Join-Path $root 'experimental-build/installer-build.json') -Encoding UTF8
 Write-Output $exe
 Write-Output ('SHA256: '+$hash)

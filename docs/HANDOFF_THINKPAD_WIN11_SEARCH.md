@@ -1,0 +1,33 @@
+# ThinkPadへの引き継ぎ
+
+## 依頼と現在の状態
+
+利用者はThinkPadのWindows 11でWindows検索欄の変換が動作しないことを確認した。このPC上のCodexへ引き継ぎ、実機で原因を特定して修正する。ThinkPadに入っている版番号・登録先・Googleの状態は未取得。最初に実状態を確認する。
+
+元の開発PCはWindows 10。利用者が検索欄で入力できることを確認済み。ただしWindows 11検索欄の動作保証にはならない。2026年10月9日時点で公開通常版はnative-google-1.0.6、公開ソースは6094585bdbf9b8dd9683ed301c0804a67a85f975。元PCのみ1.0.7-rc.1を適用済み。先行版は管理画面の自動再起動・オンライン更新を追加したもので、変換・検索通信の実装は1.0.6から変更していない。
+
+元PCの作業先はE:/Prog/Meltype/Windows、ブランチnative-gui-1.0.1、引き継ぎ前HEADは269fae2。実機へ適用した先行版のソースは4a23724d46a26391170c34850d499173c915f59f。これらはGitHub未公開であり、ThinkPadから参照できるとは限らない。調査は公開1.0.6のソースから開始できる。新しい管理画面の差分とは後で統合する。公開最新版とThinkPadの導入済み版を同一と仮定しない。
+
+## 最初の調査
+
+1. ThinkPadの作業フォルダー、既存Git変更、OSビルド、導入済みNativeVersion、HKCUのInstallRoot、HKLMのCOM登録、DLL配置先、Google日本語入力、入力サービスと自動起動を読み取りで確認する。既存の資料があれば先に読む。ほかの用途のチャットや作業を変更しない。
+2. Windows検索欄で固定のテスト入力を使い、Google単体とMeltypeを比較する。検索時のSearchHost／SearchApp等の実プロセス、パッケージID・SID、AppContainer／整合性、DLLのロード有無、パイプ接続と接続先検証のどこで失敗するかを記録する。実際のプロセス名やパッケージIDは推測で決めない。
+3. 読み取り専用診断のtools/native-ime/Get-NativeSearchDiagnostics.ps1とdocs/NATIVE_SEARCH.mdを参照する。元PCの検証結果とThinkPadの観測結果を区別し、診断中に辞書や学習履歴を初期化しない。
+
+ソースがない場合はhttps://github.com/AoneSenbongi/Meltypeのgoogle-native-imeを、利用者のProg内の新しい作業先へ取得する。既存の作業先があれば状態を確認して再利用し、未コミット変更を破棄しない。ドライブ構成は元PCと異なるためEドライブを前提にしない。
+
+## 実装の要点と検証
+
+native/tsf/NativeBroker.csのSearchPackageSidはMicrosoft.Windows.Search_cw5n1h2txyewyからSIDを導出している。Install-NativeIme.ps1とUpdate-NativeIme.ps1の登録状態にもこのパッケージ名を保存する。これは確認すべき原因候補であり、Win11の失敗原因と確定したわけではない。DLLのロード、TSF対応登録、ACL、通信、入力コンテキストも切り分ける。
+
+DLLはProgram Filesの保護された版別フォルダーに配置し、HKLMにCOM登録する。ITfTextInputProcessorExとIMMERSIVESUPPORTを実装済み。通信はユーザーと指定検索パッケージに限定し、双方で相手のプロセス・トークンを確認する。Lowプロセスや全AppContainerへ一括でアクセスを許可する修正は行わない。接続先の確認も外さない。
+
+仕様を先に更新し、バグの再現テストを先に追加してから最小限の修正を行う。Test-NativeSearchTransport.ps1、Test-NativeSearchPeerAccess.ps1、Test-NativeSearchSandbox.ps1、通常の変換・予測・GUI・更新復旧を必要に応じて検証する。テスト時は学習を無効にし、既存履歴を消さない。最後はThinkPadの実検索欄でライブ変換・Space候補・Enter確定・取消を確認し、通常アプリとWindows 10の対応を壊していないか確認する。
+
+適用前に辞書・設定・旧版をバックアップする。利用者へ進捗と判明した原因を簡潔に知らせる。先行版を適用する場合は予定版番号と候補番号をGUI・登録・セットアップで一致させる。日本語で簡潔なコミットメッセージを使う。GitHubへのpush、Issue、PR、Releaseの公開は、本文・変更・配布物を提示して今回の確認を得るまで行わない。
+
+Android版は別リポジトリで、今回の作業対象外。元PCの稼働先を削除したり、プロフィールを別PCへ上書きしたりしない。
+
+## 引き継ぎの状況
+
+接続先ホストremote-control:env_e_6a505425e200832c9bbe18c0850453a5（表示名NakabayashiToru）が一覧に見えている。Meltype専用の宛先チャットはまだ特定できていない。ユーザーへThinkPadで「Meltype Win11検索欄の修正」のチャットを作り、最初のメッセージを送るよう案内した。宛先が判明したら、この資料の内容をチャットへ送信する。現時点では送信・受領を確認していない。

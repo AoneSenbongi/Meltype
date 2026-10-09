@@ -1,10 +1,13 @@
 # 現在の状態
-## 正式版1.0.7の適用と公開準備
+## 正式版1.0.7をこのPCへ適用済み・公開確認待ち
 
-2026年10月9日、利用者はrc.2の検索修正とrc.1の管理画面機能をまとめて1.0.7としてこのPCへ適用し、GitHubで公開するよう依頼。両方を含む検証済みrc.3を正式版番号へ変更する。GUI・登録・インストーラー・オンライン更新の番号を一致させ、辞書・設定・旧版をバックアップして適用する。公開文はdocs/RELEASE_1_0_7.mdに準備。今回の文面・添付を提示して確認を取るまでpush・Releaseを実行しない。正式版はビルド済み。管理者確認の取り消しで適用は未完了、旧rc.1へ復旧確認済み。
-正式版の対応ソースはbe41abe73d10d3af4905e5d17cbe61a6249bf333。distributions/Meltype-Native-Google-1.0.7-Setup.exeのSHA-256は2C72E2C57878D743E779352B4359BDD9C913325E544BBFEBC6D9F3C3AA88018F。正式版の番号一致・GUI状態・更新機能試験が通過し、manifestの全6ファイルを照合した。旧パッケージ・管理スクリプト・登録・入力設定はbackups/release-1.0.7-20261009-110536、GoogleとMeltypeのプロフィールはbackups/20261009-110535へ一致確認して退避。
+2026年10月9日、利用者の依頼でrc.2のWindows 11検索修正とrc.1の管理画面再起動・オンライン更新を正式版1.0.7へ統合した。対応ソースはbe41abe73d10d3af4905e5d17cbe61a6249bf333。distributions/Meltype-Native-Google-1.0.7-Setup.exeのSHA-256は2C72E2C57878D743E779352B4359BDD9C913325E544BBFEBC6D9F3C3AA88018F。番号一致・GUI状態・更新機能の試験とmanifest全6ファイルの照合が通過した。
 
-インストーラーPID33020を通常権限で起動し、installed/1.0.7へ配置済み。Windowsの管理者確認が取り消しとして返り、旧登録・起動へ復旧した。登録先とrc.1、サービス起動、入力設定が退避前後とも既定値で保存ファイルなしであることを検証。証跡はexperimental-build/release-1.0.7-apply-cancelled.json。ユーザーへ管理者確認後の返信を依頼したが未取得。再試行は利用者がPCを操作できる状態になってから行い、適用完了とは扱わない。setupログはexperimental-build/release-1.0.7-setup.log。完了後に登録・管理画面・アプリ一覧・ペイロード・起動・設定とGoogleの保持を検証する。公開候補JSONはexperimental-build/release-1.0.7-publication.json（Approved=false、PublicationOnHold=true）、公開スクリプトはPublish-ApprovedRelease-1.0.7.ps1。外部操作は未実行。添付2件はEXEと.sha256。公開前に利用者へ本文・通常Release・タグ・配布物の確認を取る。
+初回の管理者確認取消では旧rc.1へ復旧した。利用者の「再表示」で再試行し、セットアップ成功・PC再起動不要を確認。登録先はC:/Program Files/MeltypeNativeGoogle/package-657a72003e864b74bd27e1cee8f3f587、管理画面はinstalled/1.0.7。登録版・Windowsアプリ一覧・実管理画面は1.0.7、入力サービスは起動中、更新不要、配置全6ファイルはmanifestと一致する。実UIで起動無効・停止有効・この版は適用済み無効・最新版を確認有効を確認した。稼働管理先の旧C側フォルダーは保持し削除しない。
+
+直前バックアップinstalled/1.0.7/backups/20261009-163239とGoogle8ファイル・Meltype3ファイルの全11件が一致した。入力設定ファイルは適用前後とも存在せず既定値を使用する。旧版・登録・スクリプトの退避はbackups/release-1.0.7-20261009-110536。証跡はexperimental-build/release-1.0.7-applied.json、profile-preserved.json、panel.json、setup-retry.log（すべて同接頭辞）。Windows 11実検索欄はThinkPadの同修正候補版で利用者が確認済み。正式版のWin11実機適用と全キー操作は未確認。
+
+GitHubへのpush・Releaseは未実行。公開本文はdocs/RELEASE_1_0_7.md、候補はexperimental-build/release-1.0.7-publication.json（Approved=false、PublicationOnHold=true）、公開スクリプトはexperimental-build/Publish-ApprovedRelease-1.0.7.ps1。公開先AoneSenbongi/Meltype、ブランチgoogle-native-ime、タグnative-google-1.0.7、通常Release、添付はEXEと.sha256の2件。今回の本文・変更・配布物を利用者へ提示し、承認後に公開する。
 
 ## ThinkPadのWindows 11検索修正を統合（1.0.7-rc.3、未適用・未公開）
 

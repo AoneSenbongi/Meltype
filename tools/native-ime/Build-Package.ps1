@@ -1,5 +1,6 @@
 param([Parameter(Mandatory)][string]$Runtime, [string]$Compiler = 'g++.exe', [string]$JsonGenerator = $env:MELTYPE_JSON_GENERATOR)
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'Test-NativeVersion.ps1')
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $build = Join-Path $workspace 'experimental-build'
 $Runtime = (Resolve-Path -LiteralPath $Runtime).Path

@@ -3,7 +3,7 @@
 
 2026年10月9日、利用者は最新版を1.0.6で公開し、このPCの表示番号も合わせるよう依頼した。今後の先行適用は予定版番号に候補番号を付け、公開版と同じ番号で内容だけを変更しない。方針をAGENTS.mdとdocs/NATIVE_INSTALLER.mdへ記載。管理画面・登録・更新完了文・セットアップ・配布ファイル名を1.0.6へ統一し、Test-NativeVersion.ps1をビルド工程へ追加した。旧番号で期待値不一致を再現後に修正し、一致を確認。変換と予測の実装は前回このPCへ適用済みの5d16c1aから変更していない。
 
-共通・Windows294件、Native版の構築・GoogleからTSFの変換と予測、先頭[捕捉、GUI状態・更新要否、セットアップ・更新取消の復旧、句読点と学習停止が通過。Release本文はdocs/RELEASE_1_0_6.md、公開先AoneSenbongi/Meltype、タグnative-google-1.0.6、通常Releaseとする。残作業はEXE作成・配布物検査・このPCの番号更新と検証、今回の公開本文と添付への確認。GitHubへまだ公開していない。
+共通・Windows294件、Native版の構築・GoogleからTSFの変換と予測、先頭[捕捉、GUI状態・更新要否、セットアップ・更新取消の復旧、句読点と学習停止が通過。Release本文はdocs/RELEASE_1_0_6.md、公開先AoneSenbongi/Meltype、タグnative-google-1.0.6、通常Releaseとする。対応ソースe376ab3でEXE作成・ソースとmanifest照合・個人データ非同梱・Defender検査が完了。EXEはdistributions/Meltype-Native-Google-1.0.6-Setup.exe、83,078,996バイト、SHA256=A352214D8D0CF352A161A8B2EF3B963F21A16AE94D2B4E9DAF487756C99037AD。本文と2添付はexperimental-build/release-1.0.6-publication.jsonへ記録。このPCへのセットアップをE:/Prog/Meltype/Windows/installed/1.0.6へ開始（PID31116、setup子PID29644、Invoke-NativeSetup子PID26436）。管理者確認が取り消しとして返り、旧1.0.5・旧登録と入力サービスの稼働へ復元された。ログはinstalled/1.0.6/experimental-build/setup-error-9ea6ac5279b8438f8879f62115d5da36.txt。日本語Windowsの取り消し文を人向けエラーへ分類できない不具合を先にテストで再現し、NativeGuiCommon.ps1を修正。PowerShell 7とWindows PowerShell 5のGUI操作性試験が通過。失敗したセットアップの待機プロセスと旧管理画面を閉じ、修正版の1.0.6管理画面（PID20372）を開いた。実UIでタイトル1.0.6・更新有効・起動無効・停止有効を確認。IME登録はまだ1.0.5であり、利用者に「この版に更新」と管理者確認の操作を依頼している。修正版の配布物は再構築するため、上記EXEのハッシュは旧候補。旧版とプロフィールをbackups/release-1.0.6-20261009-090833とbackups/20261009-090832へ退避・一致確認済み。残作業は管理者処理完了後の番号・辞書設定・稼働検証、今回の公開本文と添付への確認。GitHubへまだ公開していない。
 
 ## Native版は旧変換を維持し、1.1.0の予測だけを使う（このPCへ適用済み）
 

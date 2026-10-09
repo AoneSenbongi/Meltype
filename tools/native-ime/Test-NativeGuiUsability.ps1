@@ -47,6 +47,8 @@ $human=Get-NativeGuiErrorMessage $errorText
 if($human -match 'Protected package|FullyQualified|発生場所|throw' -or $human -notmatch '管理者' -or $human -notmatch '確認'){throw 'Raw protected package failure remains in user message'}
 $cancel=Get-NativeGuiErrorMessage 'The operation was canceled by the user. (1223)'
 if($cancel -notmatch 'キャンセル'){throw 'Cancellation is not explained'}
+$cancelJapanese=Get-NativeGuiErrorMessage 'Start-Process : このコマンドは、次のエラーのため実行できません: この操作はユーザーによって取り消されました。'
+if($cancelJapanese -notmatch '管理者' -or $cancelJapanese -notmatch 'キャンセル'){throw 'Japanese Windows cancellation is not explained'}
 $unknown=Get-NativeGuiErrorMessage 'unexpected technical failure'
 if($unknown -match 'unexpected' -or $unknown -notmatch 'もう一度'){throw 'Unknown failure is not actionable'}
 Add-Type -AssemblyName System.Windows.Forms

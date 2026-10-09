@@ -156,7 +156,7 @@ function Assert-NativeUpdatePackage([string]$Stage,[string]$ManifestJson) {
 }
 
 function Get-NativeGuiErrorMessage([string]$Details) {
-    if ($Details -match '1223|cancell?ed|キャンセル') {
+    if ($Details -match '1223|cancell?ed|キャンセル|取り消されました|取り消し|取消') {
         return '管理者確認がキャンセルされたため、処理を中止しました。変更する場合は、もう一度操作して管理者確認を許可してください。'
     }
     if ($Details -match 'Protected package operation did not return a result|Protected package operation returned an invalid result') {

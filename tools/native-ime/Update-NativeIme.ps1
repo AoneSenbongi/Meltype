@@ -1,8 +1,10 @@
+﻿param([switch]$NoRestartPanel)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
 . (Join-Path $PSScriptRoot 'NativeProtectedPackage.ps1')
 $context = Get-NativeGuiContext $workspace
+$previousPanelRoot = Get-NativePanelShortcutRoot
 if (-not $context.Installed) { throw 'Install the native IME first.' }
 if (-not (Test-NativeUpdateRequired $workspace $context)) {
     Write-Output 'This release is already installed. No changes were made.'
@@ -73,7 +75,7 @@ try {
         Copy-Item -LiteralPath $launcher -Destination $targetLauncher -Force
     }
     $context.State | Add-Member NoteProperty BaseVersion '1.1.0' -Force
-    $context.State | Add-Member NoteProperty NativeVersion '1.0.6' -Force
+    $context.State | Add-Member NoteProperty NativeVersion '1.0.7-rc.1' -Force
     $context.State | ConvertTo-Json | Set-Content (Join-Path $context.Root 'experimental-build/native-ime-install.json') -Encoding UTF8
     if ($autoEnabled) { & (Join-Path $PSScriptRoot 'Set-InstalledNativeAutoStart.ps1') }
     & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -WorkspaceRoot $context.Root
@@ -81,7 +83,7 @@ try {
     # Shortcuts reopen the installed root. Its update source must now be this release,
     # rather than the old extracted payload that would offer a downgrade.
     Sync-NativeInstalledUpdateSource $workspace $context.Root
-    Write-Output 'Updated to Meltype Native Google 1.0.6. Google dictionaries and learning data were preserved. Reopen input applications to load the new native DLL.'
+    Write-Output 'Updated to Meltype Native Google 1.0.7-rc.1. Google dictionaries and learning data were preserved. Reopen input applications to load the new native DLL.'
 } catch {
     $failure = $_
     if($failure.Exception.Data['NativeRegistrationMayHaveChanged']){$registrationChanged=$true}
@@ -98,3 +100,4 @@ try {
     & (Join-Path $context.Scripts 'Start-NativeIme.ps1')
     throw $failure
 }
+if(-not $NoRestartPanel){Restart-NativeControlPanel $workspace $context.Root $previousPanelRoot}

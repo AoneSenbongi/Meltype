@@ -9,6 +9,8 @@ $script:installed=$false
 $script:failure=$false
 function Get-NativeGuiContext($Root){@{Installed=$script:installed;Root=$Root;Scripts=$scripts}}
 function Get-NativeGoogleTool{'fixture-google-tool'}
+function Get-NativePanelShortcutRoot{'C:\fixture-old-panel'}
+function Restart-NativeControlPanel($NewRoot,$PreviousRoot,$PreviousPanelRoot){if($PreviousPanelRoot -ne 'C:\fixture-old-panel'){throw 'Old shortcut root was lost'};$global:installerTestEvents.Add('RestartPanel')}
 function Assert-NativeUpdatePackage($Root){$global:installerTestEvents.Add('Validate');@{}}
 function Invoke-NativeInstallerElevation($Root,$Action){
     $global:installerTestEvents.Add($Action)
@@ -21,9 +23,9 @@ Set-Content (Join-Path $scripts 'Set-NativeShortcuts.ps1') 'param($WorkspaceRoot
 function Check-Events([string]$Expected){if(($global:installerTestEvents -join ',') -ne $Expected){throw ('Unexpected operations: '+($global:installerTestEvents -join ','))};$global:installerTestEvents.Clear()}
 try {
     Invoke-NativeInstaller $fixture 'Install' $true
-    Check-Events 'Validate,Install,Links:False:False,Start'
+    Check-Events 'Validate,Install,Links:False:False,Start,RestartPanel'
     Invoke-NativeInstaller $fixture 'Install' $false
-    Check-Events 'Validate,Update,Links:False:True,Start'
+    Check-Events 'Validate,Update,Links:False:True,Start,RestartPanel'
     $script:failure=$true
     $rejected=$false
     try{Invoke-NativeInstaller $fixture 'Uninstall' $true}catch{$rejected=$true}

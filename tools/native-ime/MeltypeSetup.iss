@@ -1,14 +1,15 @@
-﻿#ifndef PackageRoot
+#ifndef PackageRoot
   #error PackageRoot is required
 #endif
 #ifndef OutputRoot
   #error OutputRoot is required
 #endif
-#define AppVersion "1.0.6"
+#define AppVersion "1.0.7-rc.1"
 [Setup]
 AppId={{6955B1D0-7141-4D6D-BD2B-51303E8C28B1}
 AppName=Meltype Google日本語入力
 AppVersion={#AppVersion}
+VersionInfoVersion=1.0.7.0
 AppPublisher=AoneSenbongi / Meltype Fork
 AppPublisherURL=https://github.com/AoneSenbongi/Meltype
 DefaultDirName={localappdata}\Programs\MeltypeNativeGoogle\{#AppVersion}

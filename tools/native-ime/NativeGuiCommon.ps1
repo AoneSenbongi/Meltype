@@ -65,6 +65,8 @@ function Get-NativeGuiAction([string]$SourceRoot, [string]$Action) {
         'Uninstall' { $script = Join-Path $sourceScripts 'Uninstall-InstalledNativeIme.ps1'; $elevated = $true }
         'Start' { $script = Join-Path $scripts 'Start-NativeIme.ps1' }
         'Stop' { $script = Join-Path $scripts 'Stop-NativeIme.ps1'; $arguments = @('-NoStartOriginal') }
+        'ReleaseCheck' { $script = Join-Path $sourceScripts 'Check-NativeRelease.ps1' }
+        'ReleaseInstall' { $script = Join-Path $sourceScripts 'Check-NativeRelease.ps1'; $arguments = @('-Install') }
         'Update' { $script = Join-Path $sourceScripts 'Update-NativeIme.ps1' }
         'Enable' { $script = Join-Path $sourceScripts 'Set-InstalledNativeAutoStart.ps1' }
         'Disable' { $script = Join-Path $sourceScripts 'Set-InstalledNativeAutoStart.ps1'; $arguments = @('-Disable') }
@@ -106,6 +108,11 @@ function Test-NativeUpdateRequired([string]$SourceRoot, $Context) {
         if (-not (Test-Path -LiteralPath $installed) -or (Get-NativeFileSha256 $installed) -ne $file.SHA256) { return $true }
     }
     # Compare only shipped management scripts; build and diagnostic tools are not updates.
+    foreach($name in @('NativeReleaseUpdater.ps1','Check-NativeRelease.ps1')) {
+        $source=Join-Path $SourceRoot ('tools/native-ime/'+$name)
+        $installed=Join-Path $Context.Root ('tools/native-ime/'+$name)
+        if((Test-Path -LiteralPath $source) -and (-not(Test-Path -LiteralPath $installed) -or (Get-NativeFileSha256 $source) -ne (Get-NativeFileSha256 $installed))){return $true}
+    }
     foreach($name in @('NativeProtectedPackage.ps1','Install-ProtectedNativePackage.ps1')) {
         $source=Join-Path $SourceRoot ('tools/native-ime/'+$name)
         $installed=Join-Path $Context.Root ('tools/native-ime/'+$name)
@@ -156,6 +163,9 @@ function Assert-NativeUpdatePackage([string]$Stage,[string]$ManifestJson) {
 }
 
 function Get-NativeGuiErrorMessage([string]$Details) {
+    if($Details -match 'NativeReleaseNetwork'){return '最新版を取得できませんでした。ネットワーク接続を確認して、もう一度「最新版を確認」を押してください。'}
+    if($Details -match 'NativeReleaseInvalid'){return '更新ファイルの情報またはSHA-256を確認できないため、更新を中止しました。現在の版はそのまま使えます。'}
+    if($Details -match 'NativeReleaseInstall'){return '更新が完了していません。管理画面の状態とWindowsの管理者確認を確認してください。'}
     if ($Details -match '1223|cancell?ed|キャンセル|取り消されました|取り消し|取消') {
         return '管理者確認がキャンセルされたため、処理を中止しました。変更する場合は、もう一度操作して管理者確認を許可してください。'
     }
@@ -175,4 +185,40 @@ function Get-NativeGuiErrorMessage([string]$Details) {
         return 'Google日本語入力の設定ツールが見つかりません。Google日本語入力のインストール状態を確認してください。'
     }
     return '処理を完了できませんでした。画面の状態を確認してから、もう一度操作してください。繰り返す場合は、保存したエラーの詳細を確認してください。'
+}
+
+function Get-NativePanelShortcutRoot {
+    $linkPath=Join-Path ([Environment]::GetFolderPath('Programs')) 'Meltype Google日本語入力/Meltypeの管理画面.lnk'
+    if(-not(Test-Path -LiteralPath $linkPath)){return $null}
+    $shell=New-Object -ComObject WScript.Shell
+    $link=$null
+    try {
+        $link=$shell.CreateShortcut($linkPath)
+        if((Split-Path $link.TargetPath -Leaf) -eq 'Meltype-Settings.exe') {
+            $root=Split-Path $link.TargetPath -Parent
+            if(Test-Path -LiteralPath (Join-Path $root 'tools/native-ime/Host-NativeControlPanel.ps1')){return $root}
+        }
+    }finally{
+        if($link){[Runtime.InteropServices.Marshal]::FinalReleaseComObject($link)|Out-Null}
+        [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell)|Out-Null
+    }
+}
+function Restart-NativeControlPanel([string]$NewRoot, [string]$PreviousRoot, [string]$PreviousPanelRoot) {
+    $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $session=(Get-Process -Id $PID).SessionId
+    $paths=@($NewRoot,$PreviousRoot,$PreviousPanelRoot) | Where-Object { $_ } | ForEach-Object {
+        [IO.Path]::GetFullPath((Join-Path $_ 'tools/native-ime/Host-NativeControlPanel.ps1'))
+    }
+    foreach($process in Get-CimInstance Win32_Process) {
+        if($process.Name -notin @('pwsh.exe','powershell.exe') -or $process.SessionId -ne $session -or -not $process.CommandLine){continue}
+        $match=[regex]::Match($process.CommandLine,'(?i)-File\s+(?:"([^"]+[/\\]Host-NativeControlPanel\.ps1)"|(\S+[/\\]Host-NativeControlPanel\.ps1))')
+        if(-not $match.Success){continue}
+        $path=if($match.Groups[1].Success){$match.Groups[1].Value}else{$match.Groups[2].Value}
+        if([IO.Path]::GetFullPath($path) -notin $paths){continue}
+        $owner=Invoke-CimMethod -InputObject $process -MethodName GetOwnerSid
+        if($owner.ReturnValue -ne 0 -or $owner.Sid -ne $sid){continue}
+        Stop-Process -Id $process.ProcessId -ErrorAction Stop
+        Wait-Process -Id $process.ProcessId -Timeout 10 -ErrorAction SilentlyContinue
+    }
+    & (Join-Path $NewRoot 'tools/native-ime/Open-NativeControlPanel.ps1')
 }

@@ -12,7 +12,7 @@ $mutex = [Threading.Mutex]::new($false, ('Local\Meltype.NativePanel.' + $sid), [
 $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\Meltype.NativePanel.Show.' + $sid))
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Meltype 1.0.6 · Google日本語入力'
+$form.Text = 'Meltype 1.0.7-rc.1 · Google日本語入力'
 $form.ClientSize = [Drawing.Size]::new(600, 646)
 $form.MinimumSize = [Drawing.Size]::new(616, 685)
 $form.StartPosition = 'CenterScreen'
@@ -54,6 +54,7 @@ function Start-Action([string]$Action) {
     if ($Action -eq 'Uninstall' -and [Windows.Forms.MessageBox]::Show('Meltype Native版の登録、自動起動、ショートカットを削除してGoogle日本語入力へ戻します。Google日本語入力と辞書・学習履歴は残ります。続けますか？','Meltype',[Windows.Forms.MessageBoxButtons]::YesNo,[Windows.Forms.MessageBoxIcon]::Question,[Windows.Forms.MessageBoxDefaultButton]::Button2) -ne [Windows.Forms.DialogResult]::Yes) { return }
     try {
         $route = Get-NativeGuiAction $workspace $Action
+        $script:pendingAction = $Action
         $script:resultFile = Join-Path $workspace ('experimental-build/gui-' + [Guid]::NewGuid().ToString('N') + '.json')
         New-Item -ItemType Directory (Split-Path $script:resultFile -Parent) -Force | Out-Null
         $arguments = '-NoProfile -ExecutionPolicy Bypass -File ' + (ConvertTo-NativeGuiArgument (Join-Path $PSScriptRoot 'Invoke-NativeGuiAction.ps1')) + ' -Script ' + (ConvertTo-NativeGuiArgument $route.Script) + ' -ResultFile ' + (ConvertTo-NativeGuiArgument $script:resultFile)
@@ -78,7 +79,7 @@ foreach ($row in 3..7) { $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Wi
 Add-Button 'インストール' 0 3 'Install' | Out-Null
 (Add-Button 'アンインストール' 1 3 'Uninstall').Enabled = $false
 Add-Button 'この版に更新' 0 4 'Update' | Out-Null
-$layout.SetColumnSpan($buttons.Update, 2)
+Add-Button '最新版を確認' 1 4 'ReleaseCheck' | Out-Null
 (Add-Button '起動' 0 5 'Start').Enabled = $false
 (Add-Button '停止してGoogleに戻る' 1 5 'Stop').Enabled = $false
 $script:refreshingAutoStart = $false
@@ -184,6 +185,13 @@ $timer.Add_Tick({
             $result = Receive-NativeGuiActionCompletion ([ref]$script:actionProcess) ([ref]$script:resultFile)
             $message.Text = if ($result.Success) { '完了しました。' } else { '処理に失敗しました。' }
             if (-not $result.Success) { Show-NativeGuiError $result.Output }
+            elseif($script:pendingAction -eq 'ReleaseCheck') {
+                $release=$result.Output|ConvertFrom-Json
+                if($release.Available) {
+                    $message.Text='最新版 '+$release.Version+' を利用できます。'
+                    if([Windows.Forms.MessageBox]::Show('Meltype '+$release.Version+'へ更新します。ダウンロード後、バックアップとセットアップを実行します。必要なWindowsの管理者確認を承認してください。','Meltypeの更新','YesNo','Question') -eq 'Yes'){Start-Action 'ReleaseInstall'}
+                }else{$message.Text='新しい公開版はありません。'}
+            }
         } catch { $message.Text = Get-NativeGuiErrorMessage ($_ | Out-String) }
     }
     if (-not $script:actionProcess) {

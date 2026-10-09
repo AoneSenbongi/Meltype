@@ -29,6 +29,7 @@ foreach ($script in @('Set-NativeShortcuts.ps1','Uninstall-InstalledNativeIme.ps
 }
 foreach($script in @('NativeProtectedPackage.ps1','Install-ProtectedNativePackage.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $script) -Destination (Join-Path $scripts $script)}
 foreach($script in @('NativeInstaller.ps1','Invoke-NativeSetup.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $script) -Destination (Join-Path $scripts $script)}
+foreach($script in @('NativeReleaseUpdater.ps1','Check-NativeRelease.ps1')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $script) -Destination (Join-Path $scripts $script)}
 foreach ($launcher in @('Enable-NativeAutoStart.cmd','Disable-NativeAutoStart.cmd','Install-NativeIme.cmd','Start-NativeIme.cmd','Stop-NativeIme.cmd','Uninstall-NativeIme.cmd')) {
     Copy-Item -LiteralPath (Join-Path $workspace $launcher) -Destination (Join-Path $stage $launcher)
 }

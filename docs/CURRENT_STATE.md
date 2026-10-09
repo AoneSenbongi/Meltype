@@ -1,10 +1,10 @@
 # 現在の状態
 ## 正式版1.0.7の適用と公開準備
 
-2026年10月9日、利用者はrc.2の検索修正とrc.1の管理画面機能をまとめて1.0.7としてこのPCへ適用し、GitHubで公開するよう依頼。両方を含む検証済みrc.3を正式版番号へ変更する。GUI・登録・インストーラー・オンライン更新の番号を一致させ、辞書・設定・旧版をバックアップして適用する。公開文はdocs/RELEASE_1_0_7.mdに準備。今回の文面・添付を提示して確認を取るまでpush・Releaseを実行しない。正式版はビルド済みで、適用がWindowsの管理者確認で待機中。登録版は1.0.7-rc.1。
+2026年10月9日、利用者はrc.2の検索修正とrc.1の管理画面機能をまとめて1.0.7としてこのPCへ適用し、GitHubで公開するよう依頼。両方を含む検証済みrc.3を正式版番号へ変更する。GUI・登録・インストーラー・オンライン更新の番号を一致させ、辞書・設定・旧版をバックアップして適用する。公開文はdocs/RELEASE_1_0_7.mdに準備。今回の文面・添付を提示して確認を取るまでpush・Releaseを実行しない。正式版はビルド済み。管理者確認の取り消しで適用は未完了、旧rc.1へ復旧確認済み。
 正式版の対応ソースはbe41abe73d10d3af4905e5d17cbe61a6249bf333。distributions/Meltype-Native-Google-1.0.7-Setup.exeのSHA-256は2C72E2C57878D743E779352B4359BDD9C913325E544BBFEBC6D9F3C3AA88018F。正式版の番号一致・GUI状態・更新機能試験が通過し、manifestの全6ファイルを照合した。旧パッケージ・管理スクリプト・登録・入力設定はbackups/release-1.0.7-20261009-110536、GoogleとMeltypeのプロフィールはbackups/20261009-110535へ一致確認して退避。
 
-インストーラーPID33020を通常権限で起動し、installed/1.0.7へ配置済み。Windowsの管理者確認（consent.exe）で更新待機中。ユーザーへ「はい」を押した後の返信を非同期で依頼したが未取得。登録版はrc.1のままであり、適用完了とは扱わない。setupログはexperimental-build/release-1.0.7-setup.log。完了後に登録・管理画面・アプリ一覧・ペイロード・起動・設定とGoogleの保持を検証する。公開候補JSONはexperimental-build/release-1.0.7-publication.json（Approved=false、PublicationOnHold=true）、公開スクリプトはPublish-ApprovedRelease-1.0.7.ps1。外部操作は未実行。添付2件はEXEと.sha256。公開前に利用者へ本文・通常Release・タグ・配布物の確認を取る。
+インストーラーPID33020を通常権限で起動し、installed/1.0.7へ配置済み。Windowsの管理者確認が取り消しとして返り、旧登録・起動へ復旧した。登録先とrc.1、サービス起動、入力設定が退避前後とも既定値で保存ファイルなしであることを検証。証跡はexperimental-build/release-1.0.7-apply-cancelled.json。ユーザーへ管理者確認後の返信を依頼したが未取得。再試行は利用者がPCを操作できる状態になってから行い、適用完了とは扱わない。setupログはexperimental-build/release-1.0.7-setup.log。完了後に登録・管理画面・アプリ一覧・ペイロード・起動・設定とGoogleの保持を検証する。公開候補JSONはexperimental-build/release-1.0.7-publication.json（Approved=false、PublicationOnHold=true）、公開スクリプトはPublish-ApprovedRelease-1.0.7.ps1。外部操作は未実行。添付2件はEXEと.sha256。公開前に利用者へ本文・通常Release・タグ・配布物の確認を取る。
 
 ## ThinkPadのWindows 11検索修正を統合（1.0.7-rc.3、未適用・未公開）
 

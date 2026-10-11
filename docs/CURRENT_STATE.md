@@ -3,7 +3,11 @@
 
 2026年10月11日、利用者のGitHubリリース依頼を受け、管理画面・登録・更新・セットアップを正式番号1.1.0へ統一した。Build-Packageを正式番号で再実行し、Native15/15、Google13/13、Microsoft2/2、両エンジンから実TSF文書への変換・確定・取消、予測、モードボタン、候補配置・再描画、先頭括弧の試験が通過。設定保存、管理画面操作性、更新候補判定・ダウンロード改変拒否、隔離インストーラー、更新失敗時の復旧も通過。証跡はexperimental-build/release-1.1.0-build.log。
 
-公開先はAoneSenbongi/Meltype、ブランチgoogle-native-ime、予定タグnative-google-1.1.0、通常ReleaseのタイトルはMeltype Native 1.1.0。公開本文はdocs/RELEASE_1_1_0.md。配布ZIPと正式版EXEの構築・照合、具体的な公開内容への利用者の承認が残る。まだpush・タグ公開・Release作成はしていない。このPCの登録版は1.1.0-rc.1を保持し、正式版への適用は行っていない。
+公開先はAoneSenbongi/Meltype、ブランチgoogle-native-ime、予定タグnative-google-1.1.0、通常ReleaseのタイトルはMeltype Native 1.1.0。公開本文はdocs/RELEASE_1_1_0.md。具体的な公開内容への利用者の承認が残る。まだpush・タグ公開・Release作成はしていない。このPCの登録版は1.1.0-rc.1を保持し、正式版への適用は行っていない。
+
+配布ソースはb58969494fca94c9749fe279a3ea179b43823fa4。ZIPはdistributions/Meltype-Native-Google-windows-x64-20261011-212031.zip、SHA-256はDC621701881091A888920D9CDDA42453B3D54A127A3D37554855080BB1C89F9D。EXEはdistributions/Meltype-Native-Google-1.1.0-Setup.exe、SHA-256は42BBE1428017805B9AE316B982A22D8D1B7952EB8CC6895AFC31F155F899CF87。EXEの1.1.0.0メタデータ、チェックサム添付、配布ペイロード6件、対応ソースとコミット一致、個人データ除外を確認した。証跡はexperimental-build/release-1.1.0-verified.json。公開予定の添付はEXEとその.sha256の2件。対応ソースとランタイムはEXE内に含む。正式版EXEの実機導入と実アプリ・複数モニターの実操作は未確認。
+
+利用者の仕組みの説明依頼に対し、変換先・自動／英語・入力位置を切り替える図を作成した。図は説明用でPC設定を変更しない。Microsoft／Google経路、英語の直接入力、下端で候補を上へ置く状態更新を検証した。
 
 ## 変換先選択・モード表示・候補配置のRC適用記録
 

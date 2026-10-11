@@ -69,12 +69,13 @@ function Build-Project([string]$project, [string[]]$dependencies, [string[]]$fri
     }
     Write-Output "Build passed: $project"
 }
-Build-Project 'Meltype.Core' @() @('Meltype','Meltype.Tests','Meltype.Core.Tests') $false ''
-Build-Project 'Meltype.Core.Tests' @('Meltype.Core') @('Meltype.Tests') $false 'Meltype.Tests.Program'
+Build-Project 'Meltype.Core' @() @('Meltype','Meltype.Tests','Meltype.Core.Tests','Meltype.Mac.Native') $false ''
+Build-Project 'Meltype.Mac.Native' @('Meltype.Core') @() $false ''
+Build-Project 'Meltype.Core.Tests' @('Meltype.Core','Meltype.Mac.Native') @('Meltype.Tests') $false 'Meltype.Tests.Program'
 Build-Project 'Meltype' @('Meltype.Core') @('Meltype.Tests') $true ''
 Build-Project 'Meltype.Tests' @('Meltype.Core','Meltype.Core.Tests','Meltype') @() $true 'Meltype.Tests.TestRunner'
 if ($BuildOnly) { return }
-foreach ($project in @('Meltype.Core','Meltype.Core.Tests','Meltype','Meltype.Tests')) {
+foreach ($project in @('Meltype.Core','Meltype.Mac.Native','Meltype.Core.Tests','Meltype','Meltype.Tests')) {
     $loaded = [Reflection.Assembly]::LoadFrom((Join-Path $buildRoot "$project.dll"))
 }
 $runner = $loaded.GetType('Meltype.Tests.TestRunner').GetMethod('Main')

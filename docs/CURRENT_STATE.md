@@ -1,4 +1,12 @@
 # 現在の状態
+## 本家1.1.1対応候補（1.0.8-rc.1、ローカル検証済み・未適用・未公開）
+
+2026年10月11日、利用者のWindows版1.1.1対応依頼で本家v1.1.1を統合。READMEとSECURITYは独自版の内容を保持し、共通コアの競合は既存Google変換モード、句読点、学習停止、括弧追跡を維持して解消。通常変換の旧判定と候補順を保持する既存方針は変更しない。Mac Nativeの境界試験依存と内部参照を独自Roslynビルドへ追加。本家BaseVersion=1.1.1、独自GUI・NativeVersion・インストーラー・更新処理は1.0.8-rc.1で一致する。
+
+SDK共通338/338、Windowsを含む353/353、品質1291/1291が通過。Build-Package.ps1でNativeパッケージ構築、Googleから実TSF文書の28更新・確定・取消、予測16更新・Tab・Esc・Enter、先頭括弧捕捉が通過。Google連携試験は学習無効。番号一致、Windows10/11検索パッケージ境界、通信枠32と待機取消、GUI稼働判定、更新要否と改変拒否、オンライン更新検証、隔離インストーラー試験も通過。競合未解消ファイルなし、作業差分のgit diff --checkにエラーなし。
+
+候補パッケージはexperimental-build/native-ime-package。稼働中IME・実登録・個人辞書・学習履歴は変更していない。PCへの適用と実入力欄での確認、配布EXE作成、検索AppContainerの実通信再試験は未完了。GitHubへのpush・Releaseは未実施で、今回の具体的内容への承認が必要。対応仕様はdocs/UPSTREAM_1_1_1.md。既存正式版1.0.7の記録は下に保持する。
+
 ## 正式版1.0.7をこのPCへ適用・公開済み
 
 2026年10月9日、利用者の依頼でrc.2のWindows 11検索修正とrc.1の管理画面再起動・オンライン更新を正式版1.0.7へ統合した。対応ソースはbe41abe73d10d3af4905e5d17cbe61a6249bf333。distributions/Meltype-Native-Google-1.0.7-Setup.exeのSHA-256は2C72E2C57878D743E779352B4359BDD9C913325E544BBFEBC6D9F3C3AA88018F。番号一致・GUI状態・更新機能の試験とmanifest全6ファイルの照合が通過した。

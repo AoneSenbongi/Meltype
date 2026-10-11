@@ -242,6 +242,10 @@ public sealed class Settings
      Description("変換中に同じ候補で少し (約 1.5 秒) 止まると、その候補の意味をウィクショナリー日本語版から候補の一覧の横に出します (日本語の意味が無い語は JMdict の英訳: 橋 → bridge)。同音異義語を選ぶときの手がかりに。")]
     public bool ShowCandidateMeanings { get; set; } = true;
 
+    [Category("1. 全般"), DisplayName("打ったキーを表示"),
+     Description("変換ボックスの文字の下に、打ったキー (ローマ字: kyouhagoogle) を小さく出します。打ち間違いに気づきやすくなります。Meltype キーボード (変換ボックス) のときだけ。")]
+    public bool ShowTypedKeys { get; set; } = true;
+
     [Category("1. 全般"), DisplayName("打ち間違いを直す"),
      Description("Space・Enter で変換・確定するときに打ち間違いを直します。ローマ字: 読めない子音が残ったとき、隣のキーの押し間違い・入れ替わり・抜けを 1 文字だけ直します (onegaishimsu → お願いします、sumimasne → すみません。よく使う語の読みになるときだけ)。英語: Windows の自動修正の一覧にある打ち間違いを直します (teh → the、recieve → receive)。")]
     public bool CorrectTypos { get; set; } = true;
@@ -310,6 +314,10 @@ public sealed class Settings
     [Category("2. 判定"), DisplayName("自動判定の強さ"),
      Description("積極的 = 英語らしければすぐ英字 / 標準 = 短い語 (no, to, ga) は前後が英語のときだけ英字 / 慎重 = 確信度が高いときだけ英字 / 手動 = 自動では切り替えず提案だけ (変換ボックスで Tab を押すと提案どおり英字に)。Meltype キーボード・IME 自動切替・英数状態の検知・かな入力のすべてに効きます。")]
     public DetectionLevel DetectionLevel { get; set; } = DetectionLevel.Balanced;
+
+    [Category("2. 判定"), DisplayName("区切りを点数で選ぶ (α版)"),
+     Description("変換ボックスの中で英語と日本語をどこで区切るかを、あり得る区切り方を全部比べて一番自然なもので決めます (α版: 試験中)。英単語の後ろの「は」(medalsha → medalsは、presidentha → presidentは) などが正しく分かれやすくなります。OFF なら今までどおり、先頭から順に決めます。")]
+    public bool ScoredSegmentation { get; set; }
 
     /// <summary>判定の強さを反映した日本語判定の閾値 (IME 自動切替・英数状態の検知)。</summary>
     [Browsable(false), JsonIgnore]

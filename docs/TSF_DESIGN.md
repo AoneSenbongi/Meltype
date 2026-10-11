@@ -1,4 +1,6 @@
-# Meltype IME (TSF) の設計
+<a name="meltype-ime-tsf-の設計"></a>
+<img src="images/headings/tsf-design/title.svg" alt="Meltype IME (TSF) の設計" height="80">
+
 
 Windows 版の Meltype を、Windows 正規の IME の仕組み (TSF, Text Services Framework) でも動くようにしたもの。
 打った文字が入力欄そのものに下線付きで入り、変換の候補だけを入力位置の下に一覧で出す。
@@ -6,7 +8,11 @@ Windows 版の Meltype を、Windows 正規の IME の仕組み (TSF, Text Servi
 
 使い方は [USAGE.md](USAGE.md) の「Meltype IME」、セキュリティの考え方は [SECURITY.md](../SECURITY.md)。
 
-## 全体の形
+<br>
+
+<a name="全体の形"></a>
+<img src="images/headings/tsf-design/01.svg" alt="全体の形" height="53"><br>
+
 
 ```
 アプリのプロセス (メモ帳・Chrome・VS Code …)            Meltype.exe (タスクトレイに常駐)
@@ -31,13 +37,19 @@ Windows 版の Meltype を、Windows 正規の IME の仕組み (TSF, Text Servi
 このときは TSF の状態がすべて正常なのに、IME のキー処理が呼ばれず、英字のまま入る。人が操作している間に流すと通る。
 IME を変えたときは、このテストに加えて、メモ帳などで実際に打って確かめる。
 
-### なぜ DLL に本体を入れないか
+<a name="なぜ-dll-に本体を入れないか"></a>
+<img src="images/headings/tsf-design/s01.svg" alt="なぜ DLL に本体を入れないか" height="40">
+
 
 TSF の IME は、入力するアプリ全部のプロセスに読み込まれる。本体 (Meltype.Core) を DLL に入れると、アプリごとに辞書を読み込んでメモリを食い、
 学習データ・ユーザー辞書を複数のプロセスが同時に書き換えて壊し、Mozc のヘルパーもアプリの数だけ起動する。
 そのため、Google 日本語入力 (Mozc) と同じく、本体は 1 つのプロセス (Meltype.exe) に置き、DLL は薄い殻にして通信する。
 
-## MeltypeTip.dll
+<br>
+
+<a name="meltypetipdll"></a>
+<img src="images/headings/tsf-design/02.svg" alt="MeltypeTip.dll" height="53"><br>
+
 
 | インターフェース | やること |
 |---|---|
@@ -50,7 +62,9 @@ TSF の IME は、入力するアプリ全部のプロセスに読み込まれ�
 
 ゲームなど、候補を自分で描くアプリ向けの UILess (ITfCandidateListUIElement) には対応していない。
 
-### キーの流れ
+<a name="キーの流れ"></a>
+<img src="images/headings/tsf-design/s02.svg" alt="キーの流れ" height="40">
+
 
 1. `OnTestKeyDown`: 変換中ならキーを使う。変換していないときは、文字を生むキー (英字・記号・数字) なら使う。Ctrl・Alt・Windows キー付き・ほかのソフトが送り込んだ文字 (VK_PACKET) は使わない
    (変換中なら、その場で確定してからアプリに通す。その場で確定できないアプリでは受け取り、2. で確定してから送り直す)。
@@ -69,7 +83,9 @@ TSF の IME は、入力するアプリ全部のプロセスに読み込まれ�
    前もって分かるキー (Ctrl・Alt 付き、パスワード欄) は受け取らずに通す。送り直したキーは、そのあいだに打ったキーより後に届く (まれに順番が入れ替わる)
 6. 時間内に応答が無ければ、変換中の文字を確定し、打った文字はその場で入れる (送り直すと、その間に打った次のキーより後に届いて順番が入れ替わる)
 
-### 何もしない場面
+<a name="何もしない場面"></a>
+<img src="images/headings/tsf-design/s03.svg" alt="何もしない場面" height="40">
+
 
 - Meltype.exe より高い権限で動いているアプリ (ふつうは管理者として動いているアプリ)、サインインや UAC の画面 (Meltype.exe の権限より上の入力を扱わない。
   UAC を切っていて、アプリも Meltype.exe も管理者として動く PC では使える)
@@ -80,7 +96,11 @@ TSF の IME は、入力するアプリ全部のプロセスに読み込まれ�
   入力を覚えないように求める入力欄 (InputScope が IS_PRIVATE。ブラウザーのシークレット / InPrivate ウィンドウ) も、学習しないで使う仕組みが無いので何もしない
 - Meltype.exe が動いていない・一時停止中・動作モードが Meltype IME でない・アプリ別設定で OFF か「ゲーム」のアプリ (サーバーが active: false を返す)
 
-## 通信
+<br>
+
+<a name="通信"></a>
+<img src="images/headings/tsf-design/03.svg" alt="通信" height="53"><br>
+
 
 - 名前付きパイプ `\\.\pipe\Meltype.Tip.<ユーザーの SID>`。メッセージ単位で、1 メッセージが 1 JSON
 - 1 キーごとに同期で 1 往復。待つのは最大 800ms (初めての変換で Mozc を起動するときがあるため)。応答が無ければ、変換中の文字はそのまま確定し、打った文字はその場で入れる。
@@ -93,14 +113,22 @@ TSF の IME は、入力するアプリ全部のプロセスに読み込まれ�
   そのため、UAC が有効な PC で Meltype.exe を管理者として動かすと、ふつうのアプリからはつながらない (Meltype.exe はふつうの権限で動かす)
 - つなぎかけて切れたパイプは DisconnectNamedPipe で戻して待ち直す (閉じると、ほかにつながりが無いときに独占と印が外れる)
 
-## 候補の一覧
+<br>
+
+<a name="候補の一覧"></a>
+<img src="images/headings/tsf-design/04.svg" alt="候補の一覧" height="53"><br>
+
 
 DLL の中で、Direct2D + DirectWrite で描く (絵文字もカラーで出る)。Windows 11 の Microsoft IME に寄せた見た目:
 角丸、Windows のライト / ダークとアクセントの色に合わせる、縦に 1 列で番号 + 候補、選んでいる行は背景を薄く塗って左端にアクセントの縦線、
 1 ページ 9 個 (2 ページ以上なら下に「3 / 27」)、「もしかして」は一覧の上、候補で 1.5 秒止まったら意味を右に出す、英訳の候補は右端に「英訳」。
 出す位置は、選んでいる文節の左下 (`ITfContextView::GetTextExt`)。画面の下にはみ出すなら上に出す。
 
-## Meltype.exe 側
+<br>
+
+<a name="meltypeexe-側"></a>
+<img src="images/headings/tsf-design/05.svg" alt="Meltype.exe 側" height="53"><br>
+
 
 - 動作モードに `Tsf` (Meltype IME) を足した。Tsf のときは、キーボードフックは何もしない。今までの方式 (変換ボックス・IME 自動切替) も残している
 - Meltype IME が登録されていて、このユーザーのキーボードの一覧にも入っていれば、一度だけ自動で Tsf にする。
@@ -109,7 +137,11 @@ DLL の中で、Direct2D + DirectWrite で描く (絵文字もカラーで出る
   UI スレッドからの要求 (要求に付けたスレッドの ID で見分ける) は、Invoke せずにパイプのスレッドで処理する (UI スレッドは止まっているので、ほかの処理と同時には動かない)
 - `CompositionService.CreateSession` で、辞書・学習データ・変換エンジンを変換ボックスと共有したセッションを作る。すべて UI スレッドで動かす
 
-## インストール
+<br>
+
+<a name="インストール"></a>
+<img src="images/headings/tsf-design/06.svg" alt="インストール" height="53"><br>
+
 
 - IME の登録は HKLM に要る (HKCU だけでは ActivateProfile が失敗した) ので、インストールのときだけ UAC で管理者権限を求める。断ったら、今までどおり変換ボックスの方式で動く
 - DLL は `C:\Program Files\Meltype\tip` に置く (管理者として動くアプリにも読み込まれるので、ユーザーが書き換えられない場所)。使っている DLL は名前を変えて残し、次の登録で消す
@@ -127,7 +159,11 @@ DLL の中で、Direct2D + DirectWrite で描く (絵文字もカラーで出る
 - アンインストールでは、一覧から外し、登録を外して DLL を消す。アプリが使っていて消せない DLL は、次に Windows を起動したときに消す。
   IME の登録は PC 全体なので、同じ PC のほかのユーザーも Meltype を使っていると、そのユーザーの Meltype IME も使えなくなる
 
-## 未対応・確かめていないこと
+<br>
+
+<a name="未対応確かめていないこと"></a>
+<img src="images/headings/tsf-design/07.svg" alt="未対応・確かめていないこと" height="53"><br>
+
 
 - Meltype キーボードから移せていない機能: コードエディター・ターミナルの「コメントと文字列の中だけ日本語」、アプリの種類ごとの「最初は英数」、
   カーソルの近くの「あ」「A」の表示、選んだ文字の再変換
@@ -135,7 +171,11 @@ DLL の中で、Direct2D + DirectWrite で描く (絵文字もカラーで出る
 - 確かめたのは、RichEdit の入力欄 (`--tip-e2e`)、パイプ (`--tip-client`)、ストアアプリと同じ AppContainer からの接続。
   実際のアプリ (メモ帳・Chrome・VS Code など)、表示スケール 150%、コード署名をしない DLL を読み込まないアプリがあるかは、まだ広くは確かめていない
 
-## ビルドに要るもの
+<br>
+
+<a name="ビルドに要るもの"></a>
+<img src="images/headings/tsf-design/08.svg" alt="ビルドに要るもの" height="53"><br>
+
 
 - .NET 10 SDK
 - Visual Studio Build Tools の「C++ によるデスクトップ開発」(MSVC と Windows SDK)。無ければ `Install-Meltype.ps1` は Meltype IME を入れずに続ける

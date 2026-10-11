@@ -134,7 +134,7 @@ public sealed class MeltypeSession
     /// 既定の辞書・学習データ (保存場所は <see cref="AppPaths"/>) で作る。converter は OS 側の変換エンジン、
     /// moreCandidates は読みに対する候補の一覧 (無ければ null)、wordChecker は OS のスペルチェッカー (無ければ null)。
     /// </summary>
-    public static MeltypeSession CreateDefault(IKanjiConverter converter, Func<string, IReadOnlyList<string>>? moreCandidates, IWordChecker? wordChecker)
+    public static MeltypeSession CreateDefault(IKanjiConverter converter, Func<string, IReadOnlyList<string>>? moreCandidates, IWordChecker? wordChecker, bool autoSpacing = false)
     {
         AppPaths.MigrateFromOldName();
         Directory.CreateDirectory(AppPaths.DataDirectory);
@@ -148,6 +148,7 @@ public sealed class MeltypeSession
         detector.SpellChecker = wordChecker is { IsAvailable: true } ? wordChecker : Detection.BuiltInWordChecker.Shared;
         var languages = new LanguageMemory(AppPaths.LanguageMemoryFile);
         detector.Memory = languages;
+        detector.UseScoredSegmentation = () => settings.ScoredSegmentation;
         var options = new CompositionOptions
         {
             LiveConversion = () => settings.LiveConversion,
@@ -169,6 +170,7 @@ public sealed class MeltypeSession
             CorrectTypos = () => settings.CorrectTypos,
             SlashAsMiddleDot = () => settings.SlashAsMiddleDot,
             SpaceAroundEnglish = () => settings.SpaceAroundEnglish,
+            AutomaticEnglishSpacing = () => autoSpacing,
             Punctuation = () => settings.Punctuation,
             TranslationHistory = new TranslationHistory(AppPaths.TranslationHistoryFile),
         };
@@ -177,6 +179,19 @@ public sealed class MeltypeSession
 
     /// <summary>英数 (直接入力) か。true の間はキーをすべてアプリに渡す (Mac の「英数」キー、「かな」キーで戻す)。</summary>
     public bool Direct { get; set; }
+
+    /// <summary>コードの入力欄ではコメント・文字列以外を直接入力する。</summary>
+    private bool _codeInput;
+    private readonly LineTracker _codeLine = new();
+    public bool CodeInput
+    {
+        get => _codeInput;
+        set
+        {
+            _codeInput = value;
+            _codeLine.SetFromText("");
+        }
+    }
 
     /// <summary>入力欄が確定済みの文字の削除に対応しているか (Linux の IBus では、対応していないアプリがある)。false なら確定し直さない。</summary>
     public bool CanDeleteSurrounding
@@ -193,6 +208,21 @@ public sealed class MeltypeSession
     /// </summary>
     public SessionResult HandleKey(int vk, char? ch, bool shift, bool control, bool alt, bool command, string? before = null, string? after = null)
     {
+        if (CodeInput && !_controller.IsComposing)
+        {
+            if (before is not null) _codeLine.SetFromText(before);
+            before ??= _codeLine.Text;
+        }
+        if (CodeInput && !Direct && _controller.IsComposing && !control && !alt && !command &&
+            ch is '"' or '\'' or '`' && _codeLine.Text is { } line &&
+            LineContext.ClassifyText(line) == LineKind.String &&
+            LineContext.ClassifyText(line + ch) == LineKind.Code)
+        {
+            var committed = CommitPending();
+            foreach (var edit in committed.Commits) _codeLine.Append(edit.Text);
+            TrackCodeKey(vk, ch, false);
+            return committed with { Consumed = false };
+        }
         _host.Begin(ch, shift, before, after);
         var down = new KeyEvent(vk, ch ?? 0, false, false, false, Environment.TickCount64);
         // Ctrl・Option・Command と一緒のキーは、変換ボックスが空ならアプリの操作 (コピーなど) なので触らない。
@@ -204,6 +234,13 @@ public sealed class MeltypeSession
         // 先頭か空白の直後の /command・$skill・@ファイル名 は、変換せずにそのままアプリへ渡す (#193)。
         if (!modifier && !_controller.IsComposing && ch is { } c && _settings().SigilWordsDirect && _sigil.PassesThrough(c, before))
         {
+            if (CodeInput) TrackCodeKey(vk, ch, modifier);
+            return Track(_host.Result(consumed: false), vk, ch, modifier);
+        }
+        if (CodeInput && !_controller.IsComposing &&
+            (before is null || LineContext.ClassifyText(before) == LineKind.Code))
+        {
+            TrackCodeKey(vk, ch, modifier);
             return Track(_host.Result(consumed: false), vk, ch, modifier);
         }
         // 英数へ切り替えるときなどに、Shift を押したことを変換ボックスにも伝える (Shift + 英字は大文字)。
@@ -219,7 +256,27 @@ public sealed class MeltypeSession
         if (!consumed && !_controller.IsComposing) ForgetLastCommit();
         if (modifier && _controller.IsComposing) Feed(new KeyEvent(control ? VirtualKeys.LControl : VirtualKeys.LMenu, 0, false, true, false, down.TimeMs));
         if (shift && _controller.IsComposing) Feed(new KeyEvent(VirtualKeys.LShift, 0, false, true, false, down.TimeMs));
-        return Track(_host.Result(consumed), vk, ch, modifier);
+        var result = _host.Result(consumed);
+        if (CodeInput)
+        {
+            foreach (var edit in result.Commits)
+            {
+                for (var i = 0; i < edit.DeleteBefore; i++) _codeLine.Backspace();
+                _codeLine.Append(edit.Text);
+            }
+            if (!consumed) TrackCodeKey(vk, ch, modifier);
+        }
+        return Track(result, vk, ch, modifier);
+    }
+
+    private void TrackCodeKey(int vk, char? ch, bool modifier)
+    {
+        if (modifier || vk is VirtualKeys.Left or VirtualKeys.Right or VirtualKeys.Up or VirtualKeys.Down or 0x21 or 0x22 or 0x23 or 0x24 or 0x2E)
+            _codeLine.Invalidate();
+        else if (vk == VirtualKeys.Return) _codeLine.NewLine();
+        else if (vk == VirtualKeys.Back) _codeLine.Backspace();
+        else if (vk == VirtualKeys.Space) _codeLine.Append(" ");
+        else if (ch is { } character && !char.IsControl(character)) _codeLine.Append(character.ToString());
     }
 
     /// <summary>アプリに届いた文字 (確定した文字列と、使わなかったキー) を、/ $ @ の名前の判定のために追いかける。</summary>
@@ -255,6 +312,37 @@ public sealed class MeltypeSession
         // 別の入力欄に移ったかもしれない。次に打つ文字は先頭とみなす (前の文字はホストが教えてくれればそちらを使う)。
         _sigil.Start();
         return _host.Result(consumed: true);
+    }
+
+    /// <summary>
+    /// 文字を伴わない・扱えないキーを、変換ボックスの状態を変えずにアプリへそのまま渡す (Consumed = false)。
+    /// 不正な C ABI の引数で不正な文字列を作らないための経路。
+    /// </summary>
+    public SessionResult PassThrough()
+    {
+        _host.Begin(null, false, null, null);
+        return _host.Result(consumed: false);
+    }
+
+    /// <summary>
+    /// 未確定の内容を確定したうえで、元の OS イベントを 1 回だけアプリへ通す (Consumed = false)。
+    /// 補助面の文字 (非 BMP) を char へ切り詰めずに渡すための経路。確定と pass-through を二重に行わない。
+    /// </summary>
+    public SessionResult CommitForPassThrough() => CommitForPassThrough(preserveLatinRaw: false, preserveText: false);
+
+    /// <summary>
+    /// 結合文字が直前の文字に付くよう、確定する文字列に自動空白を加えない。
+    /// 結合アクセントなら、明示的に選択していない ASCII 英字の原文を優先して確定する。
+    /// </summary>
+    public SessionResult CommitCombiningForPassThrough(bool preserveLatinRaw) =>
+        CommitForPassThrough(preserveLatinRaw, preserveText: true);
+
+    private SessionResult CommitForPassThrough(bool preserveLatinRaw, bool preserveText)
+    {
+        _host.Begin(null, false, null, null);
+        _controller.CommitPending(preserveLatinRaw, preserveText);
+        _controller.ResetContext();
+        return _host.Result(consumed: false);
     }
 
     /// <summary>候補ウィンドウで候補をクリックしたとき。</summary>

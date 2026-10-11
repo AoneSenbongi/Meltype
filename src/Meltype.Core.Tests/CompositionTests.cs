@@ -207,7 +207,7 @@ internal static class CompositionTests
         public Keyboard(bool live = false, bool direct = false, ConversionHistory? history = null, IKanjiConverter? converter = null,
             Func<string, IReadOnlyList<string>>? moreCandidates = null, UserDictionary? userDictionary = null, LanguageMemory? languages = null,
             TranslationDictionary? translations = null, TranslationHistory? translationHistory = null, bool fullWidthCommaPeriod = false,
-            char? comma = null, char? period = null, bool slashAsMiddleDot = false, Predictor? predictor = null, bool legacyGoogleConversion = false)
+            char? comma = null, char? period = null, bool slashAsMiddleDot = false, Predictor? predictor = null, bool legacyGoogleConversion = false, Func<DateTime>? now = null, bool showTypedKeys = false)
         {
             var detector = legacyGoogleConversion ? CompositionDetector.CreateDefault(legacyGoogleConversion: true) : Detector;
             Direct = direct;
@@ -239,6 +239,8 @@ internal static class CompositionTests
                 Predictions = () => predictor is not null,
                 Punctuation = () => Punctuation,
                 SlashAsMiddleDot = () => slashAsMiddleDot,
+                Now = now ?? (() => DateTime.Now),
+                ShowTypedKeys = () => showTypedKeys,
             });
             Controller.Committed += Sigil.Append;
             Host.Replayed += e =>
@@ -543,6 +545,81 @@ internal static class CompositionTests
         Assert.Equal("😄", k.Showing);
     }
   
+    [Test]
+    public static void Now_ChosenTimeIsNotLearned()
+    {
+        // いま → 17:22 を選んで確定しても覚えない (覚えると、次の いま で古い時刻が最初に出る)
+        var history = new ConversionHistory(null);
+        var k = new Keyboard(history: history, now: () => new DateTime(2026, 10, 8, 17, 22, 0));
+        k.Type("ima ");
+        var first = k.Showing;
+        for (var i = 0; i < 30 && k.Showing != "17:22"; i++) k.Press(VirtualKeys.Space);
+        Assert.Equal("17:22", k.Showing, "時刻の候補まで進める");
+        k.Type("\n");
+        var next = new Keyboard(history: history, now: () => new DateTime(2026, 10, 8, 18, 5, 0));
+        next.Type("ima ");
+        Assert.Equal(first, next.Showing, "最初の候補は前と同じ (時刻を覚えていない)");
+    }
+
+    [Test]
+    public static void TypedKeys_ShownWhenEnabled()
+    {
+        // #224: 設定「打ったキーを表示」が ON なら、変換ボックスに打ったキーを渡す (変換中も)
+        var k = new Keyboard(showTypedKeys: true);
+        k.Type("kyouha");
+        Assert.Equal("kyouha", k.Host.View!.Typed);
+        k.Type(" ");
+        Assert.True(k.Host.View!.Converting, "変換中");
+        Assert.Equal("kyouha", k.Host.View!.Typed, "変換中も打ったキーを出す");
+        var off = new Keyboard();
+        off.Type("kyouha");
+        Assert.True(off.Host.View!.Typed is null, "OFF なら出さない");
+    }
+
+    [Test]
+    public static void Brand_GitHubFromKana()
+    {
+        // #231: ぎっとはぶ・ギットハブ を変換すると GitHub が候補に出る
+        foreach (var keys in new[] { "gittohabu ", "gittohabude " })
+        {
+            var k = new Keyboard();
+            k.Type(keys);
+            var candidates = k.Host.View!.Candidates;
+            Assert.True(candidates.Any(c => c.StartsWith("GitHub")), keys + ": " + string.Join(" ", candidates));
+        }
+    }
+
+    [Test]
+    public static void Now_ShowsCurrentTime()
+    {
+        // #208: いま・なう を変換すると、今の時刻 (17:22 / 17時22分 / 午後5時22分) も候補に出る
+        foreach (var keys in new[] { "ima ", "nau " })
+        {
+            var k = new Keyboard(now: () => new DateTime(2026, 10, 8, 17, 22, 0));
+            k.Type(keys);
+            var candidates = k.Host.View!.Candidates;
+            foreach (var expected in new[] { "17:22", "17時22分", "午後5時22分" })
+                Assert.True(candidates.Contains(expected), keys + ": " + string.Join(" ", candidates));
+        }
+        var morning = new Keyboard(now: () => new DateTime(2026, 10, 8, 9, 5, 0));
+        morning.Type("ima ");
+        Assert.True(morning.Host.View!.Candidates.Contains("09:05") && morning.Host.View!.Candidates.Contains("午前9時5分"),
+            string.Join(" ", morning.Host.View!.Candidates));
+        // 日付と曜日つき (2026/10/8 は木曜日)
+        var dated = new Keyboard(now: () => new DateTime(2026, 10, 8, 17, 22, 0));
+        dated.Type("ima ");
+        foreach (var expected in new[] { "2026年10月8日(木) 17時22分", "10月8日(木) 17時22分", "2026/10/08 17:22" })
+            Assert.True(dated.Host.View!.Candidates.Contains(expected), string.Join(" ", dated.Host.View!.Candidates));
+        // きょう → 今日の日付
+        var today = new Keyboard(now: () => new DateTime(2026, 10, 8, 17, 22, 0));
+        today.Type("kyou ");
+        foreach (var expected in new[] { "2026年10月8日", "2026年10月8日(木)", "10月8日(木)", "2026/10/08", "2026-10-08", "木曜日" })
+            Assert.True(today.Host.View!.Candidates.Contains(expected), string.Join(" ", today.Host.View!.Candidates));
+        var other = new Keyboard(now: () => new DateTime(2026, 10, 8, 17, 22, 0));
+        other.Type("imada ");
+        Assert.True(!other.Host.View!.Candidates.Contains("17:22"), "いま だけの文節のとき");
+    }
+
       [Test]
       public static void ShiftSpace_DuringConversion_GoesBack()
       {

@@ -132,6 +132,43 @@ internal static class Checks
         File.WriteAllText(output, JsonSerializer.Serialize(results, Json));
     }
 
+    /// <summary>
+    /// 日本語の文の中に英単語を入れて打ち (sorede + alcoholic + wotsukau)、確定した結果が「かな + 英単語 + かな」になるかを数える。
+    /// 英単語は、同梱の英単語の一覧のうち、ローマ字としては読めない (英語としか読めない) 4〜10 文字の語から決まった間隔で選ぶ。
+    /// 前後の日本語は、英単語とくっつきやすい形 (te・ni で終わる、母音で始まる助詞など) を混ぜてある。
+    /// </summary>
+    public static void MixedBench(string output)
+    {
+        CompositionTests.Detector.SpellChecker ??= Detection.BuiltInWordChecker.Shared;
+        var romaji = CompositionTests.Detector.Romaji;
+        // MELTYPE_BENCH_OFFSET で選ぶ語をずらす (調整に使っていない語で確かめる)
+        var offset = int.TryParse(Environment.GetEnvironmentVariable("MELTYPE_BENCH_OFFSET"), out var o) ? o % 97 : 0;
+        string[] prefixes = ["sorede", "kinouha", "chotto", "atode", "kyoumo", "sugoku", "mottekita", "tsukatte", "watashino", "minnani", "zenbu", "korekara"];
+        string[] suffixes = ["wotsukau", "gasuki", "dekensaku", "nitsuite", "toiu", "mademiru", "kamo", "nanode", "ha", "wo", "ga", "ni", "de"];
+        var words = Detection.DictionarySource.ReadEmbedded("english-words.txt").Split('\n').Select(w => w.Trim())
+            .Where(w => w.Length is >= 4 and <= 10 && w.All(char.IsAsciiLetterLower) && !romaji.Analyze(w).IsValid)
+            .Where((_, index) => index % 97 == offset).ToList();
+        var results = new List<object>();
+        var pass = 0;
+        for (var i = 0; i < words.Count; i++)
+        {
+            for (var frame = 0; frame < 2; frame++)
+            {
+                var prefix = prefixes[(i * 2 + frame) % prefixes.Length];
+                var suffix = suffixes[(i * 3 + frame * 5) % suffixes.Length];
+                var typed = prefix + words[i] + suffix;
+                var expected = romaji.ConvertLenient(prefix, final: true) + words[i] + romaji.ConvertLenient(suffix, final: true);
+                var k = new CompositionTests.Keyboard();
+                k.Type(typed + "\n");
+                var ok = Hiragana(k.Host.Document) == expected;
+                if (ok) pass++;
+                results.Add(new { typed, expected, actual = k.Host.Document, ok });
+            }
+        }
+        File.WriteAllText(output, JsonSerializer.Serialize(new { pass, total = results.Count, cases = results }, Json));
+        Console.WriteLine($"{pass}/{results.Count}");
+    }
+
     /// <summary>カタカナをひらがなに直す (テストの変換エンジンはカタカナにしないため)。</summary>
     private static string Hiragana(string text) =>
         new(text.Select(c => c is >= 'ァ' and <= 'ヶ' ? (char)(c - 0x60) : c).ToArray());

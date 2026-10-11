@@ -293,6 +293,10 @@ internal sealed class CompositionWindow : Form
         }
     }
 
+    /// <summary>打ったキーを出すか。見えている文字と同じ (英字のまま) なら出さない。</summary>
+    private static string? ShowsTyped(CompositionView view) =>
+        view.Typed is { Length: > 0 } typed && typed != view.Text ? typed : null;
+
     private Size Measure(CompositionView view)
     {
         using var g = CreateGraphics();
@@ -303,6 +307,11 @@ internal sealed class CompositionWindow : Form
             width = Math.Max(width, clausesWidth + 20);
         }
         var height = _textFont.Height + 16;
+        if (ShowsTyped(view) is { } typed)
+        {
+            width = Math.Max(width, TextRenderer.MeasureText(g, typed, _hintFont).Width + 20);
+            height += _hintFont.Height + 2;
+        }
         if (view.Suggestion is { } suggestion)
         {
             width = Math.Max(width, TextRenderer.MeasureText(g, suggestion, _candidateFont).Width + 32);
@@ -373,6 +382,13 @@ internal sealed class CompositionWindow : Form
                 g.DrawLine(underline, 12, y, 10 + textWidth - 4, y);
             }
             y += 8;
+        }
+
+        if (ShowsTyped(view) is { } typed)
+        {
+            // 打ったキー (設定「打ったキーを表示」): 打ち間違いに気づけるように、文字の下に小さく出す
+            TextRenderer.DrawText(g, typed, _hintFont, new Point(10, y - 2), _palette.Hint, TextFormatFlags.NoPrefix);
+            y += _hintFont.Height + 2;
         }
 
         if (view.Suggestion is { } suggestion)

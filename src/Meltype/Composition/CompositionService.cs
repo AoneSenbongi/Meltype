@@ -66,6 +66,7 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             Translations = options.Translations ?? TranslationDictionary.Load(),
             TranslationCandidates = options.TranslationCandidates,
             CandidateMeanings = options.CandidateMeanings,
+            ShowTypedKeys = options.ShowTypedKeys,
             Meanings = options.Meanings ?? MeaningDictionary.Load(),
             RomajiTypos = options.RomajiTypos ?? RomajiTypoCorrector.Load(detector.Romaji),
             CorrectTypos = options.CorrectTypos,
@@ -418,6 +419,8 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     public void DeleteBackward(int count)
     {
         if (count <= 0) return;
+        // Microsoft IME が ON のままだと、BackSpace と後から送る文字の順番が入れ替わることがある (issue #227: wanI t)
+        EnsureSystemImeClosed();
         for (var i = 0; i < count; i++) KeyReplayed?.Invoke(new KeyEvent(VirtualKeys.Back, 0, false, false, false, 0));
         var events = new List<KeyEvent>(count * 2);
         for (var i = 0; i < count; i++)
@@ -426,6 +429,35 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             events.Add(new KeyEvent(VirtualKeys.Back, 0, false, true, false, 0));
         }
         _injector.Inject(events);
+    }
+
+    /// <summary>
+    /// 確定し直し: BackSpace と新しい文字を 1 回の SendInput でまとめて送る (間に物理キーやほかの入力が割り込まないように。issue #227)。
+    /// 貼り付けで入れるアプリでは、消してから貼り付ける。
+    /// </summary>
+    public void ReplaceBackward(int count, string text)
+    {
+        if (count <= 0 || PasteCommit())
+        {
+            DeleteBackward(count);
+            CommitText(text);
+            return;
+        }
+        if (_window.Visible) _committedWhileVisible += text;
+        EnsureSystemImeClosed();
+        for (var i = 0; i < count; i++) KeyReplayed?.Invoke(new KeyEvent(VirtualKeys.Back, 0, false, false, false, 0));
+        var inputs = new List<Native.INPUT>(count * 2 + text.Length * 2);
+        for (var i = 0; i < count; i++)
+        {
+            inputs.Add(KeyInput(VirtualKeys.Back, up: false));
+            inputs.Add(KeyInput(VirtualKeys.Back, up: true));
+        }
+        foreach (var c in text)
+        {
+            inputs.Add(UnicodeInput(c, up: false));
+            inputs.Add(UnicodeInput(c, up: true));
+        }
+        Native.SendAll(inputs.ToArray(), "確定し直し");
     }
 
     public void RequestSurroundingText(Action<string?, string?> callback)
@@ -685,6 +717,21 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     }
 
     private static bool IsOnScreen(Rectangle bounds) => Screen.AllScreens.Any(s => s.Bounds.IntersectsWith(bounds));
+
+    /// <summary>仮想キーの打鍵 (確定し直しの BackSpace)。KeyInjector と同じく、Meltype が送ったキーの印を付ける。</summary>
+    private static Native.INPUT KeyInput(int vk, bool up) => new()
+    {
+        type = Native.INPUT_KEYBOARD,
+        u = new Native.InputUnion
+        {
+            ki = new Native.KEYBDINPUT
+            {
+                wVk = (ushort)vk,
+                dwFlags = up ? Native.KEYEVENTF_KEYUP : 0,
+                dwExtraInfo = KeyboardMonitor.InjectedMarker,
+            },
+        },
+    };
 
     private static Native.INPUT UnicodeInput(char c, bool up) => new()
     {

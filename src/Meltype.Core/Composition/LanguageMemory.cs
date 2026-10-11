@@ -76,6 +76,13 @@ public sealed class LanguageMemory
         return entry.English;
     }
 
+    internal bool? Get(ReadOnlySpan<char> word)
+    {
+        if (!_entries.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(word, out var entry)) return null;
+        if (NeedsTwice(word.ToString(), entry)) return null;
+        return entry.English;
+    }
+
     /// <summary>
     /// ユーザーが英字 / かなに直した語を覚える (2 文字以上の英字だけ)。
     /// explicitChoice は F10 / F6 / Tab ではっきり直したとき (変換の候補から選んだだけなら false)。

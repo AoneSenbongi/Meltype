@@ -6,8 +6,14 @@ namespace Meltype.Config;
 /// <summary>保存場所はすべて %LOCALAPPDATA%\Meltype\ 配下 (設計書 §21)。ネットワークには何も送らない。</summary>
 internal static class AppPaths
 {
+    /// <summary>
+    /// 設定・学習・ユーザー辞書の保存場所。既定は OS のローカルアプリデータ (%LOCALAPPDATA% 相当) の下の Meltype。
+    /// テストや検証で実データに触れないよう、環境変数 <c>MELTYPE_DATA_DIR</c> があればそこを使う (通常の実行では未設定)。
+    /// </summary>
     public static string DataDirectory { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Meltype");
+        Environment.GetEnvironmentVariable("MELTYPE_DATA_DIR") is { Length: > 0 } overrideDirectory
+            ? overrideDirectory
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Meltype");
 
     /// <summary>旧名 (AutoIME) のときの保存場所。</summary>
     private static string OldDataDirectory =>

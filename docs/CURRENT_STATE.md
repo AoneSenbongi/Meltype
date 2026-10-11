@@ -8,6 +8,9 @@
 対応仕様はdocs/UPSTREAM_1_2_1.md、配布説明はdocs/RELEASE_1_0_8_RC_2.md。構築済みパッケージはexperimental-build/native-ime-package。稼働中IME・実登録・個人辞書・学習履歴は変更していない。実機適用・入力欄確認と外部公開は未実施。本家の定型文管理画面、選択範囲再変換、Tab文節変換は独自TSFでは未対応。
 
 Androidは今回変更しない。独自UIと学習用の収集処理を保持し、共通コア・辞書の修正を別候補で選んで取り込むことを勧める。Androidの状態はE:/Prog/Meltype/Android/source/docs/CURRENT_STATE.mdを参照する。
+
+対応ソースは1215df426e1d4c0addf665abe4724b778effe8da。セットアップEXEはdistributions/Meltype-Native-Google-1.0.8-rc.2-Setup.exe、SHA-256は04C1FAE6F6B4697A94B4B75BD9F4A7D37251640FEF0784697EF0376861F5E81A。ZIPはdistributions/Meltype-Native-Google-windows-x64-20261011-184441.zip、SHA-256は7B0637DDEF8B939E906FA1F594EA677E068F3AF8A4F4956C636DC6734580640E。EXE・manifestのソース番号、版番号、ペイロード全6件のハッシュ、ZIPの個人データ除外を確認した。証跡はexperimental-build/upstream-1.2.1-verified.json。読み取り確認したPCの登録版は1.0.7のまま。適用・公開は未実施。
+
 ## 正式版1.0.7をこのPCへ適用・公開済み
 
 2026年10月9日、利用者の依頼でrc.2のWindows 11検索修正とrc.1の管理画面再起動・オンライン更新を正式版1.0.7へ統合した。対応ソースはbe41abe73d10d3af4905e5d17cbe61a6249bf333。distributions/Meltype-Native-Google-1.0.7-Setup.exeのSHA-256は2C72E2C57878D743E779352B4359BDD9C913325E544BBFEBC6D9F3C3AA88018F。番号一致・GUI状態・更新機能の試験とmanifest全6ファイルの照合が通過した。

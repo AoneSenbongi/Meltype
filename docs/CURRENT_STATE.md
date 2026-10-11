@@ -1,4 +1,12 @@
 # 現在の状態
+## 本家GitHubの朝監視（設定済み）
+
+2026年10月11日、利用者の依頼と独立した定期タスクへの承認により、Codexのローカル定期タスクmeltype-luna-6-1-solを作成した。名前はMeltype本家の朝監視（Luna→6.1 Sol）。毎朝9時、日本時間、ACTIVE、gpt-6-luna、reasoning effort mediumで保存されていることを確認した。新しい通常Releaseまたは既定ブランチの更新があれば、gpt-6.1-solのサブエージェントへWindows Nativeの更新・検証・配布候補の準備を委任する設定。利用者はこの委任を明示的に依頼済み。
+
+手順はdocs/UPSTREAM_MONITOR.md、監視状態はLOCALAPPDATA/MeltypeUpstreamMonitor/state.json。初回のGitHub API確認では最新Releaseがv1.2.1、mainが47ace1428e5d4c9213f64dbbaf00d73a01386c69で、取り込み済みの基準と一致した。変更がないため更新担当を起動していない。予定時刻での実行と、更新検出から委任までの実行は未確認。ローカル実行にはPCとCodexアプリの起動が必要。
+
+この監視ではAndroidを変更せず、公開保留を保持する。GitHubへの公開とこのPCへのIME適用は、具体的な内容への承認後に行う。Meltype側の更新確認機能は既存方式を使え、今回のクライアント改修は不要。
+
 ## 正式版1.1.0のGitHub公開準備（未公開）
 
 2026年10月11日、利用者の「公開ちょっと待って」により公開を保留した。再開の指示があるまでpush・タグ公開・Release作成を行わない。ローカル配布物と検証結果は保持する。

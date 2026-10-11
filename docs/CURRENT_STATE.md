@@ -4,7 +4,7 @@
 
 Windows Native版を本家Meltypeに近づけ、Microsoft／Googleの変換先選択、自動／英語の切り替え、本家ロゴ、画面下端の候補配置、本家1.2.0の定型文登録・展開を提供する。正式公開の予定番号は1.1.0。2026年10月12日の依頼により、rc.4の修正を含む正式版の配布物を再構築し、公開内容とTwitter投稿案を準備する。本家の取り込み済み基準はv1.2.1、47ace1428e5d4c9213f64dbbaf00d73a01386c69。Androidはこの作業で変更しない。
 
-2026年10月11日、このPCへ1.1.0-rc.4を適用した。BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-167eace784f144a380ebb6dee210b1d2。稼働管理先はC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-statusを保持する。管理スクリプト・状態はrc.4へ更新済み。直接更新のためWindowsのアプリ一覧は先に適用した1.1.0表記のまま。入力アプリは新しいDLLを読み込むため開き直す必要がある。
+2026年10月12日、正式版1.1.0のEXEをこのPCへ適用した。BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-8eb17f8a8f924c76ad283644b94b18b3。稼働管理先はC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-statusを保持する。管理スクリプト・状態・Windowsのアプリ一覧は1.1.0へ更新済み。入力アプリは新しいDLLを読み込むため開き直す必要がある。
 
 ## 実装と検証
 
@@ -22,7 +22,7 @@ Native関連17/17、Google13/13、Microsoft2/2、両エンジンからTSF文書�
 
 定型文画面の初回起動がコンソールと一緒に隠れる不具合を再現し、初回表示後に画面を表示し直すよう修正した。1.1.0-rc.4の導入済みスクリプトの一致、実際の登録画面が表示されること、サービスの接続準備を確認した。証跡はexperimental-build/native-snippet-rc4-apply.logとapplied.json。
 
-証跡はexperimental-build/native-snippet-rc3-build.log、同接頭辞のapply.logとapplied.json、native-snippets-form.png、native-snippet-panel.png。定型文の通信試験はtools/native-ime/Test-NativeSnippets.ps1。Build-Packageから同試験を実行するよう追加済み。2026年10月12日、正式番号1.1.0でBuild-Packageを実行した。定型文画面の表示と通信試験を含めて通過し、管理画面・導入処理・更新候補判定の試験も通過した。証跡はexperimental-build/release-1.1.0-final-build.log。正式インストーラーの作成と適用は次の作業。
+証跡はexperimental-build/native-snippet-rc3-build.log、同接頭辞のapply.logとapplied.json、native-snippets-form.png、native-snippet-panel.png。定型文の通信試験はtools/native-ime/Test-NativeSnippets.ps1。Build-Packageから同試験を実行するよう追加済み。2026年10月12日、正式番号1.1.0でBuild-Packageを実行した。定型文画面の表示と通信試験を含めて通過し、管理画面・導入処理・更新候補判定の試験も通過した。証跡はexperimental-build/release-1.1.0-final-build.log。正式EXEの作成・適用も完了し、6ファイルと管理スクリプトの一致、サービス接続準備、導入済みDLLのモードとロゴの試験が通過した。バックアップはLOCALAPPDATA/Programs/MeltypeNativeGoogle/1.1.0/backups/20261012-001522で、11ファイルのハッシュが一致した。証跡はexperimental-build/release-1.1.0-final-verified.json、final-applied.json、final-apply.log。
 
 ## 本家の朝監視
 
@@ -35,7 +35,7 @@ Native関連17/17、Google13/13、Microsoft2/2、両エンジンからTSF文書�
 ## 残作業と公開状態
 
 1. 入力アプリを開き直し、利用者の環境で自動／英語、拡大アイコン、登録した定型文を確認する。
-2. 修正後の正式番号1.1.0で配布物を再構築する。現在の旧1.1.0 EXEはb589694に対応し、モード修正・拡大アイコン・定型文対応を含まないため公開しない。
-3. 公開先AoneSenbongi/Meltype、ブランチgoogle-native-ime、タグnative-google-1.1.0、本文docs/RELEASE_1_1_0.md、EXEと.sha256の具体的な内容を準備して提示する。承認後にpush・タグ・Release公開を行う。修正版のGitHub公開は未実施。公開済みの最新基準はnative-google-1.0.7、be41abe。
+2. 正式EXEはdistributions/Meltype-Native-Google-1.1.0-Setup.exe。対応ソースはfefdc87cf2c40ec45b0b73924972a1f0dc66865b、SHA256は89DD8FBD7727210EBEEEBFF41F8B02CE5E2CF53CC58623608E4C98600F79C16C。旧未公開EXEを置換し、修正後の配布物として検証済み。
+3. 公開先AoneSenbongi/Meltype、ブランチgoogle-native-ime、タグnative-google-1.1.0、本文docs/RELEASE_1_1_0.md、EXEと.sha256の具体的な内容を提示し、今回の公開承認を待つ。Twitterは文案作成のみ依頼されており、実投稿は未承認。文案はexperimental-build/twitter-1.1.0.txt。承認後にpush・タグ・Release公開を行う。修正版のGitHub公開は未実施。公開済みの最新基準はnative-google-1.0.7、be41abe。
 
 既存のWindows検索、句読点と学習停止、通信枠32、管理者確認付きの保護配置・復旧、管理画面・オンライン更新を維持する。Win10/11の検索パッケージはOSビルド22000を境に切り替える。ThinkPad側のWin11検索修正は統合済み。このPCの検索入力は過去に利用者確認済みだが、今回の追加機能の実検索欄操作は未確認。本家の選択範囲再変換とTab文節変換は独自TSFでは未対応。突然の停止報告と接続枠不足との因果は未確定。

@@ -1,4 +1,4 @@
-﻿param([switch]$NoRestartPanel)
+param([switch]$NoRestartPanel)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
@@ -74,9 +74,9 @@ try {
         if (Test-Path -LiteralPath $targetLauncher) { Copy-Item -LiteralPath $targetLauncher -Destination $backup }
         Copy-Item -LiteralPath $launcher -Destination $targetLauncher -Force
     }
-    $context.State | Add-Member NoteProperty BaseVersion '1.1.1' -Force
+    $context.State | Add-Member NoteProperty BaseVersion '1.2.1' -Force
     $context.State | Add-Member NoteProperty SearchPackage (Get-NativeSearchPackageName) -Force
-    $context.State | Add-Member NoteProperty NativeVersion '1.0.8-rc.1' -Force
+    $context.State | Add-Member NoteProperty NativeVersion '1.0.8-rc.2' -Force
     $context.State | ConvertTo-Json | Set-Content (Join-Path $context.Root 'experimental-build/native-ime-install.json') -Encoding UTF8
     if ($autoEnabled) { & (Join-Path $PSScriptRoot 'Set-InstalledNativeAutoStart.ps1') }
     & (Join-Path $PSScriptRoot 'Set-NativeShortcuts.ps1') -WorkspaceRoot $context.Root
@@ -84,7 +84,7 @@ try {
     # Shortcuts reopen the installed root. Its update source must now be this release,
     # rather than the old extracted payload that would offer a downgrade.
     Sync-NativeInstalledUpdateSource $workspace $context.Root
-    Write-Output 'Updated to Meltype Native Google 1.0.8-rc.1. Google dictionaries and learning data were preserved. Reopen input applications to load the new native DLL.'
+    Write-Output 'Updated to Meltype Native Google 1.0.8-rc.2. Google dictionaries and learning data were preserved. Reopen input applications to load the new native DLL.'
 } catch {
     $failure = $_
     if($failure.Exception.Data['NativeRegistrationMayHaveChanged']){$registrationChanged=$true}

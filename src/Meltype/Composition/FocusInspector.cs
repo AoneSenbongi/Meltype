@@ -14,7 +14,7 @@ public sealed record FocusInfo(bool IsTextInput, bool IsPassword, Rectangle? Bou
 ///     キーを横取りしてはいけないし、パスワード欄の文字を画面に表示してもいけない。
 ///   ・キャレットの直前の確定済みの文字: 英語とも日本語とも読める語 (sushi) を前の文字に合わせるため。
 /// UIA は他プロセスへの問い合わせで時間がかかることがあるため専用スレッドで行い、フックからは
-/// 結果のキャッシュだけを見る。フォーカスが変わってから調べ終わるまでの間は「入力欄ではない」扱い
+/// 結果のキャッシュを見る (Affinity は短い Win32 の読み取りで追加確認)。フォーカスが変わってから調べ終わるまでの間は「入力欄ではない」扱い
 /// (= 横取りしない) にするので、調べ損ねても安全側に倒れる。
 /// </summary>
 public sealed class FocusInspector : IDisposable
@@ -23,7 +23,9 @@ public sealed class FocusInspector : IDisposable
     private readonly Thread _thread;
     private long _focusSequence;
     private long _resolvedSequence = -1;
-    private volatile FocusInfo _info = new(false, false, null, "未確認");
+    private sealed record FocusState(FocusInfo Info, IntPtr AffinityWindow = default);
+    private volatile FocusState _state = new(new FocusInfo(false, false, null, "未確認"));
+    private FocusInfo _info => _state.Info;
     private string? _loggedDescription;
     private (string Description, Rectangle? Bounds)? _lastTextInput;
 
@@ -55,8 +57,7 @@ public sealed class FocusInspector : IDisposable
         get
         {
             if (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence)) return false;
-            var info = _info;
-            return info.IsTextInput && !info.IsPassword;
+            return AllowsCapture(_state);
         }
     }
 
@@ -71,17 +72,60 @@ public sealed class FocusInspector : IDisposable
         // 待つのは、同じウィンドウで直前に調べた所が入力欄だったときだけ (Discord の # の候補)。
         // ゲームなど入力欄の無いウィンドウでは待たない: クリックのたびに調べ直すので、
         // キーを押すたびにフックで最大 waitMs 止まり、ゲームの操作が遅れていた (PSO2 NGS)。
-        var last = _info;
+        var lastState = _state;
+        if (lastState.AffinityWindow != IntPtr.Zero) return AllowsCapture(lastState);
+        var last = lastState.Info;
         if (!last.IsTextInput || last.IsPassword || Native.GetForegroundWindow() != _inspectedForeground) waitMs = 0;
         var deadline = Environment.TickCount64 + waitMs;
         while (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) && Environment.TickCount64 < deadline) Thread.Sleep(5);
         // 調べ終わらなかったときに直前の結果を使うのは、前面のウィンドウが同じときだけ (別のアプリのパスワード欄などに移った直後は使わない)。
         if (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) && Native.GetForegroundWindow() != _inspectedForeground) return false;
-        var info = _info;
-        return info.IsTextInput && !info.IsPassword;
+        return AllowsCapture(_state);
+    }
+
+    /// <summary>同じ HWND のまま編集を抜ける Affinity は、打ち始めごとに最大 20ms の読み取りで確認する。</summary>
+    private bool AllowsCapture(FocusState snapshot)
+    {
+        if (snapshot.AffinityWindow == IntPtr.Zero) return snapshot.Info.IsTextInput && !snapshot.Info.IsPassword;
+        var foreground = _inspectedForeground;
+        var sequence = Interlocked.Read(ref _focusSequence);
+        bool Current() => sequence == Interlocked.Read(ref _focusSequence) && Native.GetForegroundWindow() == foreground &&
+            _state.AffinityWindow == snapshot.AffinityWindow && !_info.IsPassword;
+        if (snapshot.Info.IsPassword || !Current()) return false;
+        var active = HasActiveImeContext(foreground, snapshot.AffinityWindow);
+        if (!Current()) return false;
+        if (snapshot.Info.IsTextInput != active)
+        {
+            Enqueue(() =>
+            {
+                if (_info.IsTextInput == active || !Current() || HasActiveImeContext(foreground, snapshot.AffinityWindow) != active || !Current()) return;
+                ApplyFocus(sequence, _info with { IsTextInput = active }, snapshot.AffinityWindow);
+            });
+        }
+        return active && Current();
     }
 
     public FocusInfo Current => _info;
+
+    private long _lastRecheck;
+
+    /// <summary>
+    /// 前に調べた結果が「入力欄ではない」でも、ブラウザーではもう一度調べ直す (最大 waitMs 待つ。1 秒に 1 回まで)。
+    /// Firefox でタブを切り替えた後、入力欄にフォーカスが移っても UI Automation の通知が来ず、「入力欄ではない」(ページそのもの) のまま
+    /// 変換ボックスを出さなくなることがあった (issue #364)。打った時点で調べ直せば、そのときのフォーカスで決められる。
+    /// </summary>
+    public bool RecheckStale(int waitMs = 60)
+    {
+        var now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _lastRecheck) < 1000) return false;
+        if (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) || Native.GetForegroundWindow() != _inspectedForeground) return false;
+        if (_info is { IsTextInput: true } or { IsPassword: true }) return false;
+        Interlocked.Exchange(ref _lastRecheck, now);
+        Invalidate();
+        var deadline = now + waitMs;
+        while (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) && Environment.TickCount64 < deadline) Thread.Sleep(5);
+        return CanCapture;
+    }
 
     /// <summary>
     /// 前面のアプリが設定「入力欄とみなすアプリ」にあるか (このクラスのスレッドから呼ばれる)。
@@ -89,6 +133,14 @@ public sealed class FocusInspector : IDisposable
     /// </summary>
     public Func<bool>? TreatsAsTextInput { get; set; }
 
+    /// <summary>
+    /// 前面のアプリが、フォーカスがウィンドウそのもの (Window・Pane) にあるときも入力欄として扱うアプリか (issue #373: LINE)。
+    /// LINE (Qt) は、ウィンドウを切り替えた直後、入力欄をクリックするまで変換ボックスが出なかった。そのときの UI Automation のフォーカスはウィンドウにあると見ている。
+    /// </summary>
+    public Func<bool>? TreatsWindowAsTextInput { get; set; }
+
+    /// <summary>アプリ固有の入力欄判定に使う、前面アプリのプロセス名。このクラスのスレッドから呼ぶ。</summary>
+    public Func<string>? ForegroundProcessName { get; set; }
 
     private Func<UiAutomation.Element, bool>? _selectionMatches;
     private long _selectionSequence;
@@ -212,8 +264,13 @@ public sealed class FocusInspector : IDisposable
     {
         // 連続したフォーカス変更は、最新の 1 回だけ調べる。
         if (sequence != Interlocked.Read(ref _focusSequence)) return;
-        var info = Inspect();
-        _info = info;
+        var info = Inspect(out var affinityWindow);
+        ApplyFocus(sequence, info, affinityWindow);
+    }
+
+    private void ApplyFocus(long sequence, FocusInfo info, IntPtr affinityWindow)
+    {
+        _state = new FocusState(info, affinityWindow);
         // 調べている間にまたフォーカスが変わっていたら、この結果は採用しない (次の要求で調べ直す)。
         if (sequence == Interlocked.Read(ref _focusSequence)) Interlocked.Exchange(ref _resolvedSequence, sequence);
 
@@ -266,8 +323,9 @@ public sealed class FocusInspector : IDisposable
     /// <summary>最後に調べたときの前面のウィンドウ。</summary>
     private IntPtr _inspectedForeground;
 
-    private FocusInfo Inspect()
+    private FocusInfo Inspect(out IntPtr affinityWindow)
     {
+        affinityWindow = IntPtr.Zero;
         try
         {
             _inspectedForeground = Native.GetForegroundWindow();
@@ -291,16 +349,24 @@ public sealed class FocusInspector : IDisposable
                 // 選ぶだけのドロップダウン (設定画面の はい/いいえ など) は文字を打つ欄ではない。打ち込める ComboBox だけ。
                 editable = element.HasValuePattern && !element.IsReadOnly;
             }
-            else if (element.ClassName?.Contains("autocomplete", StringComparison.OrdinalIgnoreCase) == true)
+            else if (element.ClassName?.Contains("autocomplete", StringComparison.OrdinalIgnoreCase) == true ||
+                element.ClassName?.Contains("OmniLinkItem", StringComparison.Ordinal) == true)
             {
-                // 入力欄の候補の一覧 (Discord の @メンション・#チャンネルの候補)。フォーカスは候補の行に移るが、
-                // 打った文字は入力欄に入るので、入力欄として扱う。
+                // 入力欄の候補の一覧 (Discord の @メンション・#チャンネルの候補、Vivaldi の検索欄・アドレスバーの候補)。
+                // フォーカスは候補の行に移るが、打った文字は入力欄に入るので、入力欄として扱う。
                 editable = true;
             }
             else if (element.HasTextPattern && element.IsKeyboardFocusable)
             {
                 // Windows Terminal などは Edit ではなく TextPattern を持つ独自コントロール。
                 editable = true;
+            }
+            else if (type == ControlTypeGroup && element.IsKeyboardFocusable && LooksLikeInputClass(element.ClassName))
+            {
+                // Web アプリの独自の入力欄 (Chatwork の検索欄: Group "チャット名、メッセージ内容を検索" (… inputLong))。
+                // UI Automation では Group で、ValuePattern も TextPattern も IAccessible2 の EDITABLE も持たないが、クラス名が入力欄 (issue #70)
+                editable = true;
+                description += " (クラス名が入力欄)";
             }
             else if (element.IsKeyboardFocusable && element.IsIa2Editable())
             {
@@ -326,9 +392,27 @@ public sealed class FocusInspector : IDisposable
                 editable = true;
                 description += " (エディターの画面)";
             }
+            // LINE: フォーカスがウィンドウそのもの (Window・Pane) なら、入力欄に打っているとみなす (#373)
+            if (!editable && type is ControlTypeWindow or ControlTypePane && TreatsWindowAsTextInput?.Invoke() == true)
+            {
+                editable = true;
+                description += " (ウィンドウを入力欄とみなすアプリ)";
+            }
+            // Affinity はキャンバスを照合し、文字編集中の IME 応答で確認する (issue #289)。
+            if (!editable && IsAffinityCanvasCandidate(ForegroundProcessName?.Invoke(), type, element.ClassName))
+            {
+                // 0 は Affinity の追加確認なしを表す。
+                var window = element.NativeWindowHandle;
+                if (window != 0 && Automation()?.IsRenderControl(_inspectedForeground, element, window) == true)
+                {
+                    affinityWindow = new IntPtr(window);
+                    editable = HasActiveImeContext(_inspectedForeground, affinityWindow);
+                    description += " (Affinity のキャンバス)";
+                }
+            }
             // それでも分からないアプリ (Premiere Pro など、画面を自分で描くアプリ) は、設定「入力欄とみなすアプリ」に
             // 書いてあれば入力欄として扱う。1 文字のショートカットが多いアプリもあるので、既定では何もしない。
-            if (!editable && forced)
+            if (!editable && forced && affinityWindow == IntPtr.Zero)
             {
                 editable = true;
                 description += " (入力欄とみなすアプリ)";
@@ -337,8 +421,47 @@ public sealed class FocusInspector : IDisposable
         }
         catch (Exception ex)
         {
+            affinityWindow = IntPtr.Zero;
             return new FocusInfo(false, false, null, $"確認できない: {ex.GetType().Name}");
         }
+    }
+
+    private const int ControlTypeGroup = 50026;
+
+    /// <summary>
+    /// Web の要素のクラス名 (空白区切り) に、入力欄を表す名前があるか: input・inputLong・searchInput・search-input・chat_input。
+    /// 入力欄を囲む枠・ボタン (input-group、inputWrapper、inputButton) は除く。
+    /// </summary>
+    internal static bool LooksLikeInputClass(string? className)
+    {
+        if (string.IsNullOrEmpty(className)) return false;
+        foreach (var token in className.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var lower = token.ToLowerInvariant();
+            var at = lower.IndexOf("input", StringComparison.Ordinal);
+            if (at < 0) continue;
+            if (NotInputParts.Any(lower.Contains)) continue;
+            // input の前は語の頭 (先頭・区切り・大文字の語の切れ目: searchInput)、後ろは終わりか大文字・区切り (inputLong、input-field)
+            var start = at == 0 || lower[at - 1] is '-' or '_' || char.IsAsciiLetterUpper(token[at]);
+            var end = at + 5;
+            var finish = end == token.Length || token[end] is '-' or '_' || char.IsAsciiLetterUpper(token[end]);
+            if (start && finish) return true;
+        }
+        return false;
+    }
+
+    private static readonly string[] NotInputParts = ["group", "wrap", "container", "label", "button", "btn", "icon"];
+    private const int ControlTypeWindow = 50032, ControlTypePane = 50033;
+
+    internal static bool IsAffinityCanvasCandidate(string? processName, int controlType, string? className) =>
+        string.Equals(processName, "Affinity.exe", StringComparison.OrdinalIgnoreCase) &&
+        (controlType is UiAutomation.ControlTypePane or UiAutomation.ControlTypeText) && className == "Static";
+
+    private static bool HasActiveImeContext(IntPtr foreground, IntPtr contextWindow)
+    {
+        bool StillFocused() => contextWindow != IntPtr.Zero && IME.ImeTarget.FromForeground() is { } target &&
+            target.TopLevel == foreground && target.Focus == contextWindow;
+        return StillFocused() && IME.Imm32ImeController.HasInputContext(contextWindow, 20) && StillFocused();
     }
 
     /// <summary>入力欄が UI Automation に出てこない、画面をすべて自分で描くエディターのウィンドウのクラス名。</summary>

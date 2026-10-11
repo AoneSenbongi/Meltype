@@ -14,8 +14,9 @@ namespace Meltype.Composition;
 internal sealed class UiAutomation
 {
     // プロパティ ID・パターン ID・コントロールの種類 (UIAutomationClient.h)
-    public const int ControlTypeEdit = 50004, ControlTypeDocument = 50030, ControlTypeComboBox = 50003;
-    private const int BoundingRectangleProperty = 30001, ControlTypeProperty = 30003, NameProperty = 30005,
+    public const int ControlTypeEdit = 50004, ControlTypeDocument = 50030, ControlTypeComboBox = 50003, ControlTypePane = 50033, ControlTypeText = 50020;
+    private const int BoundingRectangleProperty = 30001, ProcessIdProperty = 30002, ControlTypeProperty = 30003, NameProperty = 30005,
+        AutomationIdProperty = 30011, NativeWindowHandleProperty = 30020,
         IsKeyboardFocusableProperty = 30009, ClassNameProperty = 30012, IsPasswordProperty = 30019,
         ValueValueProperty = 30045, ValueIsReadOnlyProperty = 30046, IsValuePatternAvailableProperty = 30043,
         IsTextPatternAvailableProperty = 30040;
@@ -52,6 +53,22 @@ internal sealed class UiAutomation
         return hr >= 0 && element is not null ? new Element(element) : null;
     }
 
+    /// <summary>窓直下にも現れる Affinity の Static を、PART_RenderControl の子の HWND と照合する。</summary>
+    public bool IsRenderControl(IntPtr foreground, Element focused, int focusedWindow)
+    {
+        if (foreground == IntPtr.Zero || focusedWindow == 0 ||
+            _automation.ElementFromHandle(foreground, out var window) < 0 || window is null ||
+            new Element(window).ProcessId != focused.ProcessId ||
+            _automation.CreatePropertyCondition(AutomationIdProperty, "PART_RenderControl", out var hostCondition) < 0 || hostCondition is null ||
+            window.FindFirst(4 /* Descendants */, hostCondition, out var host) < 0 || host is null) return false;
+        var hostInfo = new Element(host);
+        if (hostInfo.ClassName != "HwndHost" || hostInfo.ProcessId != focused.ProcessId ||
+            _automation.CreatePropertyCondition(NativeWindowHandleProperty, focusedWindow, out var handleCondition) < 0 || handleCondition is null ||
+            host.FindFirst(2 /* Children */, handleCondition, out var child) < 0 || child is null) return false;
+        var childInfo = new Element(child);
+        return childInfo.ProcessId == focused.ProcessId && (childInfo.ControlType is ControlTypePane or ControlTypeText) && childInfo.ClassName == "Static";
+    }
+
     public sealed class Element
     {
         private readonly IUIAutomationElement _element;
@@ -61,6 +78,8 @@ internal sealed class UiAutomation
         private object? Get(int property) => _element.GetCurrentPropertyValue(property, out var value) >= 0 ? value : null;
 
         public int ControlType => Get(ControlTypeProperty) is int type ? type : 0;
+        public int ProcessId => Get(ProcessIdProperty) is int process ? process : 0;
+        public int NativeWindowHandle => Get(NativeWindowHandleProperty) is int window ? window : 0;
         public string Name => Get(NameProperty) as string ?? "";
         public string ClassName => Get(ClassNameProperty) as string ?? "";
         public bool IsPassword => Get(IsPasswordProperty) is true;
@@ -236,17 +255,35 @@ internal sealed class UiAutomation
         [PreserveSig] int CompareElements();
         [PreserveSig] int CompareRuntimeIds();
         [PreserveSig] int GetRootElement(out IUIAutomationElement? root);
-        [PreserveSig] int ElementFromHandle();
+        [PreserveSig] int ElementFromHandle(IntPtr window, out IUIAutomationElement? element);
         [PreserveSig] int ElementFromPoint();
         [PreserveSig] int GetFocusedElement(out IUIAutomationElement? element);
+        [PreserveSig] int GetRootElementBuildCache();
+        [PreserveSig] int ElementFromHandleBuildCache();
+        [PreserveSig] int ElementFromPointBuildCache();
+        [PreserveSig] int GetFocusedElementBuildCache();
+        [PreserveSig] int CreateTreeWalker();
+        [PreserveSig] int get_ControlViewWalker();
+        [PreserveSig] int get_ContentViewWalker();
+        [PreserveSig] int get_RawViewWalker();
+        [PreserveSig] int get_RawViewCondition();
+        [PreserveSig] int get_ControlViewCondition();
+        [PreserveSig] int get_ContentViewCondition();
+        [PreserveSig] int CreateCacheRequest();
+        [PreserveSig] int CreateTrueCondition();
+        [PreserveSig] int CreateFalseCondition();
+        [PreserveSig] int CreatePropertyCondition(int propertyId, [MarshalAs(UnmanagedType.Struct)] object value, out IUIAutomationCondition? condition);
     }
+
+    [ComImport, Guid("352FFBA8-0973-437C-A61F-F64CAFD81DF9"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IUIAutomationCondition { }
 
     [ComImport, Guid("D22108AA-8AC5-49A5-837B-37BBB3D7591E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IUIAutomationElement
     {
         [PreserveSig] int SetFocus();
         [PreserveSig] int GetRuntimeId();
-        [PreserveSig] int FindFirst();
+        [PreserveSig] int FindFirst(int scope, IUIAutomationCondition condition, out IUIAutomationElement? element);
         [PreserveSig] int FindAll();
         [PreserveSig] int FindFirstBuildCache();
         [PreserveSig] int FindAllBuildCache();

@@ -13,10 +13,13 @@ try {
     & {
         . (Join-Path $PSScriptRoot 'meltype-ime.ps1')
         # チェックが OFF でも、登録済みの DLL は本体と一緒に更新する。
-        if (($Ask -or (Test-MeltypeImeRegistered)) -and
-            -not (Install-MeltypeIme -Source (Join-Path $PSScriptRoot 'tip') -Ask:$Ask)) {
-            Write-Host 'Meltype IME を登録できませんでした。Meltype キーボード方式は引き続き使えます。'
+        if ($Ask -or (Test-MeltypeImeRegistered)) {
+            if (-not (Install-MeltypeIme -Source (Join-Path $PSScriptRoot 'tip') -Ask:$Ask)) {
+                Write-Host 'Meltype IME を登録できませんでした。Meltype キーボード方式は引き続き使えます。'
+            }
         }
+        # チェックを外して、登録もしていない: 断ったことを覚えて、Meltype.exe が起動したときに聞かない
+        else { Set-MeltypeImeDeclined }
     } *> $log
 }
 catch {

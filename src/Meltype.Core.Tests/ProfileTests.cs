@@ -24,12 +24,14 @@ internal static class ProfileTests
 
         // 標準に戻すと、標準の値に戻る。共通の項目 (ログ・更新) は切り替えても変わらない
         work.FileLog = true;
+        work.TsfOffered = true;
         var standard = work.SwitchProfile("標準");
         Assert.Equal("標準", standard.ActiveProfile);
         Assert.Equal(DetectionLevel.Balanced, standard.DetectionLevel);
         Assert.True(standard.LiveConversion, "標準はライブ変換 ON のまま");
         Assert.Equal(0, standard.AppKinds.Count, "表 (独自の種類) もプロファイルごと");
         Assert.True(standard.FileLog, "ログはどのプロファイルでも共通");
+        Assert.True(standard.TsfOffered, "Meltype IME を入れるかを聞いたかは、どのプロファイルでも共通 (切り替えるたびに聞かない)");
 
         // もう一度 仕事用 にすると、仕事用で変えた値が戻ってくる
         var back = standard.SwitchProfile("仕事用");

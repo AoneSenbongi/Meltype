@@ -28,6 +28,7 @@ function Install-MeltypeIme([string]$Source, [switch]$Ask) {
     Write-Host 'Registration attempted'
     return RESULT
 }
+function Set-MeltypeImeDeclined { Set-Content -LiteralPath (Join-Path $PSScriptRoot 'declined') -Value 'declined' }
 '@
         $expectedAsk = if ($case.Ask) { '$true' } else { '$false' }
         Set-Content -LiteralPath $helper -Value $stub.Replace('RESULT', $case.Result).Replace('REGISTERED', $case.Registered).Replace('EXPECTEDASK', $expectedAsk) -Encoding UTF8
@@ -42,6 +43,9 @@ function Install-MeltypeIme([string]$Source, [switch]$Ask) {
         if ($expectedCall -and $text -notmatch 'Registration attempted') { throw 'Registration output was not logged' }
         if ($case.Result -eq '$false' -and $text -notmatch 'Meltype キーボード方式') { throw 'Missing fallback message' }
         if ($expectedCall) { Remove-Item -LiteralPath $called }
+        $declined = Join-Path $fixture 'declined'
+        if ((Test-Path -LiteralPath $declined) -eq $expectedCall) { throw 'Incorrect declined record' }
+        Remove-Item -LiteralPath $declined -ErrorAction SilentlyContinue
         Write-Host "PASS: Ask=$($case.Ask), Registered=$($case.Registered), Result=$($case.Result)"
     }
     Set-Content -LiteralPath $helper -Value "throw 'Registration fixture failure'" -Encoding UTF8

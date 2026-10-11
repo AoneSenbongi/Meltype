@@ -1,11 +1,11 @@
-﻿$ErrorActionPreference='Stop'
+$ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'NativeReleaseUpdater.ps1')
 $hash='a'*64
 $release=[pscustomobject]@{tag_name='native-google-1.0.7';draft=$false;prerelease=$false;html_url='https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.7';assets=@([pscustomobject]@{name='Meltype-Native-Google-1.0.7-Setup.exe';size=123;digest=('sha256:'+$hash);browser_download_url='https://github.com/AoneSenbongi/Meltype/releases/download/native-google-1.0.7/Meltype-Native-Google-1.0.7-Setup.exe'})}
 if(-not (Get-NativeReleaseCandidate $release '1.0.6').Available){throw 'New release not offered'}
 if((Get-NativeReleaseCandidate $release '1.0.6').SHA256 -ne $hash){throw 'Release digest capture failed'}
 if((Get-NativeReleaseCandidate $release '1.0.7').Available){throw 'Same version offered'}
-if((Get-NativeReleaseCandidate $release '1.0.8-rc.1').Available){throw 'Downgrade offered'}
+if((Get-NativeReleaseCandidate $release '1.0.8-rc.2').Available){throw 'Downgrade offered'}
 if(-not (Get-NativeReleaseCandidate $release '1.0.7-rc.1').Available){throw 'Stable release must replace its RC'}
 foreach($field in @('prerelease','digest','url','name','tag','size')){
     $copy=$release|ConvertTo-Json -Depth 5|ConvertFrom-Json

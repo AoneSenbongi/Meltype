@@ -175,6 +175,64 @@ internal static class SessionFacadeTests
     }
 
     [Test]
+    public static void CtrlHWhileComposing_IsBackSpace()
+    {
+        // #150: Meltype IME・Mac・Linux も、入力中の Ctrl+H は確定せずに 1 音消す
+        var session = Create();
+        Type(session, "aiueo");
+        var result = session.HandleKey('H', '\b', false, true, false, false);
+        Assert.True(result.Consumed && result.Commits.Count == 0, "確定しない");
+        Assert.Equal("あいうえ", result.View?.Text);
+    }
+
+    [Test]
+    public static void CtrlUiopWhileComposing_SwitchesKanaAndLetters()
+    {
+        // #60: Meltype IME・Mac・Linux も、入力中の Ctrl+U/I/O/P は確定せずに F6/F7/F10/F9 と同じ切り替えをする
+        var session = Create();
+        Type(session, "aiueo");
+        foreach (var (key, expected) in new[] { ('P', "ａｉｕｅｏ"), ('O', "aiueo"), ('I', "アイウエオ"), ('U', "あいうえお") })
+        {
+            var result = session.HandleKey(key, null, false, true, false, false);
+            Assert.True(result.Consumed && result.Commits.Count == 0, $"Ctrl+{key} で確定しない");
+            Assert.Equal(expected, result.View?.Text, $"Ctrl+{key}");
+        }
+    }
+
+    [Test]
+    public static void ShiftSpace_WhenEmpty_InsertsFullWidthSpace()
+    {
+        // #246: Meltype IME も、何も打っていないときの Shift+Space は全角スペース (英数のときは半角のままアプリへ)
+        var session = Create();
+        var result = session.HandleKey(VirtualKeys.Space, ' ', true, false, false, false, "");
+        Assert.True(result.Consumed, "Shift+Space を受け取る");
+        Assert.Equal("　", string.Concat(result.Commits.Select(c => c.Text)));
+
+        session.Direct = true;
+        result = session.HandleKey(VirtualKeys.Space, ' ', true, false, false, false, "");
+        Assert.True(!result.Consumed && result.Commits.Count == 0, "英数ではアプリに通す");
+    }
+
+    [Test]
+    public static void RoleKeys_OnlyWhenSettingIsOnAndComposing()
+    {
+        // #199: Linux の IBus・fcitx5 は、入力中の 変換・無変換・ひらがな/カタカナ を先に本体に渡す (meltype_role_key)。
+        // 設定が OFF か、何も打っていなければ null (今までどおり英数 / 日本語の切り替えに使う)
+        var settings = new Settings();
+        var session = new MeltypeSession(CompositionTests.Detector, new CompositionTests.FakeConverter(), new CompositionOptions { SeparateKeyRoles = () => settings.SeparateKeyRoles }, () => settings);
+        Type(session, "kana");
+        Assert.True(session.HandleRoleKey(VirtualKeys.NonConvert) is null, "設定が OFF");
+        settings.SeparateKeyRoles = true;
+        session = new MeltypeSession(CompositionTests.Detector, new CompositionTests.FakeConverter(), new CompositionOptions { SeparateKeyRoles = () => settings.SeparateKeyRoles }, () => settings);
+        Assert.True(session.HandleRoleKey(VirtualKeys.NonConvert) is null, "何も打っていない");
+        Type(session, "kana");
+        var result = session.HandleRoleKey(VirtualKeys.NonConvert);
+        Assert.True(result is { Consumed: true } && result.Commits.Count == 0, "変換ボックスで処理する");
+        Assert.Equal("kana", result!.View?.Text);
+        Assert.Equal("カナ", session.HandleRoleKey(VirtualKeys.Kana) is { } kana && session.HandleRoleKey(VirtualKeys.Kana) is { } katakana ? katakana.View?.Text : null);
+    }
+
+    [Test]
     public static void ArrowWhileComposing_SelectsClauses()
     {
         var session = Create();
@@ -214,6 +272,68 @@ internal static class SessionFacadeTests
         Assert.Equal("きょうは", Type(session, "kyouha", "const text = \"")[^1].View?.Text);
         Type(session, "\n");
         Assert.Equal("きょうは", Type(session, "kyouha", "/* comment\n")[^1].View?.Text);
+    }
+
+    [Test]
+    public static void CodeInput_SetCodeLineMakesCodeJapaneseUntilCaretMoves()
+    {
+        var session = Create();
+        session.CodeInput = true;
+        const string line = "int x = 1;\nfoo(";
+        Assert.True(session.CodeEnglishAt(line), "コードの行は英数");
+        Assert.True(session.SetCodeLine(true, line), "コードの行を日本語にする");
+        Assert.True(!session.CodeEnglishAt(line), "日本語にした");
+        Assert.Equal("きょうは", Type(session, "kyouha", line)[^1].View?.Text);
+        Type(session, "\n");
+        session.CaretMoved(VirtualKeys.Return, false);
+        Assert.True(!session.CodeEnglishAt(line + "今日は\n"), "改行しても日本語のまま");
+        Assert.Equal("きょうは", Type(session, "kyouha", line + "今日は\n")[^1].View?.Text);
+        Type(session, "\n");
+        session.CaretMoved('A', false);
+        Assert.True(!session.CodeEnglishAt("foo(a"), "英字を打っただけなら日本語のまま");
+        session.CaretMoved(0x26, false);
+        Assert.True(session.CodeEnglishAt(line), "矢印で別の場所に移ったら英数に戻す");
+        Assert.True(Type(session, "hello", line).All(r => !r.Consumed), "英数に戻した");
+
+        Assert.True(session.SetCodeLine(true, line), "もう一度日本語にする");
+        session.CaretMoved(0, false);
+        Assert.True(session.CodeEnglishAt(line), "クリックで英数に戻す");
+        Assert.True(session.SetCodeLine(true, line), "もう一度日本語にする");
+        session.CaretMoved('V', true);
+        Assert.True(session.CodeEnglishAt(line), "Ctrl の操作で英数に戻す");
+        Assert.True(session.SetCodeLine(true, line), "もう一度日本語にする");
+        Assert.True(session.SetCodeLine(false, line), "半角/全角 で英数に戻す");
+        Assert.True(!session.SetCodeLine(false, line), "日本語にしていなければ、英数に戻すことはない (IME を閉じる)");
+
+        session.CodeTerminal = true;
+        Assert.True(session.SetCodeLine(true, "$ "), "ターミナル");
+        session.CaretMoved(0, false);
+        Assert.True(!session.CodeEnglishAt("$ "), "ターミナルは出力でキャレットが動いても日本語のまま");
+        session.CaretMoved(0x26, false);
+        Assert.True(session.CodeEnglishAt("$ "), "矢印で英数に戻す");
+        Assert.True(session.SetCodeLine(true, "$ "), "ターミナル");
+        session.CodeTerminal = false;
+        Assert.True(session.CodeEnglishAt(line), "エディターとターミナルを行き来したら英数に戻す");
+
+        Assert.True(!session.CodeEnglishAt("// "), "コメントの中は日本語");
+        Assert.True(!session.SetCodeLine(true, "// "), "コメントの中はもう日本語");
+        session.CodeInput = false;
+        Assert.True(!session.CodeEnglishAt(line), "コードの入力欄でなければ日本語");
+        Assert.True(!session.SetCodeLine(true, line), "コードの入力欄でなければ IME の ON/OFF");
+    }
+
+    [Test]
+    public static void CodeInput_ClosingQuoteStaysAscii()
+    {
+        var session = Create();
+        session.CodeInput = true;
+        var empty = Type(session, "\"", "x = \"")[0];
+        Assert.True(!empty.Consumed && empty.Commits.Count == 0, "空の文字列を閉じる引用符は英数のまま通す");
+        Assert.Equal("きょうは", Type(session, "kyouha", "x = \"")[^1].View?.Text);
+        var close = Type(session, "\"")[0];
+        Assert.True(!close.Consumed && close.Commits.Single().Text == "きょうは", "閉じる引用符は英数のまま通し、日本語は確定");
+        Assert.True(session.CodeEnglishAt(null), "閉じたあとは英数");
+        Assert.True(Type(session, "abc", "x = \"今日は\"").All(r => !r.Consumed), "閉じたあとのキーは英数のまま通す");
     }
 
     [Test]
@@ -339,6 +459,27 @@ internal static class SessionFacadeTests
         session = Create();
         Type(session, "google ");
         Assert.True(Type(session, "@file").All(r => !r.Consumed), "空白の後の @file はアプリへ");
+    }
+
+    [Test]
+    public static void SigilWord_EndsWhenSpaceReachedTheAppDirectly()
+    {
+        // #242: Meltype IME は変換中でないときの Space・Enter を Meltype.exe に送らず、アプリに通す。
+        // /xyz の後の空白・改行はキャレットの前の文字で分かるので、そこで普通の入力に戻る (ずっと素通しにならない)
+        foreach (var before in new[] { "/xyz ", "/xyz\r\n", "/xyz\n" })
+        {
+            var session = Create();
+            Assert.True(Type(session, "/xyz", before: "").All(r => !r.Consumed), "/xyz はアプリへ");
+            Assert.Equal("きょう", Type(session, "kyou", before)[^1].View?.Text, before);
+        }
+        // 名前の途中 (前が名前の文字) なら今までどおりアプリへ
+        var typing = Create();
+        Type(typing, "/xy", before: "");
+        Assert.True(!Type(typing, "z", before: "/xy")[0].Consumed, "名前の続きはアプリへ");
+        // 空白の後の 2 つ目の /command も、そのままアプリへ
+        typing = Create();
+        Type(typing, "/xyz", before: "");
+        Assert.True(!Type(typing, "/", before: "/xyz ")[0].Consumed, "空白の後の / はアプリへ");
     }
 
     [Test]

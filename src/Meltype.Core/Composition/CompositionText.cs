@@ -6,8 +6,8 @@ using Meltype.Config;
 
 namespace Meltype.Composition;
 
-/// <summary>変換ボックスの表示形式。Auto 以外は F6/F7/F9/F10 などでユーザーが明示的に選んだもの。</summary>
-public enum DisplayMode { Auto, Hiragana, Katakana, FullWidthAlphanumeric, HalfWidthAlphanumeric }
+/// <summary>変換ボックスの表示形式。Auto 以外は F6〜F10 などでユーザーが明示的に選んだもの。</summary>
+public enum DisplayMode { Auto, Hiragana, Katakana, FullWidthAlphanumeric, HalfWidthAlphanumeric, HalfWidthKatakana }
 
 /// <summary>英字 (F9 / F10) で見せるときの大文字・小文字。F9 / F10 を続けて押すと 打ったまま → すべて大文字 → 先頭だけ大文字 と切り替わる。</summary>
 public enum LetterCase { AsTyped, Upper, Capitalized }
@@ -678,7 +678,7 @@ public sealed class CompositionText
     private static bool IsAsciiSymbol(string raw) => raw is [var c] && c is >= '!' and <= '~' && !char.IsAsciiLetterOrDigit(c);
 
     /// <summary>開きの記号と、その閉じの記号。</summary>
-    private static readonly Dictionary<string, string> Openers = new() { ["["] = "]", ["("] = ")", ["{"] = "}", ["\""] = "\"", ["'"] = "'" };
+    private static readonly Dictionary<string, string> Openers = new() { ["["] = "]", ["("] = ")", ["{"] = "}", ["\""] = "\"", ["'"] = "'", ["`"] = "`" };
 
     /// <summary>
     /// 開きの記号 (「(」「"」) は打った時点ではまだ後ろが分からないので全角になる。後ろが分かったら、
@@ -827,6 +827,7 @@ public sealed class CompositionText
         DisplayMode.FullWidthAlphanumeric => ToFullWidth(ApplyCase(Raw, Case)),
         DisplayMode.Hiragana => AllKana(final),
         DisplayMode.Katakana => ToKatakana(AllKana(final)),
+        DisplayMode.HalfWidthKatakana => ToHalfWidthKatakana(ToKatakana(AllKana(final))),
         _ => IsNumeric ? Raw : RenderSegments(final, convert),
     };
 
@@ -1094,8 +1095,16 @@ public sealed class CompositionText
     private List<bool> EnglishMask()
     {
         var mask = new List<bool>();
-        foreach (var segment in Segments(final: false))
+        var segments = Segments(final: false);
+        for (var s = 0; s < segments.Count; s++)
         {
+            var segment = segments[s];
+            // 英語の語.の後ろの英字 (ドメイン・拡張子: Meltype.amr、MeltypeTip.dll) も、表示のまま英字にする (amr を あめ に直していた: issue #260)
+            if (segment.IsEnglish && s >= 2 && segments[s - 1] is { IsEnglish: true, Raw: "." } && segments[s - 2].IsEnglish && segments[s - 2].Raw.Any(char.IsAsciiLetter))
+            {
+                for (var i = 0; i < segment.Raw.Length; i++) mask.Add(true);
+                continue;
+            }
             // 5 文字以上の知っている語 (meeting) か、同梱の英語の辞書の 2〜4 文字の語 (user・rta・av)
             // 4 文字の知っている語で、ローマ字として読めないもの (help・milk) も英語 (help|pe-ji → へおっぺーじ にしない)
             var lower = segment.Raw.ToLowerInvariant();

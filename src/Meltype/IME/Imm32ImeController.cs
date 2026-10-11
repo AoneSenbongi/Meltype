@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yukishiro
 
+using System.Diagnostics;
+
 namespace Meltype.IME;
 
 /// <summary>
@@ -11,6 +13,7 @@ public sealed class Imm32ImeController : IImeBackend
 {
     private const int IMC_GETCONVERSIONMODE = 0x0001, IMC_SETCONVERSIONMODE = 0x0002;
     private const int IMC_GETOPENSTATUS = 0x0005, IMC_SETOPENSTATUS = 0x0006;
+    private const int IMC_GETSENTENCEMODE = 0x0003;
     private const ushort LangJapanese = 0x0411;
     private const uint QueryTimeoutMs = 100;
 
@@ -27,6 +30,33 @@ public sealed class Imm32ImeController : IImeBackend
             return new ImeState(language, ImeMode.Unknown, 0, hkl);
         TrySend(imeWindow, IMC_GETCONVERSIONMODE, IntPtr.Zero, QueryTimeoutMs, out var conversion);
         return new ImeState(language, open != IntPtr.Zero ? ImeMode.Open : ImeMode.Closed, unchecked((int)conversion.ToInt64()), hkl);
+    }
+
+    /// <summary>Affinity の入力判定用。読み取りの待ち時間を全体で timeoutMs に制限する。</summary>
+    internal static bool HasInputContext(IntPtr window, uint timeoutMs)
+    {
+        var ime = Native.ImmGetDefaultIMEWnd(window);
+        var started = Stopwatch.GetTimestamp();
+        return ime != IntPtr.Zero && HasInputContext(timeoutMs, (command, remaining) =>
+        {
+            var ok = TrySend(ime, command, IntPtr.Zero, remaining, out var value);
+            return (ok, unchecked((int)value.ToInt64()));
+        }, () => Stopwatch.GetElapsedTime(started));
+    }
+
+    internal static bool HasInputContext(uint timeoutMs, Func<int, uint, (bool Success, int Value)> read, Func<TimeSpan> clock)
+    {
+        var deadline = clock() + TimeSpan.FromMilliseconds(timeoutMs);
+        foreach (var command in new[] { IMC_GETCONVERSIONMODE, IMC_GETSENTENCEMODE, IMC_GETOPENSTATUS })
+        {
+            var remaining = (deadline - clock()).TotalMilliseconds;
+            // 整数 ms に切り捨てて残りの予算を超えないようにし、0ms では問い合わせない。
+            if (remaining < 1) return false;
+            var result = read(command, (uint)remaining);
+            if (!result.Success || result.Value < 0 || clock() > deadline) return false;
+            if (command == IMC_GETOPENSTATUS ? result.Value == 1 : result.Value > 0) return true;
+        }
+        return false;
     }
 
     public bool TrySetLanguage(ImeTarget target, InputLanguage language, int timeoutMs)

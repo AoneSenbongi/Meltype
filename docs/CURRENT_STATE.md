@@ -1,12 +1,13 @@
 # 現在の状態
-## 本家1.1.1対応候補（1.0.8-rc.1、ローカル検証済み・未適用・未公開）
+## 本家1.2.1対応候補（1.0.8-rc.2、ローカル検証済み・未適用・未公開）
 
-2026年10月11日、利用者のWindows版1.1.1対応依頼で本家v1.1.1を統合。READMEとSECURITYは独自版の内容を保持し、共通コアの競合は既存Google変換モード、句読点、学習停止、括弧追跡を維持して解消。通常変換の旧判定と候補順を保持する既存方針は変更しない。Mac Nativeの境界試験依存と内部参照を独自Roslynビルドへ追加。本家BaseVersion=1.1.1、独自GUI・NativeVersion・インストーラー・更新処理は1.0.8-rc.1で一致する。
+2026年10月11日、利用者のWindows版対応依頼で本家v1.2.1（47ace14）を統合。Google連携、独自TSF、句読点、学習停止、括弧追跡を保持した。通常変換の従来の判定・分節・候補順を保持し、予測へ本家コアを使う方針を維持する。独自GUI・NativeVersion・インストーラー・更新処理は1.0.8-rc.2、本家BaseVersionは1.2.1で一致する。前候補1.0.8-rc.1を置き換える。
 
-SDK共通338/338、Windowsを含む353/353、品質1291/1291が通過。Build-Package.ps1でNativeパッケージ構築、Googleから実TSF文書の28更新・確定・取消、予測16更新・Tab・Esc・Enter、先頭括弧捕捉が通過。Google連携試験は学習無効。番号一致、Windows10/11検索パッケージ境界、通信枠32と待機取消、GUI稼働判定、更新要否と改変拒否、オンライン更新検証、隔離インストーラー試験も通過。競合未解消ファイルなし、作業差分のgit diff --checkにエラーなし。
+共通400/400、Windowsを含む422/422、品質1292/1292が通過。Nativeパッケージを構築し、Googleから実TSF文書の変換28更新・予測16更新、確定・取消、Tab選択・Esc解除、先頭括弧が通過。検索AppContainerから実DLL・broker・Googleへの変換、双方の相手確認、別パッケージ・追加サーバー・同名占有拒否も通過。Google試験は学習無効。版番号、句読点設定、通信枠32、管理画面、更新判定、改変拒否、隔離インストーラーと更新失敗時の復旧を検証した。
 
-候補パッケージはexperimental-build/native-ime-package。稼働中IME・実登録・個人辞書・学習履歴は変更していない。PCへの適用と実入力欄での確認、配布EXE作成、検索AppContainerの実通信再試験は未完了。GitHubへのpush・Releaseは未実施で、今回の具体的内容への承認が必要。対応仕様はdocs/UPSTREAM_1_1_1.md。既存正式版1.0.7の記録は下に保持する。
+対応仕様はdocs/UPSTREAM_1_2_1.md、配布説明はdocs/RELEASE_1_0_8_RC_2.md。構築済みパッケージはexperimental-build/native-ime-package。稼働中IME・実登録・個人辞書・学習履歴は変更していない。実機適用・入力欄確認と外部公開は未実施。本家の定型文管理画面、選択範囲再変換、Tab文節変換は独自TSFでは未対応。
 
+Androidは今回変更しない。独自UIと学習用の収集処理を保持し、共通コア・辞書の修正を別候補で選んで取り込むことを勧める。Androidの状態はE:/Prog/Meltype/Android/source/docs/CURRENT_STATE.mdを参照する。
 ## 正式版1.0.7をこのPCへ適用・公開済み
 
 2026年10月9日、利用者の依頼でrc.2のWindows 11検索修正とrc.1の管理画面再起動・オンライン更新を正式版1.0.7へ統合した。対応ソースはbe41abe73d10d3af4905e5d17cbe61a6249bf333。distributions/Meltype-Native-Google-1.0.7-Setup.exeのSHA-256は2C72E2C57878D743E779352B4359BDD9C913325E544BBFEBC6D9F3C3AA88018F。番号一致・GUI状態・更新機能の試験とmanifest全6ファイルの照合が通過した。

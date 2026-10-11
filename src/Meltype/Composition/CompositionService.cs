@@ -21,6 +21,7 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     private readonly Func<string> _font;
     private readonly Func<bool> _lightTheme;
     private readonly Func<double> _opacity;
+    private readonly Func<(string Japanese, string Direct, string Text)> _indicatorColors;
     private readonly Func<bool> _directMode;
     private readonly MsImeKanjiConverter _converter = new();
     private readonly KeyInjector _injector = new();
@@ -67,6 +68,11 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             TranslationCandidates = options.TranslationCandidates,
             CandidateMeanings = options.CandidateMeanings,
             ShowTypedKeys = options.ShowTypedKeys,
+            TabConversion = options.TabConversion,
+            ContinueAfterConversion = options.ContinueAfterConversion,
+            Learning = options.Learning,
+            LearningEnabled = options.LearningEnabled,
+            SeparateKeyRoles = options.SeparateKeyRoles,
             Meanings = options.Meanings ?? MeaningDictionary.Load(),
             RomajiTypos = options.RomajiTypos ?? RomajiTypoCorrector.Load(detector.Romaji),
             CorrectTypos = options.CorrectTypos,
@@ -78,9 +84,11 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             Predictions = options.Predictions,
         };
         Phrases = resolved.Predictor?.Phrases;
+        TranslationHistory = resolved.TranslationHistory;
         _hybrid = new HybridConverter(options.Engine, _mozc, _converter, reading => _windowsCandidates.Get(reading));
         _resolved = resolved;
         Controller = new CompositionController(Gate, detector, new SelectedConverter(_engine, _google, _hybrid), this, resolved);
+        Controller.Corrected += Corrections.Add;
         if (options.Engine() is Config.ConversionEngine.Hybrid or Config.ConversionEngine.Mozc && _mozc.IsInstalled) _mozc.WarmUp();
         _showIndicator = options.ModeIndicator;
         _placement = options.Placement;
@@ -88,9 +96,15 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         _font = options.Font;
         _lightTheme = options.LightTheme;
         _opacity = options.Opacity;
+        _indicatorColors = options.ModeIndicatorColors;
         _directMode = options.DirectMode;
         var onFocus = options.ModeIndicatorOnFocus;
-        Focus.TextInputEntered += () => { if (onFocus()) ShowMode(!_directMode()); };
+        Focus.TextInputEntered += () =>
+        {
+            if (!onFocus()) return;
+            if (ShowModeOnFocus is { } show) show();
+            else ShowMode(!_directMode());
+        };
         Focus.CaptureLost += Abandon;
         Controller.Committed += text => Diagnostics.Log.Decision($"確定: {Diagnostics.Log.Text(text.Length > 20 ? text[..20] + "…" : text)}");
         _tick.Tick += (_, _) => Safely(() => Controller.Tick(Environment.TickCount64));
@@ -131,11 +145,20 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     /// <summary>ユーザーが英字 / かなに直した語の学習 (トレイの「学習データをリセット」で消す)。</summary>
     public LanguageMemory Languages { get; }
 
+    /// <summary>選んだ英訳の記録 (トレイの「学習データをリセット」で消す)。</summary>
+    public TranslationHistory? TranslationHistory { get; }
+
     /// <summary>予測変換のために覚えた、確定した語句。</summary>
     public PhraseHistory? Phrases { get; }
 
     /// <summary>ユーザー辞書 (トレイの「ユーザー辞書...」で編集する)。</summary>
     public UserDictionary UserDictionary { get; }
+
+    /// <summary>登録した定型文 (トレイの「定型文...」で編集する。;名前 + Space で入れる: issue #290)。</summary>
+    public SnippetStore Snippets { get; } = new(Config.AppPaths.SnippetsFile);
+
+    /// <summary>最近自分で直した誤判定 (メモリの中だけ。トレイの「直した誤判定を報告...」: issue #284)。</summary>
+    public CorrectionLog Corrections { get; } = new();
 
     private readonly CompositionDetector _detector;
 
@@ -187,6 +210,13 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             Volatile.Write(ref _pumpScheduled, 0);
             Safely(Controller.Pump);
         });
+    }
+
+    /// <summary>フックのスレッドから、UI スレッドで行う処理を頼む (定型文を入れる: issue #290)。</summary>
+    public void Post(Action action)
+    {
+        if (!_invoker.IsHandleCreated || _invoker.IsDisposed) return;
+        _invoker.BeginInvoke(() => Safely(action));
     }
 
     /// <summary>
@@ -271,7 +301,8 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         // 再変換のときは、IME の逆変換で出てくる読みを使う。
         _reconversionSelection = null;
         if (Focus.SelectedText() is not { } text) return null;
-        var reading = GuessReading(text);
+        // ローマ字のまま入った文 (kyouhaiitenki) は、逆変換せずにそのまま渡す (Meltype の判定で日本語にする: issue #288)
+        var reading = CompositionController.IsRomajiText(text) ? text : GuessReading(text);
         if (string.IsNullOrWhiteSpace(reading))
         {
             Diagnostics.Log.Info("再変換: 選択文字の読みを取得できませんでした。");
@@ -294,6 +325,9 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         CommitText(text);
         return true;
     }
+
+    /// <summary>入力欄にフォーカスが移ったときに、次に打つキーのモード (あ / A) を出す (フォーカスを調べるスレッドから呼ばれる)。null なら英数 / 日本語 をそのまま出す。</summary>
+    public Action? ShowModeOnFocus { get; set; }
 
     /// <summary>前面のアプリで、確定した文字を貼り付けで入れるか (設定の「貼り付けで入力するアプリ」)。</summary>
     public Func<bool> PasteCommit { get; set; } = () => false;
@@ -432,6 +466,29 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
     }
 
     /// <summary>
+    /// 定型文を入れる: 打った ;名前 (count 文字) を消してから text を入れる (issue #290)。複数行の文は、改行を Enter として送ると
+    /// チャットでは途中で送信されてしまうので、貼り付けで入れる。1 行の文は、確定し直しと同じく 1 回の SendInput で送る。
+    /// </summary>
+    public void InsertSnippet(int count, string text)
+    {
+        if (!InputAllowed()) return;
+        if (text.Contains('\n'))
+        {
+            DeleteBackward(count);
+            EnsureSystemImeClosed();
+            if (TryPaste(text.ReplaceLineEndings("\r\n"))) return;
+            Diagnostics.Log.Warn("定型文を貼り付けられなかったので、1 文字ずつ送ります (改行は Shift+Enter)。");
+            foreach (var line in text.Split('\n').Select((line, i) => (line, i)))
+            {
+                if (line.i > 0) KeyInjector.SendShortcut(VirtualKeys.Shift, VirtualKeys.Return);
+                CommitText(line.line);
+            }
+            return;
+        }
+        ReplaceBackward(count, text);
+    }
+
+    /// <summary>
     /// 確定し直し: BackSpace と新しい文字を 1 回の SendInput でまとめて送る (間に物理キーやほかの入力が割り込まないように。issue #227)。
     /// 貼り付けで入れるアプリでは、消してから貼り付ける。
     /// </summary>
@@ -520,6 +577,8 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         {
             if (!_showIndicator() || _window.Visible) return;
             var anchor = FindAnchor();
+            var (jp, direct, text) = _indicatorColors();
+            _indicator.SetColors(Config.Settings.ParseColor(jp), Config.Settings.ParseColor(direct), Config.Settings.ParseColor(text));
             _indicator.Flash(japanese, new Point(anchor.X + 2, anchor.Y + 2));
         }));
     }

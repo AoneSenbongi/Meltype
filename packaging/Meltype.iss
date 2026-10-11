@@ -3,8 +3,8 @@
 ;
 ; Meltype の Windows インストーラー (Inno Setup 6)。Build-Package.ps1 で作った dist\Meltype\app を、
 ; zip の Install.cmd (install.ps1) と同じ場所 (%LOCALAPPDATA%\Programs\Meltype) に入れる。管理者権限は不要。
-;   ISCC.exe /DAppVersion=1.1.1 /DSourceDir=..\dist\Meltype /DOutputDir=..\dist packaging\Meltype.iss
-; → dist\Meltype-1.1.1-setup.exe
+;   ISCC.exe /DAppVersion=1.2.1 /DSourceDir=..\dist\Meltype /DOutputDir=..\dist packaging\Meltype.iss
+; → dist\Meltype-1.2.1-setup.exe
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -81,6 +81,8 @@ Filename: "{app}\Meltype.exe"; Description: "Meltype を起動する"; Flags: no
 
 [UninstallRun]
 Filename: "{app}\Meltype.exe"; Parameters: "--exit"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "ExitMeltype"
+; サインインしたらすぐ起動するタスク (Meltype が作る: #283)
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN Meltype /F"; Flags: runhidden waituntilterminated; RunOnceId: "DeleteStartupTask"
 
 [UninstallDelete]
 ; 設定と学習データ ({localappdata}\Meltype) は、アンインストールの最後に聞いてから消す (CurUninstallStepChanged)

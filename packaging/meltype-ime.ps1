@@ -122,6 +122,12 @@ function Remove-MeltypeImeFromLanguageList {
 
 $MeltypeImeDeclinedKey = 'HKCU:\Software\Meltype'
 
+# 登録を断ったことを覚える。自動更新と、Meltype.exe が起動したときには聞かない (Install.cmd を自分で実行したときは聞く)
+function Set-MeltypeImeDeclined {
+    New-Item -Path $MeltypeImeDeclinedKey -Force | Out-Null
+    Set-ItemProperty -LiteralPath $MeltypeImeDeclinedKey -Name ImeDeclined -Value 1 -Type DWord
+}
+
 # ファイルの SHA-256 (Get-FileHash は、ほかのシェルから起動した PowerShell では読み込めないことがあるので .NET で計算する)
 function Get-Sha256([string]$path) {
     $sha = [System.Security.Cryptography.SHA256]::Create()
@@ -213,10 +219,7 @@ function Install-MeltypeIme([string]$Source, [switch]$Ask) {
     if ($result -ne 'ok') {
         Write-Host 'Meltype IME を登録できませんでした。今までどおり、変換ボックスで入力する方式で使えます。'
         # UAC で断られたときだけ覚えて、自動更新では聞かない (失敗したときは、次の更新でまた試す)
-        if ($result -eq 'cancelled') {
-            New-Item -Path $MeltypeImeDeclinedKey -Force | Out-Null
-            Set-ItemProperty -LiteralPath $MeltypeImeDeclinedKey -Name ImeDeclined -Value 1 -Type DWord
-        }
+        if ($result -eq 'cancelled') { Set-MeltypeImeDeclined }
         return $false
     }
     Remove-ItemProperty -LiteralPath $MeltypeImeDeclinedKey -Name ImeDeclined -ErrorAction SilentlyContinue

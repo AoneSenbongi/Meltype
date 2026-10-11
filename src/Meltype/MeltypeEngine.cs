@@ -35,6 +35,8 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     private readonly Thread _worker;
     private readonly System.Threading.Timer _sessionTimer;
     private readonly System.Threading.Timer _pollTimer;
+    // Chrome リモート デスクトップ・Parsec で操作されているか (#372)
+    private readonly RemoteControl _remote = new();
     private readonly System.Threading.Timer _saveTimer;
     private volatile Settings _settings;
     private volatile ImeSnapshot? _imeSnapshot;
@@ -119,11 +121,15 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         composition.PasteCommit = () => PastePolicy.ShouldPaste(_settings, _foreground.Current.ProcessName, IsQt(_foreground.Current.Window));
         composition.InputAllowed = () => KeyboardLayoutPolicy.AllowsInput(_settings);
         composition.Focus.TreatsAsTextInput = () => _settings.TreatsAsTextInput(_foreground.Current.ProcessName);
+        composition.Focus.TreatsWindowAsTextInput = () => WindowInputApps.Contains(_foreground.Current.ProcessName);
+        composition.ShowModeOnFocus = ShowModeOnFocus;
+        composition.Focus.ForegroundProcessName = () => _foreground.Current.ProcessName;
         // 変換ボックスで確定した文字と、Meltype が送り直したキーも、今の行の追いかけに入れる (自分で送ったキーはフックに届かない)。
         composition.Controller.Committed += text =>
         {
             _line.Append(text);
             _sigil.Append(text);
+            _snippet.Append(text);
         };
         composition.Controller.ReconversionCommitted += () => InvalidateLine();
         composition.KeyReplayed += e => TrackLine(e);
@@ -146,6 +152,13 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     /// <summary>
     /// #95の対応として、Qtアプリでは確定した文字を貼り付けで入れる。
     /// </summary>
+    /// <summary>フォーカスがウィンドウそのものでも入力欄とみなすアプリ (#373)。</summary>
+    private static readonly HashSet<string> WindowInputApps = new(StringComparer.OrdinalIgnoreCase) { "LINE.exe" };
+
+    /// <summary>入力欄にフォーカスが移っても UI Automation の通知が来ないことがあるブラウザー (#364)。打ったときに調べ直す。</summary>
+    private static readonly HashSet<string> Browsers = new(StringComparer.OrdinalIgnoreCase)
+        { "firefox.exe", "chrome.exe", "msedge.exe", "vivaldi.exe", "brave.exe", "opera.exe", "floorp.exe", "zen.exe", "waterfox.exe", "librewolf.exe" };
+
     private static bool IsQt(IntPtr window)
     {
         if (window == IntPtr.Zero) return false;
@@ -163,7 +176,9 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
             _directEnglishWord = false;
             Log.Info(value ? "Meltype キーボード: 直接入力 (英数)" : "Meltype キーボード: 日本語入力");
             if (!value) CloseSystemImeAsync();
-            _composition?.ShowMode(!value);
+            // 「コード」のアプリのコードの行では、日本語入力にしても次のキーは英数で入る。
+            if (value || !IsCodeApp(_settings)) _composition?.ShowMode(!value);
+            else ShowCodeMode();
             StatusChanged?.Invoke();
         }
     }
@@ -173,7 +188,14 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         var settings = _settings;
         // 遠隔操作 (AnyDesk・VNC) のキーは、ほかのソフトが送ったキー (LLKHF_INJECTED) として届く。設定で許可していれば手で打ったキーとして扱う。
         // Meltype 自身が送り直したキーは、印 (InjectedMarker) でフックの入口で除いているので、ここには来ない (自分の出力を処理し直さない)。
-        if (e.Injected && settings.AllowInjectedInput) e = e with { Injected = false };
+        // Chrome リモート デスクトップ・Parsec で操作されている間も同じ (#372)。
+        if (e.Injected && (settings.AllowInjectedInput || _remote.Active is not null)) e = e with { Injected = false };
+        else if (e.Injected && e.IsDown && !_injectedHintLogged && settings.Mode == InputMode.Keyboard && KeyText.CharFromKey(e.Vk, e.Scan, false) is { } injected && injected > ' ')
+        {
+            // キー配列を変えるソフト (ULE4JIS: US 配列にする) も、押したキーを別のキーとして送り直すので、ほかのソフトが送ったキーとして届く (issue #250)
+            _injectedHintLogged = true;
+            Log.Info("ほかのソフトが送ったキーを、変換せずにそのままアプリに通しました。ULE4JIS などキー配列を変えるソフトや遠隔操作で打っているなら、設定「遠隔操作などの入力も処理する」を ON にしてください。");
+        }
         // 飲み込んだ切替キーの解放は、入力言語が変わっても対にして処理する。
         if (e.IsUp && !e.Injected)
         {
@@ -244,8 +266,8 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
                 if (!_keyboardDirect && IsCodeApp(settings) && (_codeJapanese || InCode(settings)))
                 {
                     _codeJapanese = !_codeJapanese;
-                    Log.Info(_codeJapanese ? "コードの行: 日本語で入力 (エディターは改行まで、ターミナルは別の場所に移るまで)" : "コードの行: 英数に戻す");
-                    composition.ShowMode(_codeJapanese);
+                    Log.Info(_codeJapanese ? "コードの行: 日本語で入力 (改行しても続ける。キャレットが別の場所に移るか、もう一度押すまで)" : "コードの行: 英数に戻す");
+                    ShowCodeMode();
                     return true;
                 }
                 KeyboardDirect = !_keyboardDirect;
@@ -270,6 +292,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         // @ と _ の後ろはユーザー名 (@kuraido、upah_setu) なので判定しない (ローマ字として読めても日本語にしない)。
         if (_keyboardDirect && e.IsDown && !VirtualKeys.IsLetter(e.Vk) && !VirtualKeys.IsModifier(e.Vk))
             _directEnglishWord = !e.Injected && KeyText.CharFromKey(e.Vk, e.Scan, false) is '@' or '_';
+        if (HandleSnippetKey(composition, settings, e)) return true;
         var swallowed = composition.Gate.OnKey(e, StartsComposition);
         // Meltype を通らずにアプリへ届いたキーはキャレットを動かすかもしれない。直前の語を確定し直さないようにする。
         if (!swallowed && e.IsDown && !VirtualKeys.IsModifier(e.Vk)) composition.ForgetLastCommit();
@@ -292,22 +315,23 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
                     _codeJapanese = false;
                     Log.Info("コードの行: 英数に戻す");
                 }
-                composition.ShowMode(false);
+                ShowCodeMode();
                 return;
             }
             if (_keyboardDirect) composition.ShowMode(false);
             else KeyboardDirect = true;
             return;
         }
-        // 英数状態からなら KeyboardDirect の切り替えで「あ」を出す。
+        // コードの行を日本語にしてから、英数状態なら KeyboardDirect の切り替えで「あ」を出す。
         var wasDirect = _keyboardDirect;
-        if (wasDirect) KeyboardDirect = false;
         if (InCode(settings))
         {
             _codeJapanese = true;
-            Log.Info("コードの行: 日本語で入力 (エディターは改行まで、ターミナルは別の場所に移るまで)");
+            Log.Info("コードの行: 日本語で入力 (改行しても続ける。キャレットが別の場所に移るか、もう一度押すまで)");
         }
-        if (!wasDirect) composition.ShowMode(true);
+        if (wasDirect) KeyboardDirect = false;
+        else if (IsCodeApp(settings)) ShowCodeMode();
+        else composition.ShowMode(true);
     }
 
     /// <summary>
@@ -324,9 +348,48 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     private readonly LineTracker _line = new();
     // 先頭か空白の直後の /command・$skill・@ファイル名 (#193)。
     private readonly Composition.SigilWord _sigil = new();
+    // 先頭か空白の直後の ;名前 (定型文: #290)。
+    private readonly Composition.SnippetTrigger _snippet = new();
+    // 直前に入れた定型文 (すぐに Esc を押したら、打った ;名前 に戻す)。
+    private (string Text, string Typed)? _lastSnippet;
+
+    /// <summary>定型文を使うか: 記号が 1 文字で、定型文を 1 つ以上登録している (登録していなければ ; は今までどおり変換ボックスに入れる)。</summary>
+    private bool SnippetsEnabled(Settings settings) =>
+        settings.SnippetMark is [_] && _composition?.Snippets.Count > 0 && settings.InputStyle != InputStyle.Kana;
+
+    /// <summary>
+    /// ;名前 の後の Space / Tab で定型文を入れる。入れた直後の Esc で、打った ;名前 に戻す (issue #290)。
+    /// 変換ボックスが空のときだけ (名前は打つたびにアプリへ渡しているので、変換ボックスには入っていない)。処理したら true。
+    /// </summary>
+    private bool HandleSnippetKey(Composition.CompositionService composition, Settings settings, KeyEvent e)
+    {
+        if (!e.IsDown || e.Injected || VirtualKeys.IsModifier(e.Vk)) return false;
+        var undo = _lastSnippet;
+        _lastSnippet = null;
+        if (composition.Gate.IsCaptured || IsDown(VirtualKeys.Control) || IsDown(VirtualKeys.Menu) || IsDown(VirtualKeys.LWin) || IsDown(VirtualKeys.RWin)) return false;
+        if (e.Vk == VirtualKeys.Escape && undo is { } last)
+        {
+            lock (_swallowedToggleUps) _swallowedToggleUps.Add(e.Vk);
+            composition.Post(() => composition.InsertSnippet(last.Text.ReplaceLineEndings("\n").Length, last.Typed));
+            Log.Info("定型文を取り消して、打った名前に戻しました。");
+            return true;
+        }
+        // 入力欄にフォーカスがないとき (エクスプローラーのファイル一覧など) は展開しない。名前を消す Backspace が「前のフォルダーに戻る」になってしまう。
+        if (e.Vk is not (VirtualKeys.Space or VirtualKeys.Tab) || IsDown(VirtualKeys.Shift) || !SnippetsEnabled(settings) || !composition.Focus.CanCapture) return false;
+        _snippet.Mark = settings.SnippetMark;
+        if (_snippet.Expand(composition.Snippets) is not { } expansion) return false;
+        lock (_swallowedToggleUps) _swallowedToggleUps.Add(e.Vk);
+        _lastSnippet = (expansion.Text, expansion.Typed);
+        composition.Post(() => composition.InsertSnippet(expansion.Delete, expansion.Text));
+        _line.Invalidate();
+        Log.Info($"定型文を入れました ({expansion.Text.Length} 文字)。");
+        return true;
+    }
     private long _lineVersion;
     private System.Threading.Timer? _lineTimer;
     private volatile bool _codeJapanese;
+    // ほかのソフトが送ったキーを通したことを、1 回だけログに書いたか (#250)
+    private bool _injectedHintLogged;
     private LineKind? _lastLineKind;
 
     /// <summary>
@@ -359,6 +422,49 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         return LineContext.ClassifyText(line) == LineKind.Code;
     }
 
+    /// <summary>
+    /// 入力欄にフォーカスが移ったとき (フォーカスを調べるスレッドから呼ばれる)。次に打つキーが 日本語 / 英数 のどちらで入るかを出す。
+    /// 「コード」のアプリのコードの行では、日本語入力のままでも英数で入るので「A」を出す。
+    /// </summary>
+    private void ShowModeOnFocus()
+    {
+        if (_composition is not { } composition) return;
+        if (_keyboardDirect || !IsCodeApp(_settings))
+        {
+            composition.ShowMode(!_keyboardDirect);
+            return;
+        }
+        if (_line.IsKnown)
+        {
+            ShowCodeMode();
+            return;
+        }
+        // 今の行が分からないので、読んでから出す (読めなければコードとみなして「A」)。
+        var version = Interlocked.Read(ref _lineVersion);
+        composition.Focus.RequestTextBeforeCaret(before =>
+        {
+            // 読んでいる間にキャレットが動いたなら出さない。
+            if (version != Interlocked.Read(ref _lineVersion)) return;
+            if (before is not null && !_line.IsKnown) _line.SetFromText(before);
+            ShowCodeMode();
+        });
+    }
+
+    /// <summary>
+    /// 「コード」のアプリで、次に打つキーが 日本語 / 英数 のどちらで入るかを出す。
+    /// changedOnly なら、最後に出したものから変わったときだけ出す (改行・キャレットの移動の後)。
+    /// </summary>
+    private void ShowCodeMode(bool changedOnly = false)
+    {
+        if (_composition is not { } composition) return;
+        if (changedOnly && (_lastLineKind is null || !_line.IsKnown && !_codeJapanese || !IsCodeApp(_settings))) return;
+        var kind = InCode(_settings) ? LineKind.Code : LineKind.Comment;
+        if (changedOnly && kind == _lastLineKind) return;
+        // 打ち始めの英字で同じ表示を出し直さないように、出した種類を覚えておく。
+        _lastLineKind = kind;
+        composition.ShowMode(kind != LineKind.Code);
+    }
+
     /// <summary>アプリへ届いたキーで、今の行を追いかける。</summary>
     private void TrackLine(KeyEvent e)
     {
@@ -372,17 +478,22 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
                 // AI の入力で 半角/全角 を押して日本語にしていたら、続けて日本語のまま。
                 InvalidateLine(resetJapanese: false, delayMs: 300);
                 _sigil.Start();
+                _snippet.Start();
                 return;
             }
+            // 半角/全角 で日本語にしていたら、改行しても日本語のまま (コメント・文書を続けて書く。改行のたびに戻っていた: issue #214)。
+            // クリック・矢印でキャレットを別の場所に動かすか、もう一度 半角/全角 を押すと戻る
             _line.NewLine();
             _sigil.Start();
-            _codeJapanese = false;
+            _snippet.Start();
+            ShowCodeMode(changedOnly: true);
             return;
         }
         if (e.Vk == VirtualKeys.Back)
         {
             _line.Backspace();
             _sigil.Backspace();
+            _snippet.Backspace();
             return;
         }
         if (e.Vk == VirtualKeys.Escape) return;
@@ -397,6 +508,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         {
             _line.Append(c.ToString());
             _sigil.Append(c);
+            _snippet.Append(c.ToString());
         }
     }
 
@@ -405,7 +517,11 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     private void InvalidateLine(bool resetJapanese = true, int delayMs = 80, bool keepSigil = false)
     {
         _line.Invalidate();
-        if (!keepSigil) _sigil.Lose();
+        if (!keepSigil)
+        {
+            _sigil.Lose();
+            _snippet.Lose();
+        }
         if (resetJapanese) _codeJapanese = false;
         Interlocked.Increment(ref _lineVersion);
         // キャレットの移動がアプリに届くのを少し待ってから読む。
@@ -422,6 +538,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
             // 読んでいる間にキャレットが動いた・打鍵で分かったなら使わない。
             if (before is null || version != Interlocked.Read(ref _lineVersion) || _line.IsKnown) return;
             _line.SetFromText(before);
+            ShowCodeMode(changedOnly: true);
         });
         if (delayMs <= 0)
         {
@@ -458,6 +575,12 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
             return false;
         }
         if (IsDown(VirtualKeys.Control) || IsDown(VirtualKeys.Menu) || IsDown(VirtualKeys.LWin) || IsDown(VirtualKeys.RWin)) return false;
+        // 先頭か空白の直後の ;名前 (定型文) は、Space / Tab まで変換せずにそのままアプリへ渡す (#290)。
+        if (!reconvert && SnippetsEnabled(settings) && KeyText.CharFromKey(e.Vk, e.Scan, false) is { } snippetChar)
+        {
+            _snippet.Mark = settings.SnippetMark;
+            if (_snippet.PassesThrough(snippetChar, _line.Text)) return false;
+        }
         // 先頭か空白の直後の /command・$skill・@ファイル名 は、名前の終わり (空白) まで変換せずにそのままアプリへ渡す (#193)。
         // かな入力では / などのキーはかな (め) なので対象にしない。
         if (!reconvert && settings.SigilWordsDirect && (_keyboardDirect || settings.InputStyle != InputStyle.Kana) &&
@@ -468,7 +591,8 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         }
         if (!_foreground.Check(settings).Allowed) return false;
         // 文字入力欄 (パスワード以外) にフォーカスがあるときだけ。ショートカットキーやゲームの操作を横取りしない。
-        if (_composition?.Focus.CanCapture != true && _composition?.Focus.CanCaptureWaiting() != true) return false;
+        if (_composition?.Focus.CanCaptureWaiting() != true &&
+            !(Browsers.Contains(_foreground.Current.ProcessName) && _composition?.Focus.RecheckStale() == true)) return false;
         // コードエディター・ターミナル: コードの中は英数のまま通す (補完もそのまま効く)。コメント・文字列の中は日本語を判定する。
         if (!reconvert && !_keyboardDirect && IsCodeApp(settings))
         {
@@ -541,6 +665,8 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
             {
                 if (!IsKeyboardActive || ForegroundTracker.IsOwnWindow(Native.GetForegroundWindow()) || ImeTarget.FromForeground() is not { } target ||
                     !KeyboardLayoutPolicy.AllowsInput(_settings, target)) return;
+                // アプリ別設定で OFF にしたアプリ (・ゲーム) では、Microsoft IME をそのまま使ってもらう (OFF に戻さない: issue #233)
+                if (!_foreground.Check(_settings).Allowed) return;
                 var state = _imm32.GetState(target);
                 if (!KeyboardLayoutPolicy.AllowsInput(_settings, state.KeyboardLayout)) return;
                 if (state.Mode == IME.ImeMode.Open && _imm32.TrySetOpen(target, false, null, _settings.ImeTimeoutMs))
@@ -559,11 +685,14 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     {
         var next = settings.Clone().Normalize();
         var previous = _settings;
-        // 設定画面で Meltype IME を選んだが、登録されていない: どこでも何も起きなくなるので選ばせない
-        if (next.Mode == InputMode.Tsf && previous.Mode != InputMode.Tsf && !Tip.TipServer.IsRegistered)
+        // 設定画面で Meltype IME を選んだ (「既定値に戻す」を含む) が、ARM64 の Windows か、登録されていないか、このユーザーのキーボードの一覧に無い:
+        // どこでも何も起きなくなるので選ばせない
+        if (next.Mode == InputMode.Tsf && previous.Mode != InputMode.Tsf &&
+            (System.Runtime.InteropServices.RuntimeInformation.OSArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ||
+             !Tip.TipServer.IsRegistered || !Tip.TipServer.IsInUserLanguageList))
         {
             next.Mode = previous.Mode;
-            Log.Warn("Meltype IME が登録されていないので、動作モードは変えません (Install.cmd か Install-Meltype.ps1 で Meltype IME を入れてください)。");
+            Log.Warn("Meltype IME を使えない (ARM64 の Windows・登録されていない・キーボードの一覧に無い) ので、動作モードは変えません。");
         }
         _settings = next;
         if (!next.Enabled || next.Mode != InputMode.Keyboard || !KeyboardLayoutPolicy.AllowsInput(next)) _composition?.Flush();
@@ -696,6 +825,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         _codeJapanese = false;
         _line.Invalidate();
         _sigil.Lose();
+        _snippet.Lose();
         Interlocked.Increment(ref _lineVersion);
         _lastLineKind = null;
     }
@@ -703,8 +833,11 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     private void OnFocusChanged()
     {
         InvalidateLine(keepSigil: true);
+        // 移った先の表示は、入力欄と分かったときに出す (ShowModeOnFocus)。
+        _lastLineKind = null;
         // 別の入力欄に移った。次に打つ文字は先頭とみなす (/ $ @ の名前の途中なら続ける)。
         _sigil.FocusMoved();
+        _snippet.FocusMoved();
         _composition?.Focus.Invalidate();
         _directEnglishWord = false;
         _composition?.ResetContext();
@@ -718,6 +851,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         _foreground.Refresh(window);
         InvalidateLine();
         _sigil.Start();
+        _snippet.Start();
         _lastLineKind = null;
         var app = _foreground.Current;
         if (_settings.ProfileFor(app.ProcessName) == AppProfile.Code)
@@ -833,6 +967,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         _monitor.Dispose();
         _sessionTimer.Dispose();
         _pollTimer.Dispose();
+        _remote.Dispose();
         _lineTimer?.Dispose();
         _saveTimer.Dispose();
         _flushQueue.CompleteAdding();

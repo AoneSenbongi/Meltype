@@ -50,7 +50,9 @@ async function cases(output) {
   for (const [, number] of body.matchAll(/\b(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?)\s+#(\d+)/gi)) {
     const issue = await gh(`/issues/${number}`);
     if (!issue || !issue.labels.some(l => l.name === '誤判定')) continue;
-    const typed = formField(issue.body, '打ったもの'), expected = formField(issue.body, '期待した結果');
+    // 報告の欄がコードの書き方 (`gameover`) で書かれていたら、「確かめること」の行と同じくバッククォートを外す
+    const plain = text => text.replace(/^`+|`+$/g, '').trim();
+    const typed = plain(formField(issue.body, '打ったもの')), expected = plain(formField(issue.body, '期待した結果'));
     if (/^[\x20-\x7e]+$/.test(typed) && expected) list.push({ typed, expected, source: `#${number}` });
   }
 

@@ -12,6 +12,7 @@
 
 
 GitHub のアカウントが無い場合は、Meltype のトレイのメニュー「不具合の報告・提案...」から開くフォームで送れます (送った内容は Issue になります。仕組みは [tools/report-form](tools/report-form/README.md))。
+自動の判定を自分で直したとき (F6〜F10・変換の候補で英字 / かなを選び直したとき) は、トレイの「直した誤判定を報告...」から、打ったもの・出たもの・直した結果が入った状態で「変換・判定の間違い」の報告を始められます (Meltype キーボード。記録は Meltype を終了すると消え、押すまで送りません)。
 
 [Issue](https://github.com/yksr-melt/Meltype/issues/new/choose) のひな形 (不具合 / 変換・判定の間違い / 辞書 / 提案) から選んで書いてください。
 Mac 版・Linux 版はプレビュー版です。気づいたことは小さなことでも報告してもらえると助かります。
@@ -31,6 +32,14 @@ Mac 版・Linux 版はプレビュー版です。気づいたことは小さな�
 
 
 `dictionaries/` の辞書 (英単語・固有名詞・同音異義語の候補・文脈の手がかり) への追加は、Pull Request か Issue でお送りください。
+
+<br>
+
+<a name="pull-request-を送る場合"></a>
+<img src="docs/images/headings/contributing/07.svg" alt="Pull Request を送る場合" height="53"><br>
+
+Issue を直す Pull Request を送るつもりの場合は、その Issue のコメントに自分が対応することを書いてから、修正に取りかかってください。
+同じ Issue を何人もが同時に直してしまうのを防ぐためです。
 
 <br>
 
@@ -122,6 +131,7 @@ Issue・Pull Request のコメントの 1 行目に書くと、bot が GitHub Ac
 |---|---|---|
 | `/repro <打ったキー> [space\|enter\|none]` | 最新のコード (と最新のリリース) で打ってみて、結果を返す | だれでも |
 | `/explain <打ったキー>` | IME 自動切替での 1 文字ずつの判定理由 | だれでも |
+| `/ca <打ったキー>` | Space で変換して、文節の区切りと最初の文節の候補 (9 件まで) を出す (最新のコードと最新のリリース) | だれでも |
 | `/test` | Pull Request のコードでテストを流す | メンテナー |
 | `/pack` | Pull Request のコードで Windows のテスト版の zip を作る | メンテナー |
 | `/help` | コマンドの一覧 | だれでも |

@@ -36,6 +36,20 @@ int wmain(int argc, wchar_t** argv) {
   ok = ok && SUCCEEDED(service->QueryInterface(IID_ITfLangBarItemButton, reinterpret_cast<void**>(&button)));
   ok = ok && SUCCEEDED(service->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&source)));
   Sink sink; DWORD cookie = 0;
+  ITfThreadMgr* thread = nullptr;
+  ITfCompartmentMgr* compartments = nullptr;
+  ITfCompartment* openClose = nullptr;
+  TfClientId client = 0;
+  ok = ok && SUCCEEDED(CoCreateInstance(CLSID_TF_ThreadMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfThreadMgr, reinterpret_cast<void**>(&thread)));
+  ok = ok && SUCCEEDED(thread->Activate(&client)) && SUCCEEDED(service->Activate(thread, client));
+  ok = ok && SUCCEEDED(thread->QueryInterface(IID_ITfCompartmentMgr, reinterpret_cast<void**>(&compartments)));
+  ok = ok && SUCCEEDED(compartments->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &openClose));
+  auto open = [&](LONG expected) {
+    VARIANT value; VariantInit(&value);
+    bool match = openClose && SUCCEEDED(openClose->GetValue(&value)) && value.vt == VT_I4 && value.lVal == expected;
+    VariantClear(&value); return match;
+  };
+  if (!open(1)) { std::puts("FAIL: activation did not open the Windows IME compartment"); ok = false; }
   if (ok) {
     ok = SUCCEEDED(source->AdviseSink(IID_ITfLangBarItemSink, &sink, &cookie));
     TF_LANGBARITEMINFO info{};
@@ -52,19 +66,51 @@ int wmain(int argc, wchar_t** argv) {
     button->OnClick(TF_LBI_CLK_RIGHT, {}, nullptr);
     ok = ok && state(L"自動") && sink.updates == 0;
     button->OnClick(TF_LBI_CLK_LEFT, {}, nullptr);
-    ok = ok && state(L"英語") && sink.updates == 1;
+    ok = ok && state(L"英語") && open(0) && sink.updates == 1;
     button->OnClick(TF_LBI_CLK_LEFT, {}, nullptr);
-    ok = ok && state(L"自動") && sink.updates == 2;
+    ok = ok && state(L"自動") && open(1) && sink.updates == 2;
+    VARIANT value; VariantInit(&value); value.vt = VT_I4; value.lVal = 0;
+    openClose->SetValue(client, &value);
+    ok = ok && state(L"英語") && sink.updates == 3;
+    value.lVal = 1; openClose->SetValue(client, &value);
+    ok = ok && state(L"自動") && sink.updates == 4;
     ok = ok && SUCCEEDED(source->UnadviseSink(cookie)) && sink.refs == 1;
     HICON brand = static_cast<HICON>(LoadImageW(dll, MAKEINTRESOURCEW(101), IMAGE_ICON, 32, 32, 0));
     ok = ok && brand;
+    if (brand) {
+      BITMAPINFO info{}; info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+      info.bmiHeader.biWidth = 32; info.bmiHeader.biHeight = -32;
+      info.bmiHeader.biPlanes = 1; info.bmiHeader.biBitCount = 32;
+      void* pixels = nullptr; HDC dc = CreateCompatibleDC(nullptr);
+      HBITMAP bitmap = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+      HGDIOBJ before = SelectObject(dc, bitmap);
+      std::memset(pixels, 0, 32 * 32 * 4);
+      DrawIconEx(dc, 0, 0, brand, 32, 32, 0, nullptr, DI_NORMAL);
+      int pink = 0, blue = 0, firstColorRow = 32, lastColorRow = -1;
+      auto* bytes = static_cast<unsigned char*>(pixels);
+      for (int i = 0; i < 32 * 32; ++i) {
+        int b = bytes[i * 4], g = bytes[i * 4 + 1], r = bytes[i * 4 + 2];
+        if (r > 100 && r > g * 1.2 && r > b * 1.1) ++pink;
+        if (b > 100 && b > r * 1.2 && g > r * 1.15) ++blue;
+        if ((r > 100 && r > g * 1.2 && r > b * 1.1) || (b > 100 && b > r * 1.2 && g > r * 1.15)) {
+          if (i / 32 < firstColorRow) firstColorRow = i / 32;
+          if (i / 32 > lastColorRow) lastColorRow = i / 32;
+        }
+      }
+      ok = ok && pink > 5 && blue > 5 && lastColorRow - firstColorRow >= 22;
+      SelectObject(dc, before); DeleteObject(bitmap); DeleteDC(dc);
+    }
     if (brand) DestroyIcon(brand);
   }
   if (source) source->Release();
   if (button) button->Release();
+  if (service) service->Deactivate();
+  if (openClose) openClose->Release();
+  if (compartments) compartments->Release();
+  if (thread) { thread->Deactivate(); thread->Release(); }
   if (service) service->Release();
   FreeLibrary(dll); CoUninitialize();
-  std::puts(ok ? "PASS: automatic/English mode text and icons, left click, right click, update notifications, Meltype profile icon resource"
+  std::puts(ok ? "PASS: automatic/English text, clicks, Windows open/close synchronization, external mode changes, notifications, official blue/pink logo resource"
                : "FAIL: native input mode button or brand icon");
   return ok ? 0 : 1;
 }

@@ -1,4 +1,4 @@
-param([switch]$Tray, [string]$RenderTo)
+﻿param([switch]$Tray, [string]$RenderTo)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
@@ -21,7 +21,7 @@ $mutex = [Threading.Mutex]::new($false, ('Local\Meltype.NativePanel.' + $sid), [
 $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\Meltype.NativePanel.Show.' + $sid))
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Meltype 1.1.0 · Windows IME'
+$form.Text = 'Meltype 1.1.0-rc.3 · Windows IME'
 $form.ClientSize = [Drawing.Size]::new(600, 646)
 $form.MinimumSize = [Drawing.Size]::new(616, 685)
 $form.StartPosition = 'CenterScreen'
@@ -134,6 +134,16 @@ foreach ($item in @(@('Googleの単語登録','word_register_dialog',0),@('Googl
     $layout.Controls.Add($button,[int]$item[2],7)
 }
 $footer = [Windows.Forms.FlowLayoutPanel]::new(); $footer.Dock = 'Fill'
+function Open-NativeSnippets {
+    try {
+        $context=Get-NativeGuiContext $workspace
+        $runtime=(Get-Content (Join-Path $context.Root 'experimental-build/runtime-path.txt') -Raw).Trim()
+        $scriptPath=Join-Path $PSScriptRoot 'Open-NativeSnippets.ps1'
+        Start-Process -FilePath $runtime -ArgumentList ('-NoProfile -STA -File '+(ConvertTo-NativeGuiArgument $scriptPath)) -WindowStyle Hidden
+    } catch {Show-NativeGuiError ($_ | Out-String)}
+}
+$snippetsButton=[Windows.Forms.Button]::new();$snippetsButton.Text='定型文を登録・管理';$snippetsButton.AutoSize=$true
+$snippetsButton.Add_Click({Open-NativeSnippets});$footer.Controls.Add($snippetsButton)
 $layout.Controls.Add($footer,0,10); $layout.SetColumnSpan($footer,2)
 $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,42)) | Out-Null
 foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Backup'))) {
@@ -202,6 +212,7 @@ function Add-NativeTrayActions([Windows.Forms.ContextMenuStrip]$Menu) {
     }
 }
 Add-NativeTrayActions $menu
+$snippetsMenu=$menu.Items.Add('定型文...');$snippetsMenu.Add_Click({Open-NativeSnippets})
 $exit = $menu.Items.Add('管理画面を終了'); $exit.Add_Click({ $script:quitting = $true; $form.Close() })
 $icon.ContextMenuStrip = $menu; $icon.Add_DoubleClick({ $form.Show(); $form.Activate() })
 $form.Add_FormClosing({ if (-not $script:quitting -and -not $RenderTo -and $_.CloseReason -eq 'UserClosing') { $_.Cancel = $true; $form.Hide() } })

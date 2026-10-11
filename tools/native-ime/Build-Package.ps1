@@ -20,6 +20,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Microsoft/Google conversion verification faile
 & (Join-Path $PSScriptRoot 'Test-NativeOpeningBracket.ps1')
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePredictionTrace.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Google prediction -> TSF document verification failed' }
+& $Runtime -NoProfile -STA -File (Join-Path $PSScriptRoot 'Test-NativeSnippets.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Snippet form and TSF expansion verification failed' }
 $stage = Join-Path $build 'native-ime-package'
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 $files = @('MeltypeNative64.dll', 'native-ime-control.exe', 'Meltype.Core.dll', 'Meltype.dll')

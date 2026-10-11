@@ -123,7 +123,7 @@ function Test-NativeUpdateRequired([string]$SourceRoot, $Context) {
         $installed=Join-Path $Context.Root ('tools/native-ime/'+$name)
         if((Test-Path -LiteralPath $source) -and (-not(Test-Path -LiteralPath $installed) -or (Get-NativeFileSha256 $source) -ne (Get-NativeFileSha256 $installed))){return $true}
     }
-    foreach ($name in @('Set-NativeShortcuts.ps1','Uninstall-InstalledNativeIme.ps1','NativeGuiCommon.ps1','Host-NativeControlPanel.ps1','Open-NativeControlPanel.ps1','Invoke-NativeGuiAction.ps1','Update-NativeIme.ps1','Set-InstalledNativeAutoStart.ps1','NativeAutoStart.ps1','Set-NativeAutoStart.ps1','Install-NativeIme.ps1','Start-NativeIme.ps1','Wait-NativeBroker.ps1','Stop-NativeIme.ps1','Uninstall-NativeIme.ps1','Host-NativeBroker.ps1','Backup-State.ps1','Start-Resident.ps1','Host-Resident.ps1')) {
+    foreach ($name in @('Set-NativeShortcuts.ps1','Uninstall-InstalledNativeIme.ps1','NativeGuiCommon.ps1','Host-NativeControlPanel.ps1','Open-NativeControlPanel.ps1','Open-NativeSnippets.ps1','Invoke-NativeGuiAction.ps1','Update-NativeIme.ps1','Set-InstalledNativeAutoStart.ps1','NativeAutoStart.ps1','Set-NativeAutoStart.ps1','Install-NativeIme.ps1','Start-NativeIme.ps1','Wait-NativeBroker.ps1','Stop-NativeIme.ps1','Uninstall-NativeIme.ps1','Host-NativeBroker.ps1','Backup-State.ps1','Start-Resident.ps1','Host-Resident.ps1')) {
         $source = Join-Path $SourceRoot ('tools/native-ime/'+$name)
         if (-not (Test-Path -LiteralPath $source)) { continue }
         $installed = Join-Path $Context.Root ('tools/native-ime/'+$name)

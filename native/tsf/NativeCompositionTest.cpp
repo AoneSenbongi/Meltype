@@ -318,6 +318,31 @@ int main(int argc, char** argv) {
         BOOL bracketCaptured = FALSE;
         Check(keys->OnTestKeyDown(f.context, VK_OEM_4, 0, &bracketCaptured), "opening bracket starts composition");
         Expect(bracketCaptured, "opening bracket must remain in composition until following language is known");
+        ITfLangBarItemButton* mode = nullptr;
+        Check(service->QueryInterface(IID_ITfLangBarItemButton, reinterpret_cast<void**>(&mode)), "mode button for keyboard switching");
+        auto modeText = [&](const wchar_t* expected) {
+          BSTR text = nullptr;
+          Check(mode->GetText(&text), "keyboard mode text");
+          bool matches = text && std::wstring(text) == expected;
+          SysFreeString(text);
+          Expect(matches, "keyboard toggle updates displayed mode");
+        };
+        int toggleIndex = 0;
+        for (int vk : {VK_KANJI, VK_KANJI, VK_IME_OFF, VK_IME_ON, 0xf3, 0xf4}) {
+          BOOL eaten = FALSE;
+          Check(keys->OnTestKeyDown(f.context, vk, 0, &eaten), "test mode toggle");
+          Expect(eaten, "mode toggle captured in editable context");
+          Check(keys->OnKeyDown(f.context, vk, 0, &eaten), "mode toggle key down");
+          Expect(eaten, "mode toggle consumed");
+          modeText(++toggleIndex % 2 == 0 ? L"自動" : L"英語");
+          Check(keys->OnKeyUp(f.context, vk, 0, &eaten), "mode toggle key up");
+        }
+        BOOL preserved = FALSE;
+        Check(keys->OnPreservedKey(f.context, MeltypeToggleKey, &preserved), "preserved half/full-width key");
+        Expect(preserved, "preserved toggle consumed"); modeText(L"英語");
+        Check(keys->OnPreservedKey(f.context, MeltypeToggleKey, &preserved), "preserved key returns from closed mode");
+        Expect(preserved, "preserved toggle reopens IME"); modeText(L"自動");
+        mode->Release();
         const bool eligibilityOnly = argc > 3 && std::string(argv[3]) == "--eligibility-only";
         if (!eligibilityOnly) {
         auto key = [&](int vk) {
@@ -406,7 +431,7 @@ int main(int argc, char** argv) {
       thread->Deactivate(); thread->Release(); thread = nullptr;
       Expect(canUnload() == S_OK, "native service releases COM references");
       FreeLibrary(library);
-      std::puts(argc > 3 ? "PASS: native DLL captures opening bracket before composition; no broker requests or commits" : "PASS: native DLL key sink -> resident broker -> Google -> real TSF document; Space/Enter/Escape, mode switching, focus loss, disabled/read-only protection");
+      std::puts(argc > 3 ? "PASS: opening bracket, half/full-width and IME ON/OFF displayed mode, preserved key returns from English; no broker requests or commits" : "PASS: native DLL key sink -> resident broker -> Google -> real TSF document; Space/Enter/Escape, mode switching, focus loss, disabled/read-only protection");
     }
     if (thread) { thread->Deactivate(); thread->Release(); }
     CoUninitialize();

@@ -6,6 +6,7 @@ $output = Join-Path $workspace 'experimental-build/MeltypeNative64.dll'
 $Compiler = (Get-Command $Compiler -ErrorAction Stop).Source
 if (-not (Test-Path -LiteralPath $Compiler)) { throw "C++ compiler not found: $Compiler" }
 $resource = Join-Path $workspace 'experimental-build/native-text-service-resource.o'
+& (Join-Path $PSScriptRoot 'Build-NativeBrandIcon.ps1')
 $windres = Join-Path (Split-Path $Compiler -Parent) 'windres.exe'
 & $windres -I $source (Join-Path $source 'NativeTextService.rc') -O coff -o $resource
 if ($LASTEXITCODE -ne 0) { throw 'Native icon resource compilation failed' }

@@ -1,316 +1,39 @@
 # 現在の状態
-## 本家GitHubの朝監視（設定済み）
 
-2026年10月11日、利用者の依頼と独立した定期タスクへの承認により、Codexのローカル定期タスクmeltype-luna-6-1-solを作成した。名前はMeltype本家の朝監視（Luna→6.1 Sol）。毎朝9時、日本時間、ACTIVE、gpt-6-luna、reasoning effort mediumで保存されていることを確認した。新しい通常Releaseまたは既定ブランチの更新があれば、gpt-6.1-solのサブエージェントへWindows Nativeの更新・検証・配布候補の準備を委任する設定。利用者はこの委任を明示的に依頼済み。
+## 目的と現在の適用版
 
-手順はdocs/UPSTREAM_MONITOR.md、監視状態はLOCALAPPDATA/MeltypeUpstreamMonitor/state.json。初回のGitHub API確認では最新Releaseがv1.2.1、mainが47ace1428e5d4c9213f64dbbaf00d73a01386c69で、取り込み済みの基準と一致した。変更がないため更新担当を起動していない。予定時刻での実行と、更新検出から委任までの実行は未確認。ローカル実行にはPCとCodexアプリの起動が必要。
+Windows Native版を本家Meltypeに近づけ、Microsoft／Googleの変換先選択、自動／英語の切り替え、本家ロゴ、画面下端の候補配置、本家1.2.0の定型文登録・展開を提供する。正式公開の予定番号は1.1.0。本家の取り込み済み基準はv1.2.1、47ace1428e5d4c9213f64dbbaf00d73a01386c69。Androidはこの作業で変更しない。
 
-この監視ではAndroidを変更せず、公開保留を保持する。GitHubへの公開とこのPCへのIME適用は、具体的な内容への承認後に行う。Meltype側の更新確認機能は既存方式を使え、今回のクライアント改修は不要。
+2026年10月11日、このPCへ1.1.0-rc.3を適用した。BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-167eace784f144a380ebb6dee210b1d2。稼働管理先はC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-statusを保持する。管理スクリプト・状態はrc.3へ更新済み。直接更新のためWindowsのアプリ一覧は先に適用した1.1.0表記のまま。入力アプリは新しいDLLを読み込むため開き直す必要がある。
 
-## 正式版1.1.0のGitHub公開準備（未公開）
+## 実装と検証
 
-2026年10月11日、利用者の「公開ちょっと待って」により公開を保留した。再開の指示があるまでpush・タグ公開・Release作成を行わない。ローカル配布物と検証結果は保持する。
+変換先はinput-preferences.jsonのConversionEngineで選択し、新しい接続で反映する。初期値はGoogle。Microsoftは本家の変換・候補取得・日英判別を専用STAスレッドで使う。Googleは従来の通常変換と学習を維持し、予測は本家コアを使う。Microsoftの辞書への学習書き込みは未対応。
 
-2026年10月11日、利用者のGitHubリリース依頼を受け、管理画面・登録・更新・セットアップを正式番号1.1.0へ統一した。Build-Packageを正式番号で再実行し、Native15/15、Google13/13、Microsoft2/2、両エンジンから実TSF文書への変換・確定・取消、予測、モードボタン、候補配置・再描画、先頭括弧の試験が通過。設定保存、管理画面操作性、更新候補判定・ダウンロード改変拒否、隔離インストーラー、更新失敗時の復旧も通過。証跡はexperimental-build/release-1.1.0-build.log。
+利用者の「押しても自動のまま」を受け、WindowsのKEYBOARD_OPENCLOSE区画との同期とINPUTMODECOMPARTMENTカテゴリを追加した。閉じた英語モードから半角／全角で戻るためVK_KANJIを保持キーとして登録する。旧DLLで区画の有効化がない状態を再現し、修正後はクリック・キー・Windowsからの状態変更と通知が通過した。入力欄がないときの無効表示はWindowsの通常挙動として残す。パスワード欄・読み取り専用欄の保護を維持する。
 
-公開先はAoneSenbongi/Meltype、ブランチgoogle-native-ime、予定タグnative-google-1.1.0、通常ReleaseのタイトルはMeltype Native 1.1.0。公開本文はdocs/RELEASE_1_1_0.md。具体的な公開内容への利用者の承認が残る。まだpush・タグ公開・Release作成はしていない。このPCの登録版は1.1.0-rc.1を保持し、正式版への適用は行っていない。
+アイコンは本家docs/images/logo.pngを使う。利用者の追加指示により、中央の水色・ピンクの文字を大きく切り抜き、16～256pxのICOとしてDLLへ組み込む。旧rc.2の小さいロゴが視認性の試験に失敗し、拡大版と導入済みDLLが通過した。候補は下に収まらなければ上へ置き、モニターの作業領域内へ収める。
 
-配布ソースはb58969494fca94c9749fe279a3ea179b43823fa4。ZIPはdistributions/Meltype-Native-Google-windows-x64-20261011-212031.zip、SHA-256はDC621701881091A888920D9CDDA42453B3D54A127A3D37554855080BB1C89F9D。EXEはdistributions/Meltype-Native-Google-1.1.0-Setup.exe、SHA-256は42BBE1428017805B9AE316B982A22D8D1B7952EB8CC6895AFC31F155F899CF87。EXEの1.1.0.0メタデータ、チェックサム添付、配布ペイロード6件、対応ソースとコミット一致、個人データ除外を確認した。証跡はexperimental-build/release-1.1.0-verified.json。公開予定の添付はEXEとその.sha256の2件。対応ソースとランタイムはEXE内に含む。正式版EXEの実機導入と実アプリ・複数モニターの実操作は未確認。
+定型文は本家SnippetsFormとSnippetStoreを使い、管理画面の「定型文を登録・管理」とトレイの「定型文...」から開く。登録・編集・削除・JSONの取り込みと書き出しを提供する。自動モードで行の先頭か空白の直後に「;名前」を入力し、Space／Tabで複数行を展開、直後のEscで元に戻す。Native TSFでは名前と展開結果を未確定範囲へ表示し、Enterまたは次の入力で確定する。保存先はLOCALAPPDATA/Meltype/snippets.json。コード内のセミコロンと未登録名は展開しない。登録変更を次の定型文入力から読み直す。英語モードは直接入力。仕様はdocs/NATIVE_SNIPPETS.md。
 
-利用者の仕組みの説明依頼に対し、変換先・自動／英語・入力位置を切り替える図を作成した。図は説明用でPC設定を変更しない。Microsoft／Google経路、英語の直接入力、下端で候補を上へ置く状態更新を検証した。
+Native関連17/17、Google13/13、Microsoft2/2、両エンジンからTSF文書への変換・確定・取消、予測、候補配置、モードとロゴの試験が通過した。定型文の本家画面の登録・編集・削除・保存と描画、複数行・Esc復元・Tab展開・確定・取消、製品brokerの通信からTSF文書への反映を隔離したファイルで検証した。管理画面、更新候補判定、版番号一致も通過。実アプリごとの新機能の実操作、複数モニター、32ビットアプリは未確認。
 
-## 変換先選択・モード表示・候補配置のRC適用記録
+導入済み6ファイルのmanifestとの一致、登録番号、サービス接続準備、定型文を開くスクリプトの一致、導入済みDLLのモード・拡大アイコンを確認した。バックアップはE:/prog/Meltype/Windows/backups/20261011-234701で、11ファイルの退避ハッシュが一致した。稼働中の履歴は変化するため適用前後の全ファイル一致は主張しない。rc.2時点ではGoogle辞書・設定は一致し、phrases.txtは既存行の削除なしで2行追加、history.dbは変化を確認した。
 
-2026年10月11日、利用者のRC適用依頼により、検証済み候補をUpdate-NativeIme.ps1でこのPCへ適用した。登録版は1.1.0-rc.1、本家BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-5c47d6e77ab94b48ab2dfa5abfc00fa0。既存管理先C:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-statusを保持し、そのスクリプトを更新した。管理画面はE:/prog/Meltype/Windowsから新版を起動した。配置6ファイルのハッシュ一致、broker接続準備完了、更新不要、管理画面ソースの1.1.0-rc.1を確認。
+証跡はexperimental-build/native-snippet-rc3-build.log、同接頭辞のapply.logとapplied.json、native-snippets-form.png、native-snippet-panel.png。定型文の通信試験はtools/native-ime/Test-NativeSnippets.ps1。Build-Packageから同試験を実行するよう追加済み。製品コードは適用済みだが、その後に追加した試験・資料の更新は配布物を再構築していない。
 
-Google・Meltypeの辞書／履歴11ファイルはbackups/20261011-210316の退避時とハッシュ一致。入力設定は更新前と同じくファイル未作成。退避記録はbackups/apply-1.1.0-rc.1-20261011-210257。証跡はexperimental-build/apply-1.1.0-rc.1.log、同接頭辞のverified.jsonとprofile-check.json。今回はセットアップEXEを作らず、既存の更新スクリプトで適用した。Windowsのアプリ一覧の表示番号は今回更新していない。新DLLを入力アプリへ読み込ませるにはアプリを開き直す必要がある。実アプリでの候補配置・モード表示・変換先切り替えは利用者の確認待ち。
+## 本家の朝監視
 
-2026年10月11日、利用者はMeltype内部のMicrosoft／Google変換先切り替え、本家のアイコン、「自動／英語」のモード表示、本家にできるだけ近づける方針を依頼し、正式版番号を1.1.0と指定した。Androidという最初の発言はGoogleへ訂正済み。仕様はdocs/NATIVE_ENGINE_MODE.md、公開本文案はdocs/RELEASE_1_1_0.md。
+独立したローカル定期タスクmeltype-luna-6-1-solはACTIVE、毎朝9時、日本時間、gpt-6-luna、medium。更新時のみgpt-6.1-solへ委任する。利用者は独立タスクとこの委任を明示的に承認済み。変更なしの通知はしない。PCとCodexの起動が必要。
 
-管理画面の選択をinput-preferences.jsonのConversionEngineへ保存し、入力先へ戻った後の新しい接続で反映する。既存の初期値はGoogle。Microsoftは本家のMsImeKanjiConverter、WinRtCandidates、現在の日英判別を使い、専用STAスレッドでCOMを生成・呼び出し・解放する。Googleは従来の日英判別・学習処理を保持する。Microsoftの候補順は本体と一致するとは限らず、Microsoftの辞書への学習書き込みは未対応。本家の定型文管理画面、選択範囲再変換、Tab文節変換も独自TSFでは未対応。
+手順はdocs/UPSTREAM_MONITOR.md、状態はLOCALAPPDATA/MeltypeUpstreamMonitor/state.json。初回のGitHub API確認では本家Release v1.2.1とmain 47ace14が取り込み済み基準と一致した。予定実行と更新検出から委任までの実行は未確認。競合する進行中の作業や未コミット変更は上書きしない。
 
-IME一覧の名前はMeltype。本家由来のnative/tip/meltype.icoをDLLへ組み込み、管理画面と通知領域にも使う。入力モードボタンは自動／英語で、クリックと半角／全角キーが同じ状態を変更し、未確定文字を確定する。通知領域対応のTSFカテゴリを登録する。独自版番号は管理画面・登録・更新・インストーラーで1.1.0-rc.1、本家BaseVersionは1.2.1。
+このPCへの自動適用は既存の承認範囲で、検証・バックアップ・適用確認後に行う。最新の利用者指定AGENTS.mdでは、外部公開の前に今回の内容への確認が必要。過去の包括的な公開許可を今回の確認として扱わない。定期タスクのプロンプトと手順をこの規則へ合わせた。
 
-Native関連15/15、Google関連13/13、Microsoft専用2/2、両エンジンから実TSF文書への28更新・確定・取消、予測16更新、先頭括弧、モードボタンの左右クリック・状態通知・アイコン、設定保存、GUI操作性と描画、番号一致、パッケージ全6ファイルのハッシュを確認した。AppContainerから新DLL・実broker・Googleへの変換と双方の相手確認・不正接続拒否も通過。変換試験は学習無効。パッケージはexperimental-build/native-ime-package、画面はexperimental-build/native-engine-panel.png、検証記録はexperimental-build/native-engine-verified.json。
+## 残作業と公開状態
 
-同日、利用者の画面下端での候補見切れ報告を、実候補ウィンドウの配置試験で再現した。NativeTextServiceのShowPopupへ入力位置のRECTを渡し、そのモニターのrcWorkを基準に、下へ収まらなければ上へ配置する。上下左右を作業領域内へ収め、候補数の変更時も再計算する。配置試験で下端・上端・右端・1候補から9候補への変化・フォーカス保持が通過。既存の再描画とモードボタンの試験も通過した。Build-Packageへ配置・再描画試験を追加。新DLLを候補パッケージへ反映し、manifestのハッシュを更新した。証跡はexperimental-build/native-candidate-placement-verified.json。実アプリと複数モニターの実操作は未確認。
+1. 入力アプリを開き直し、利用者の環境で自動／英語、拡大アイコン、登録した定型文を確認する。
+2. 修正後の正式番号1.1.0で配布物を再構築する。現在の旧1.1.0 EXEはb589694に対応し、モード修正・拡大アイコン・定型文対応を含まないため公開しない。
+3. 公開先AoneSenbongi/Meltype、ブランチgoogle-native-ime、タグnative-google-1.1.0、本文docs/RELEASE_1_1_0.md、EXEと.sha256の具体的な内容を準備して提示する。承認後にpush・タグ・Release公開を行う。修正版のGitHub公開は未実施。公開済みの最新基準はnative-google-1.0.7、be41abe。
 
-このPCへの候補適用は完了。実アプリの入力欄でのモード表示・選択変更・候補配置は利用者の確認待ち。正式版の準備状況は冒頭を参照。外部公開は利用者の今回の内容への承認後に行う。
-
-## このPCへ1.0.8-rc.2を適用済み
-
-2026年10月11日、利用者の導入依頼で検証済みEXEを適用。初回の管理者確認は取り消され1.0.7へ復旧したが、利用者の再実行依頼後に成功した。登録版・Windowsのアプリ一覧は1.0.8-rc.2、本家BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-87cfd2b8c22741ca8616c023a499d979、管理画面の起動先はLOCALAPPDATA/Programs/MeltypeNativeGoogle/1.0.8-rc.2。検証済みソース1215df4に対応する配置6ファイルのハッシュ一致、broker起動・接続準備完了、更新不要を確認。
-
-バックアップはbackups/20261011-190446。Google8ファイルとMeltype3ファイル、入力設定は適用前後でハッシュ一致。証跡はexperimental-build/release-1.0.8-rc.2-applied.json、retry.log。旧登録パッケージとC側稼働管理先は保持。開いている入力アプリは新DLLを読み込むため開き直す必要がある。実アプリでの入力欄確認と外部公開は未実施。
-
-## Androidの報告に伴うWindows側の確認
-
-2026年10月11日、利用者はAndroidで未確定のまま送信すると前の入力が戻る不具合を報告し、Windowsでも起こる可能性を指摘した。WindowsのNativeCompositionは終了通知でTSF状態を消し、NativeTextServiceのEligibleは次のキーを受ける前にbroker接続と未確定文字を破棄する処理を持つ。
-
-アプリが未確定入力を終了して送信文を消すケースをNativeCompositionTestへ追加。実TSF文書で、新しい文字とその確定が送信済み文字を再挿入しないことを確認した。既存の変換・取消・Googleの28更新も通過。証跡はexperimental-build/external-send-composition-tests.log。Windowsの本体と配布物は変更せず、実アプリ固有の送信処理は未確認。Androidの修正・端末状態はAndroid側の状態資料へ記録する。
-
-## 本家1.2.1対応候補（1.0.8-rc.2、このPCへ適用済み・未公開）
-
-2026年10月11日、利用者のWindows版対応依頼で本家v1.2.1（47ace14）を統合。Google連携、独自TSF、句読点、学習停止、括弧追跡を保持した。通常変換の従来の判定・分節・候補順を保持し、予測へ本家コアを使う方針を維持する。独自GUI・NativeVersion・インストーラー・更新処理は1.0.8-rc.2、本家BaseVersionは1.2.1で一致する。前候補1.0.8-rc.1を置き換える。
-
-共通400/400、Windowsを含む422/422、品質1292/1292が通過。Nativeパッケージを構築し、Googleから実TSF文書の変換28更新・予測16更新、確定・取消、Tab選択・Esc解除、先頭括弧が通過。検索AppContainerから実DLL・broker・Googleへの変換、双方の相手確認、別パッケージ・追加サーバー・同名占有拒否も通過。Google試験は学習無効。版番号、句読点設定、通信枠32、管理画面、更新判定、改変拒否、隔離インストーラーと更新失敗時の復旧を検証した。
-
-対応仕様はdocs/UPSTREAM_1_2_1.md、配布説明はdocs/RELEASE_1_0_8_RC_2.md。構築済みパッケージはexperimental-build/native-ime-package。このPCへの適用結果は冒頭の記録を参照。実アプリの入力欄確認と外部公開は未実施。本家の定型文管理画面、選択範囲再変換、Tab文節変換は独自TSFでは未対応。
-
-Androidは今回変更しない。独自UIと学習用の収集処理を保持し、共通コア・辞書の修正を別候補で選んで取り込むことを勧める。Androidの状態はE:/Prog/Meltype/Android/source/docs/CURRENT_STATE.mdを参照する。
-
-対応ソースは1215df426e1d4c0addf665abe4724b778effe8da。セットアップEXEはdistributions/Meltype-Native-Google-1.0.8-rc.2-Setup.exe、SHA-256は04C1FAE6F6B4697A94B4B75BD9F4A7D37251640FEF0784697EF0376861F5E81A。ZIPはdistributions/Meltype-Native-Google-windows-x64-20261011-184441.zip、SHA-256は7B0637DDEF8B939E906FA1F594EA677E068F3AF8A4F4956C636DC6734580640E。EXE・manifestのソース番号、版番号、ペイロード全6件のハッシュ、ZIPの個人データ除外を確認した。証跡はexperimental-build/upstream-1.2.1-verified.json。読み取り確認したPCの登録版は1.0.7のまま。適用・公開は未実施。
-
-## 正式版1.0.7をこのPCへ適用・公開済み
-
-2026年10月9日、利用者の依頼でrc.2のWindows 11検索修正とrc.1の管理画面再起動・オンライン更新を正式版1.0.7へ統合した。対応ソースはbe41abe73d10d3af4905e5d17cbe61a6249bf333。distributions/Meltype-Native-Google-1.0.7-Setup.exeのSHA-256は2C72E2C57878D743E779352B4359BDD9C913325E544BBFEBC6D9F3C3AA88018F。番号一致・GUI状態・更新機能の試験とmanifest全6ファイルの照合が通過した。
-
-初回の管理者確認取消では旧rc.1へ復旧した。利用者の「再表示」で再試行し、セットアップ成功・PC再起動不要を確認。登録先はC:/Program Files/MeltypeNativeGoogle/package-657a72003e864b74bd27e1cee8f3f587、管理画面はinstalled/1.0.7。登録版・Windowsアプリ一覧・実管理画面は1.0.7、入力サービスは起動中、更新不要、配置全6ファイルはmanifestと一致する。実UIで起動無効・停止有効・この版は適用済み無効・最新版を確認有効を確認した。稼働管理先の旧C側フォルダーは保持し削除しない。
-
-直前バックアップinstalled/1.0.7/backups/20261009-163239とGoogle8ファイル・Meltype3ファイルの全11件が一致した。入力設定ファイルは適用前後とも存在せず既定値を使用する。旧版・登録・スクリプトの退避はbackups/release-1.0.7-20261009-110536。証跡はexperimental-build/release-1.0.7-applied.json、profile-preserved.json、panel.json、setup-retry.log（すべて同接頭辞）。Windows 11実検索欄はThinkPadの同修正候補版で利用者が確認済み。正式版のWin11実機適用と全キー操作は未確認。
-
-2026年10月9日、本文・公開先・変更・配布物の提示後、利用者の「まあ，いいか」で承認を取得。be41abeをgoogle-native-imeへpushし、native-google-1.0.7を通常Releaseとして公開した。公開先はhttps://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.7。承認本文docs/RELEASE_1_0_7.mdと公開本文の完全一致、draft=false・prerelease=false、EXEと.sha256の名前・サイズ・GitHub側SHA-256、最新Release指定を確認。README・SECURITYも同ソースへ更新済み。証跡はexperimental-build/release-1.0.7-published.json。公開によるPCへの再適用は行っていない。
-
-## ThinkPadのWindows 11検索修正を統合（1.0.7-rc.3、未適用・未公開）
-
-2026年10月9日、ThinkPadの「Meltype用チャットを作成」から検索欄の修正・テスト全文を受領し、利用者の「別のチャットから言われたことをやって」に基づき統合。ThinkPadではWindows 11 Pro build26200のSearchHostのAppContainer SIDがMicrosoftWindows.Client.CBS由来であり、従来のWin10固定SIDの許可が失敗原因だった。ThinkPadの1.0.7-rc.2は公開1.0.6基準の検索修正のみで、利用者が実検索欄の変換を確認したとの引き継ぎ。全キー個別確認は未実施。
-
-DeskMiniではrc.1の管理画面の自動再起動・オンライン更新を保持し、OSビルド22000以上はClient.CBS、未満はWindows.Searchを選ぶbroker・登録状態・検索試験を統合。ペイロード交換が不要な更新でもSearchPackageを更新する。GUI・登録・セットアップ・オンライン更新の現在番号を1.0.7-rc.3へ一致させた。通信ACL、双方の接続先確認、他のAppContainerの拒否は保持する。ThinkPadの個人辞書・設定・バックアップは移さず、状態・監査資料も上書きしない。
-
-新しい検索パッケージ試験で旧ソースにOS別選択メソッドがないことを再現し、修正後に境界19045/21999/22000/26200、両OSの既知SID、brokerと登録処理の一致が通過。このPCはWin10 build19045。Nativeパッケージのビルド・GoogleからTSF文書の変換・取消・予測・先頭括弧、GUI起動状態・操作性、オンライン更新の検証と拒否、管理画面自動置換、インストーラー、隔離更新の取消・起動失敗・登録失敗の復旧も通過。Googleを使う試験は学習無効。稼働中のIMEと管理画面は1.0.7-rc.1のままで変更していない。
-
-検索AppContainerの実DLL・broker・Google変換とSpace・Enter、双方の接続先確認、ACL拒否・相手SID拒否・追加サーバー拒否・同名占有拒否も通過した。配布ZIPとインストーラーを作成し、ソース・番号・manifest全6ファイル・配布スクリプトとSHA-256の一致、個人プロフィール・バックアップの非同梱を確認した。Windows PowerShell 5でもGUI起動状態と版番号一致が通過。統合候補の実機適用とGitHub公開は未実施。外部公開には今回の本文・版番号・配布物への確認が必要。
-
-対応ソースはb14af7195beb0a67b526e6a28d48ad09c3435c83。配布EXEはdistributions/Meltype-Native-Google-1.0.7-rc.3-Setup.exe（83,118,809バイト）、SHA-256=E956EA941CBE4F9041630DEEC6A4AD128E182D7590794FA444D2682E44D2560F。ZIPはdistributions/Meltype-Native-Google-windows-x64-20261009-105414.zip、SHA-256=CDBEB7F1FF5F65B9CC898E31A6BAA47EFFEB09105EDD59892F48254E7EF27635。検証結果はexperimental-build/release-1.0.7-rc.3-verified.json。DeskMiniの稼働版1.0.7-rc.1を読み取り確認した。ThinkPadの修正のみrc.2と統合候補rc.3を区別し、確認前に既存の両PCを差し替えない。
-## 管理画面の自動再起動とオンライン更新（1.0.7-rc.1、このPCへ適用済み・未公開）
-
-2026年10月9日、利用者は別PCで更新後も旧1.0.3画面が表示され、終了・再起動で解消したと報告。更新後の管理画面の自動再起動と、GitHubを手動で開かず更新する操作を依頼した。仕様はdocs/NATIVE_RELEASE_UPDATE.md。更新成功後だけ同じ利用者・Windowsセッションの旧管理画面を終了して新版を開く。登録先と管理画面の保存先が異なる場合は、更新前のスタートメニューのショートカットも参照する。PC全体は再起動しない。失敗時は旧版の復旧と管理画面の保持を行う。
-
-管理画面の「最新版を確認」で公開通常Releaseを取得し、利用者が更新を選ぶとダウンロード・SHA-256とサイズの照合・既存のバックアップ・セットアップを実行する。無人更新、ダウングレード、先行版の配信は対象外。管理者確認は残る。入力内容・辞書・履歴・GitHub認証情報を送らない。READMEに画面写真、SECURITYに通信と署名・照合の範囲を記載した。GUI・登録・セットアップ・更新判定の番号は1.0.7-rc.1で一致し、変換・予測エンジンは1.0.6から変更しない。
-
-GUI状態、更新要否、更新失敗の復旧、インストーラー、通信失敗、改変ファイル・不完全な更新の拒否、RCから通常版への更新判定を検証。別利用者・別セッション・無関係のPowerShellを終了しないテストと、実プロセスの管理画面置換用の隔離試験が通過。PowerShell 7とWindows PowerShell 5で更新・再起動試験が通過。公開GitHub APIから1.0.6と添付SHA-256を取得し、現在候補から1.0.6へ戻さないことを確認。Nativeパッケージのビルド、GoogleからTSFへの変換・予測・先頭括弧の試験も通過した。試験でこのPCの登録や稼働版を切り替えていない。
-
-2026年10月9日、利用者の「このPCへ適用」を受け、登録先とショートカットと実行中の管理画面が異なる構成を確認。ショートカットと登録済み旧版番号の保存先を参照する修正を回帰試験で検証した。対応ソース4a23724d46a26391170c34850d499173c915f59fから配布物を再構築し、ソース・manifestの一致と個人データ非同梱を確認。EXEはdistributions/Meltype-Native-Google-1.0.7-rc.1-Setup.exe、SHA256=662C5B5DE1C3FF6483D2F1FBE2EAF619203243C21CAF28D89B2550FA49F98BBE。前の39e0f5a版EXEは置き換えた。
-
-旧パッケージ・登録状態・管理スクリプトはbackups/release-1.0.7-rc.1-20261009-100319、GoogleとMeltypeのプロフィールはinstalled/1.0.7-rc.1/backups/20261009-100455へ保存。プロフィールの保存ファイルのハッシュを確認した。利用者が管理者確認を承認し、登録版・管理画面・Windowsアプリ一覧の1.0.7-rc.1、入力サービスの起動、配布payload全ファイル一致、更新不要を確認。登録先C:/Program Files/MeltypeNativeGoogle/package-cb2dd477b3314863bdc35bff3ddb6097、管理画面installed/1.0.7-rc.1。旧管理画面PID20372は自動で終了し、新画面PID32836が起動した。UIで起動無効・停止有効・この版は適用済み無効・最新版を確認有効を確認。Googleの設定・辞書・暗号鍵3ファイルとMeltypeの入力設定は直前バックアップと一致。セットアップはPC再起動不要を記録した。新しい管理画面の初期表示まで待ち時間があったが、表示後の状態検証は通過した。
-
-installedの最新版確認スクリプトから公開APIを取得し、新しい公開版がないため1.0.6へ戻さないことを確認。実際の新しいReleaseからのオンライン更新とGitHub公開は未実施。現在の公開版は1.0.6で、このPCは1.0.7-rc.1。証跡はexperimental-build/release-1.0.7-rc.1-applied.json、panel.json、profile-backup.json、google-preserved.json（すべて同接頭辞）。旧C側の稼働管理先は保持し削除しない。公開には今回の本文・版番号・配布物への利用者の確認が必要。
-
-## Windows 1.0.6を公開・このPCへ適用済み
-
-2026年10月9日、利用者が公開本文・通常Release・タグ・EXEと.sha256を確認して「いいよ」と承認した。対応ソース6094585bdbf9b8dd9683ed301c0804a67a85f975を既定ブランチgoogle-native-imeへpushし、native-google-1.0.6を通常Releaseとして公開。https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.6 。本文が承認済みdocs/RELEASE_1_0_6.mdと完全一致し、2添付の名前・サイズ・GitHub側SHA-256、draft=false、prerelease=false、最新Releaseの指定が一致した。結果はexperimental-build/release-1.0.6-published.json。
-
-配布EXEはdistributions/Meltype-Native-Google-1.0.6-Setup.exe（83,083,913バイト、SHA256=54EA50856189E71B26E95ECCB51E86BAFD391FB88522C0C5659602F1C6F5F01A）。対応ソース・manifest・個人データ非同梱・Defender検査が通過。旧e376ab3のEXEは公開しない。
-
-このPCの登録・稼働・管理画面・Windowsアプリ一覧は1.0.6。登録先C:/Program Files/MeltypeNativeGoogle/package-bb6eba0e574d4d6bb3d049defb033f9f、管理画面E:/Prog/Meltype/Windows/installed/1.0.6。配布payloadの全ファイル一致、更新不要・起動無効・停止有効、実サービスのGoogle変換・矢印・日本語/英語括弧・Tab予測とEsc取消を確認。テストは別セッションの未確定入力のみで、確定・学習・入力先への書込みなし。結果はrelease-1.0.6-applied.jsonとrelease-1.0.6-panel.json。旧版とプロフィールはbackups/release-1.0.6-20261009-090833とbackups/20261009-090832へ退避・一致確認済み。稼働中IMEの管理先は旧Cフォルダーを保持するため削除しない。
-
-初回セットアップでは管理者確認が取り消しとして返り、旧1.0.5へ復元された。日本語Windowsの取り消しを一般エラーへ分類する不具合を先にテストで再現・修正し、PowerShell 7とWindows PowerShell 5のGUI試験が通過。管理画面から利用者が更新操作を行い1.0.6へ適用された。共通・Windows294件、Native変換と予測、先頭括弧、番号一致、GUI状態・更新要否・更新失敗の復旧、句読点と学習停止を検証済み。
-
-今後の先行適用は予定版番号に候補番号を付け（例1.0.7-rc.1）、公開版と同じ番号で内容だけを差し替えない。管理画面・NativeVersion・セットアップの番号を一致させ、Test-NativeVersion.ps1をビルドと適用前に実行する。AGENTS.mdとdocs/NATIVE_INSTALLER.mdへ記載済み。新規導入・削除・別PC・Windows 11検索欄・停止改善の長期確認は未完了。今回の公開作業は完了。
-## Native版は旧変換を維持し、1.1.0の予測だけを使う（このPCへ適用済み）
-
-2026年10月8日、利用者は学習履歴が失われたように見えると報告し、例として「しらんひと→知らん人」を提示。その後、変換は以前のものへ戻し、1.1.0から予測だけ取り込む方針を指定した。特定語だけの優先登録は行わない。Native Brokerの判定器は公開1.0.5の標準ローマ字・日本語辞書・判定条件を使い、旧候補順と文節操作を選ぶ。1.1.0のMeltype同梱語句をGoogle変換へ優先適用する設定を外し、予測でのみ参照する。常駐版の1.1.0動作は維持する。
-
-Googleの現在のユーザー辞書・設定・暗号鍵は適用前backups/20261008-230439とハッシュ一致。history.dbは580,656→581,088バイト、segment.dbも更新されており、履歴の全消去は確認できない。ただし論理的な全履歴の完全性は未検証。現在のGoogleエンジンと旧・新コアはいずれも、文脈なしの「しらんひと」で「知らん人」を返す。利用者の実入力欄での順位差の原因は未確定。診断では確定・学習命令を送らず、履歴は復元・初期化していない。
-
-文中のzh／zj／zk／zlが英字のまま残る不具合と、Native DLLが先頭の[を捕捉しない不具合を修正前に再現した。日本語の直後はSpaceなしで矢印にし、puzzle内は変えない。先頭の[は未確定入力に含め、後続の日本語では「、英語では[とする。英語の空白で確定を挟んでも閉じ括弧の幅を保持する。仕様はdocs/UPSTREAM_1_1_0.md。Googleへの接続処理は公開1.0.5から変更しない。
-
-共通・Windows294件、旧アセンブリとの固定入力比較、GoogleからTSF文書へのライブ変換・予測の確定取消、実Native DLLの先頭[捕捉、AppContainerからの実Google変換と通信先検証を通過した。Native捕捉テストは--eligibility-onlyでサービスへの変換・確定を送らない。Google連携の試験では学習を無効にした。
-
-検証済みソース5d16c1aをこのPCへ適用。登録先C:/Program Files/MeltypeNativeGoogle/package-f49c21803dee4a65b1f1004b3236fbc0、管理先installed/1.0.5。NativeVersion=1.0.5とアセンブリ版1.1.0は表示上維持するが、Native変換の基準は公開1.0.5（本家1.0.4）で、予測は1.1.0。バックアップはbackups/local-native-prediction-only-5a42c19c22e046d9b7e9705400ad8b56とbackups/20261008-235220。後者の辞書・設定・履歴11ファイルのコピー一致を確認し、更新後のGoogle history.db・config1.db・encrypt_key.db・user_dictionary.dbは直前バックアップと完全一致。学習有効・自動起動有効を保持した。
-
-実サービスへ別の通信セッションから、確定を伴わない固定入力を送り、「知らん人」、文中の全方向矢印、日本語・英語の括弧、Tab予測とEsc取消を確認。実アプリの入力欄へ書き込まず、新しい学習は行っていない。管理画面の実UIで起動無効・停止有効・この版は適用済み無効を確認した。証跡はexperimental-build/native-prediction-only-applied.json、installed-input.txt、learning-preserved.json、panel.txt。開いている入力アプリは新DLLを読み込むため開き直す必要がある。元の順位差の原因は未確定で、Googleの論理的な全履歴の完全性は未検証。
-
-未公開ZIPはdistributions/Meltype-Native-Google-windows-x64-20261008-234839.zip、SHA256=BAA625C6B99D9DDB1BC71DD30EC72EA76DFF91E6E379B9B06662FAAA2C865C8A。ソース・manifest・全ペイロード一致と個人履歴の非同梱、Defender定義1.459.576.0で検出なしを確認。GitHub公開は未実施で、公開には今回の内容・版番号・配布物への確認が必要。
-
-## 本家1.1.0対応版をこのPCへ適用済み
-
-2026年10月8日、利用者の「取り敢えずこのPCに導入して」を受け、検証済みソース1872940と一致するペイロードを適用した。NativeVersion=1.0.5（公開版番号は未変更）、BaseVersion=1.1.0、コアのアセンブリ版1.1.0.0。登録先はC:/Program Files/MeltypeNativeGoogle/package-b8c6cc3490ec45be9fdf79a537e39364。全配置ファイルと検証済みmanifestのハッシュ一致、入力サービス起動、自動起動有効を確認した。
-
-旧パッケージ・C側管理スクリプト・状態・設定とE側管理ファイルをbackups/local-upstream-1.1.0-766ce239995b4cfbb5fa75588823e7c6に保存し、旧パッケージの一致を確認した。GoogleとMeltypeの辞書・設定・履歴の10ファイルはbackups/20261008-230439へ保存し、manifestのハッシュ一致を確認した。旧Program Filesパッケージは保持。既存の句読点・学習停止設定ファイルは適用前後で一致する。
-
-E:/Prog/Meltype/Windows/installed/1.0.5の管理ファイルを同じ候補へ同期し、既存ランタイム全ファイルの一致を確認した。デスクトップ・スタートメニューの管理画面リンクをE側へ設定し直した。UI Automationで起動無効・停止有効・この版は適用済み無効を確認した。別の通信セッションから稼働中の実サービスへ確定を伴わない固定の英字を送り、最大5件の予測、Tab選択、Esc解除・取消を確認した。実アプリの入力欄には何も書き込んでいない。記録はexperimental-build/upstream-1.1.0-applied.json、applied-panel.json、applied-predictions.txt（各upstream-1.1.0-接頭辞）。登録状態の管理先は既存のC側を保持するため、旧C側フォルダーは削除しない。
-
-GitHubの公開済み1.0.5は変更していない。実際のCodex等での予測の操作確認は利用者に依頼し、入力アプリを開き直すよう案内した。次の公開には版番号・内容・配布物の確認が必要。
-
-## 本家1.1.0の予測候補をNative Googleへ取り込み（ローカル検証済み）
-
-2026年10月8日、利用者の依頼で本家v1.1.0を取り込み、Google変換・独自TSF・管理画面・検索向け通信制限・通信枠32・句読点の個別設定を維持した。仕様はdocs/UPSTREAM_1_1_0.md。NativeBrokerの既存プロトコルで入力中の予測を白い候補一覧へ送る。Tab／Shift+Tabで選択、Enterで確定、Escで選択解除し、SpaceはGoogleの文節変換に使う。本家の別TSFサービスへ登録は切り替えない。
-
-予測は本家のPredictorを使い、日本語の確定語句、Meltypeユーザー辞書と既存変換履歴、同梱の英単語を参照する。phrases.txtをPC内に保存し、同じ入力サービスの入力欄間で共有、同時アクセスをロックする。学習停止中の確定と予測選択が履歴を書き換える問題を先に試験で再現し、停止設定へ接続した。Shift状態だけ通知されたTabが逆方向に選ばない問題も再現して修正した。秘密入力スコープの既存除外は維持。READMEとSECURITYに公開済み版との違いと履歴の保存を記載した。
-
-共通・Windows290件が通過。Googleのライブ変換からTSF文書への28回更新・確定・取消に加え、固定の予測履歴からTabでプレビュー変更、Escで復帰、Enterで確定する16回更新のTSF試験が通過した。予測の候補送信・選択位置・通常変換の優先、候補再描画、通信枠32・取消、句読点9組合せ・学習停止、GUI起動状態・更新判定、更新取消時の復旧試験も通過。隔離AppContainerから実Google変換と接続先拒否を確認した。試験では学習を無効にし、予測固有の履歴はメモリー上の固定データだけを使った。
-
-本家のJSONソース生成に対応するため、Roslyn構築に.NET SDKのSystem.Text.Json.SourceGeneration.dllを渡すよう変更した。実行時のSDKは不要。BaseVersionは1.1.0、NativeVersionは配布版番号が未決定のため1.0.5を維持している。ローカルIMEパッケージをexperimental-build/native-ime-packageに構築済み。稼働中のIME・GitHubの公開済み1.0.5は変更していない。実際のCodex等での予測表示・操作、新しい版の管理者登録と実機適用は未確認。公開には内容の確認が必要。
-
-対応ソース1872940d6927dbf1bd37da1636805bd2be916a7eを含むZIPはdistributions/Meltype-Native-Google-windows-x64-20261008-225612.zip（113,969,674バイト、SHA256=26EBEE7D6E166E03480BD6ABE27DA33B2D61AD6479CA5EBE024465EB632A4F6B）。manifestの全ファイル、対応ソースと現行実装、BaseVersion、個人設定・履歴のパスがないことを照合した。Defender定義1.459.576.0でZIPに検出なし。記録はexperimental-build/upstream-1.1.0-package-verified.json、upstream-1.1.0-scan-transfer.txt、upstream-1.1.0-tests.txt、upstream-1.1.0-prediction-tsf.txt。適用前の実状態を再確認し、このPCはNativeVersion=1.0.5／BaseVersion=1.0.3で起動中。次は利用者にこの候補の適用を案内し、必要な管理者確認を承認してもらった後に登録・稼働・実アプリでの予測候補を確認する。
-
-## このPCへの本家1.0.4対応版適用（1.1.0対応版の適用で終了）
-
-2026年10月8日、ユーザーがこのPCへ本家1.0.4対応版を適用するよう依頼した。公開済みEXEのSHA-256=06312F0B9F827539998526C5C191A91D011482694CE8E46A4C61F07D69DC94EAとソース33d332fを確認し、現行パッケージ・管理スクリプト・登録状態・設定をbackups/upstream-1.0.4-*へ退避して旧パッケージのハッシュ一致を確認した。詳細はexperimental-build/upstream-1.0.4-apply-before.json。
-
-可視の更新用PowerShellと、進捗画面付きの公開EXE（/SILENT）から更新を試みたが、両方ともWindowsが管理者確認の取り消しを返した。レジストリ・状態・旧入力サービスの復元を確認した。登録先は引き続きpackage-59f39af69d6442f4847902e5939a4494、NativeVersion=1.0.5、BaseVersion=1.0.3、入力サービス起動中であり、本家1.0.4のコアはまだ稼働していない。E:/Prog/Meltype/Windows/installed/1.0.5への公開版ファイルの配置とセットアップ情報更新は完了している。
-
-同導入先の管理画面を開き、UI Automationで「この版に更新」が有効、「起動」が無効、「停止」が有効であることを確認した。記録はexperimental-build/upstream-1.0.4-pending-panel.json。残作業はWindowsの管理者確認を承認して登録を更新し、BaseVersion=1.0.4・コア版1.0.4.0・ファイル一致・サービス起動・更新不要を検証すること。利用者に管理者確認が見えているか非同期で質問したが、回答は未取得。自動再試行は行わず、開いた管理画面から更新を開始してもらう。GitHubの公開内容は変更していない。
-
-## 本家1.0.4対応版1.0.5を公開済み
-
-2026年10月8日、指定された本家v1.0.4（55c8a29）を444578bで競合なく取り込み、Native Google 1.0.5として再構築した。対応仕様はdocs/UPSTREAM_1_0_4.md。共通コアのローマ字変換・日英・かなキー判定を更新し、常駐版のQt向け貼り付け修正はソースに保持する。Native版は引き続きTSFで入力し、クリップボード経路を追加しない。導入・更新でのBaseVersionは1.0.4へ変更した。
-
-共通・Windows218件、GoogleからTSF実文書への28回の更新・確定・取消、句読点9組合せと学習停止、起動状態と更新判定、候補再描画、通信枠32・待機・取消、AppContainer経由の実Google変換と接続先拒否、更新復旧の試験が通過した。Windows PowerShell 5の設定保存とGUI起動状態の試験も通過。配布内のコア版1.0.4.0、スクリプトとソースの一致、個人データのパスがないことを確認した。ZIP・完成EXEともDefender定義1.459.576.0で検出なし。
-
-新しい配布候補のソースは33d332f294a4829aa127d726ada6ec4f67d4fa1e。distributions/Meltype-Native-Google-1.0.5-Setup.exeは82,823,135バイト、SHA256=06312F0B9F827539998526C5C191A91D011482694CE8E46A4C61F07D69DC94EA。公開本文docs/RELEASE_1_0_5.mdとexperimental-build/release-1.0.5-publication.jsonを差し替えた。利用者指定の「英語入力の句読点は半角のピリオド・カンマ」「枠が満杯のときは」「Google日本語入力のインストールが必要」も反映済み。
-
-現在このPCで動くのは本家1.0.3ベース・ソース6ab7b32の旧候補であり、今回の1.0.4対応版は適用していない。旧EXEと.sha256はdistributions/archive/native-google-1.0.5-base-1.0.3、旧公開候補はrelease-1.0.5-before-upstream-1.0.4.jsonへ退避した。新しい配布物の実機更新、新規導入・削除・別PC・Windows 11検索欄と長期的な停止改善は未確認。2026年10月8日、最新の本文・本家1.0.4対応EXEと.sha256を提示した後、ユーザーの「いいよ」を受けて公開した。公開先はhttps://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.5。google-native-imeとリリースタグの対象は33d332f、draft=false・prerelease=falseの通常Release。承認本文と公開本文が一致し、EXE・.sha256の名前・サイズ・GitHub側SHA-256が候補と一致することを確認した。最新Releaseも1.0.5で、既定ブランチgoogle-native-imeのREADME・SECURITYを更新済み。公開結果はexperimental-build/release-1.0.5-published.json。今回の公開作業ではPCへの適用は行っていない。
-
-## 修正版1.0.5をこのPCへ適用
-
-2026年10月8日、ユーザーの「一旦PCに適用して」を受け、完成EXE（SHA256=5D0B7EDAF65C2B07B5E1047E4E2245B25C9BEA9A104563D1612C2F495EEF37D3）をE:/Prog/Meltype/Windows/installed/1.0.5へ配置した。初回の管理者確認は利用者に見えず取消となり、更新処理が旧登録・旧状態・入力サービスを自動復元した。可視の更新用PowerShellから同じセットアップ処理を再実行し、更新が成功した。Windowsのアプリ一覧には1.0.5のセットアップ削除情報が登録されている。新規導入・削除と別PCの試験は未実施。
-
-現在の登録先はC:/Program Files/MeltypeNativeGoogle/package-59f39af69d6442f4847902e5939a4494、NativeVersion=1.0.5、BaseVersion=1.0.3。全配布ファイルのハッシュ一致、入力サービス起動、自動起動有効、更新不要を確認した。Google・Meltypeの辞書／設定／学習履歴の10ファイルをコピー・ハッシュ確認し、旧パッケージ・スクリプト・登録状態もE:/Prog/Meltype/Windows/backups/local-1.0.5-846db93b817d4239a4f08d7fd3617aafへ保存した。セットアップの履歴バックアップはinstalled/1.0.5/backups、旧管理先の版更新バックアップも保持している。旧登録パッケージは削除していない。既存の句読点は全角カンマ・ピリオド、学習は有効の状態を保持した。
-
-管理画面はEドライブのセットアップ先から再起動し、表示イベントで開いた。UI Automationによる実画面の確認で「起動」が無効、「停止してGoogleに戻る」が有効、「この版は適用済み」が無効であることを確認した。実画面の記録はexperimental-build/local-1.0.5-panel.json、適用結果はlocal-1.0.5-applied.json。稼働中IMEの管理先は既存の旧Cドライブ作業先を保持するため、そのフォルダーを削除しない。installed/はGit対象外とした。GitHubへの公開は引き続き保留中。現在開いている入力アプリは新DLLを読み込むため開き直す必要がある。
-
-## Windows 1.0.5の公開準備（公開保留）
-
-2026年10月8日、GitHub APIで公開最新版がnative-google-1.0.4、対応ソースb15ee1bであることを確認。未公開の句読点設定・学習停止と通信枠32を1.0.5として配布する準備を進めている。本家ベースは1.0.3。最初の配布候補f996ce8は構築・Defender検査済みだったが、ユーザーから「ちょっと待って」と公開保留、および起動後も起動ボタンを押せる問題の修正依頼を受けたため、この候補は公開しない。
-
-起動ボタン問題の利用者環境での原因は未確定。現行コードは通信パイプの有無で稼働を判定し、状態確認の例外時に古い有効状態を残していた。固有の試験用Mutexと実GUIタイマーで、サービスがMutexを保持しているのに通信パイプを検出できない状態では起動ボタンが有効になることを修正前に再現した。起動Mutexによる判定へ変更し、起動・停止状態、状態取得失敗と更新判定失敗時の全操作無効化を試験した。仕様はdocs/NATIVE_GUI.md、試験はTest-NativeGuiRunningState.ps1。既存のGUI状態・更新判定・トレイ・インストーラー試験も通過した。導入済みIMEと管理画面は変更していない。
-
-修正版の配布候補を構築・検査済み。対応ソース6ab7b32、EXE distributions/Meltype-Native-Google-1.0.5-Setup.exe（82,824,388バイト、SHA256=5D0B7EDAF65C2B07B5E1047E4E2245B25C9BEA9A104563D1612C2F495EEF37D3）。配布先のGUIと稼働判定コードが試験済みソースと一致することを確認した。ZIP・完成EXEともDefender定義1.459.576.0で検出なし。完成EXEによる実IME登録・削除と、報告された環境での症状解消は未確認。再現・回帰試験は現代PowerShellとWindows PowerShell 5で通過した。本文docs/RELEASE_1_0_5.mdにも起動ボタンの修正を追加し、experimental-build/release-1.0.5-publication.jsonを修正版へ更新した。旧候補はrelease-1.0.5-before-start-fix.jsonへ保存した。2026年10月8日にユーザーが公開再開と文言提示を求めたため、Release本文をこのPCでの更新と実画面確認結果を含む内容へ整理し、公開候補JSONを更新した。添付EXEとSHA-256は適用済みと同じものを維持する。本文への承認はまだ取得していない。残作業はユーザーによる今回の文言・添付物への確認と公開。公開先AoneSenbongi/Meltype、タグnative-google-1.0.5、通常Releaseを予定するが、ユーザーが再確認するまでpush・Release・添付物の公開変更を行わない。
-
-## 通信枠32への変更とこのPCへの適用
-
-2026年10月8日、ユーザーの指定で通信パイプを待受を含め32インスタンスへ変更した。満杯時のエラー231のみ100ms待って再試行し、停止要求で待機を解除する。同名占有・アクセス拒否は待機せず失敗し、接続先の検証とACLは維持する。仕様はdocs/NATIVE_SEARCH.md。Test-NativeBrokerCapacity.ps1で修正前の17個目の作成失敗を再現し、修正後の32個作成、満杯での待機、枠の再利用、取消、同名の初回占有拒否を確認した。
-
-導入済みパッケージを複製し、NativeBroker.csの通信処理だけを変更した。ほかのDLL・エンジン・ライセンスのハッシュ一致を確認し、同じ容量試験を通した。バックアップ後に既存の管理者ヘルパーでC:/Program Files/MeltypeNativeGoogle/package-b21fa71bdacf4cb58179312e80265973へ配置・登録し、入力サービスを再起動した。Activate native=0x00000000、全ファイル一致と配置済みソースの容量試験を確認。旧版package-745455f140b4476c8cd26eee1b1ce791は保持。導入元の更新用ペイロードもNativeBroker.csとmanifestだけを同期し、管理画面から旧16枠へ戻る更新を提案しないようにした。同期前の2ファイルは同じバックアップへ保存し、ほかのペイロードが一致することを確認した。バックアップはE:/Prog/Meltype/Windows/backups/capacity-20261008-011347、辞書・設定の既存バックアップ処理の出力は旧管理ルートbackups/20261008-011348。結果はexperimental-build/capacity-applied.json。
-
-この適用は通信処理だけで、未公開の句読点設定や本家1.0.3のコアへの更新ではない。2回のTwitter操作中の停止との因果と、長期利用での停止解消は未確認。GitHub・既存Release・配布EXEは変更していない。次の配布時は変更後のソースから再構築し、内容確認を受ける。
-
-## 2026年10月8日の突発停止の調査
-
-ユーザーはTwitter操作中の停止を2回報告し、管理画面も停止中だったと回答した。使用ブラウザー名と発生時刻は未取得。読み取り専用の状態確認中、入力サービスは通常権限のpwshで01:01:24に起動し直された状態を確認した。現行パッケージはC:/Program Files/MeltypeNativeGoogle/package-745455f140b4476c8cd26eee1b1ce791。起動ログは新しい起動で置き換わっており、停止のエラーは残っていない。過去12時間のApplicationイベントにもWindows Native Brokerに対応する障害記録は見つからなかった。管理画面の停止判定はパイプの存在確認であり、過去のプロセス終了自体を証明するものではない。
-
-現行NativeBroker.csのCreateSearchListenerは最大16インスタンスで、RunAsyncは次の待受作成のWin32Exceptionを処理していない。固有の試験用パイプ名で現行パッケージの同じメソッドを使い、16個成功後の17個目でWin32Exception・NativeError=231を再現した。試験用ハンドルはfinallyで全解放した。実際のサービス、IME登録、辞書と入力内容へ操作を行っていない。試験スクリプトはexperimental-build/Test-BrokerConnectionLimit.ps1。これは停止につながる確認済みの実装不具合だが、今回の2回との因果は未確定。1.0.4でも同じ待受作成処理が残っているため、更新による解消は保証しない。本家1.1.0の予定はユーザー申告で、内容は未確認。この調査時点では対策実装・導入・公開を行っていなかった。後続の適用は上の節を参照。
-
-## 現在の追加作業（未公開）
-
-2026年10月7日、管理画面へ読点「、／，／,」、句点「。／．／.」の個別選択と保存、学習停止・再開ボタンを実装。Native BrokerとGoogle変換器、共有入力コアは利用者のLocalAppData/MeltypeNativeGoogle/input-preferences.jsonを参照する。新しい日本語入力へ反映し、英語は半角を維持する。学習停止は新しいMeltype経由の変換・言語・Google学習を止め、既存の辞書・履歴を保持する。通常のGoogle日本語入力を直接使う際の設定は変えない。仕様はdocs/INPUT_PREFERENCES.md。Android側も独立した作業先で同じ設定を実装した。
-
-共有・Windows212/212、Googleへの接続を抑える停止・途中停止のテスト、実Googleで9組合せのライブ変換・Space・確定後の句読点保持が通過した。Native Brokerのコンパイルも確認。Windows PowerShell 5で設定上書き時のFile.Replaceのnull引数問題を再現し、NullStringに修正して9組合せ・停止再開・破損設定の試験が通過。既存のGUI操作状態試験も通過。管理画面の描画を画像で確認しREADMEへ埋め込んだ。導入済みPCの入力サービス・DLL登録・辞書は変更していない。experimental-build/native-ime-packageへ更新用ファイルを準備済み。GoogleからTSF実文書への未確定・確定・取消試験も通過。GitHubの公開内容は変更していない。
-
-## 目的と対象
-
-公開済みWindows Native Google 1.0.2を基に、Windows検索欄の日本語入力問題を調査・修正する。この文書はPC版だけを扱い、Android版は`E:/Prog/Meltype/Android/source/docs/CURRENT_STATE.md`に記録する。新しいチャットへ移さず、このチャットで開発を続ける。
-
-## 現在の作業
-
-2026年10月7日、検索対応の読み取り専用診断を開始。このPCのSearchApp.exeはAppContainer／Lowで、現行DLLは未ロード。HKCUにはCOM登録がありHKLMにはない。現行実装に制限付きアプリ向けの対応登録・配置・通信が不足している。隔離したAppContainerで現行DLLの読み込みと現行パイプへの接続がどちらもAccess Denied（5）になることを再現済み。検索欄の操作中にDLLがロードされるかは未確認。
-
-検索対応のローカル試験版を実装し、隔離AppContainerから製品DLL・製品変換サービス・Googleを使う試験を完了した。2026年10月7日、ユーザーの「じゃあ適用して」を受け、このPCへ適用した。ユーザーが「出来てるよ」とWindows検索欄での動作を確認した。1.0.3のZIPと文言を提示し、ユーザーの「おっけ それで公開しよう」を受けて通常Releaseを公開した。設計と確認範囲は`NATIVE_SEARCH.md`。ユーザーへ節目ごとに原因・変更内容・結果を共有する。承認済みのソース・配布ファイル・README・セキュリティ説明はGitHubへ公開済み。
-追加依頼の、適用済みでも更新できるボタンと、Spaceによる白い候補一覧の選択表示はローカルで修正・検証済み。更新判定はバージョン番号ではなく配布内容・管理スクリプトの一致で行う。候補画面は位置とサイズが同じでも選択変更時に再描画する。ユーザー承認後、このPCへの適用を完了し、管理画面を再起動した。配布ペイロードのハッシュは更新・確認済みで、公開はしていない。辞書・設定と旧ファイルをバックアップし、DLL登録先を切り替え、入力サービスを再起動した。導入済みファイルが一致し、更新不要と判定されること、登録済みDLLの候補再描画とGoogle・TSF試験を確認した。更新スクリプトの同一内容での実行は、サービスを停止せず終了した。
-
-2026年10月7日、候補画面の再描画テストは修正前に失敗し、修正後に通過した。同一内容・バイナリ差分・GUIだけの差分・欠損・改ざんと実際のGUIタイマーによる更新ボタン判定、既存のGUI・常駐メニュー、Google→TSFのライブ更新・確定・取消・モード切替も通過した。試験は`Test-NativeUpdateAvailability.ps1`、`Test-NativeCandidateRefresh.ps1`と既存のNative試験を参照する。
-更新後は導入先の配布元ペイロードも最新版へ同期する。これにより導入済みのショートカットから開いた管理画面が古い内容への更新を提案しない。開発側・導入側の両方で更新不要と判定されること、同一内容の更新がサービスのPIDを変えず終了することを2026年10月7日に確認した。適用時の復元済み結果は`experimental-build/approved-gui-candidate-update-restored.json`。バックアップは`E:/Prog/Meltype/Windows/backups/20261007-010446`。
-
-登録済みDLLでの終了チェックは、テスト用TSFスレッドを終了する前にDLLの解放可否を確認していたため失敗した。スレッド管理を終了・解放してから確認する順序へ直し、同じ登録済みDLLで試験が通過した。IMEの製品コードを追加変更したものではない。修正版を使うには入力アプリを開き直す必要がある。GitHubへの公開は承認待ちで、今回の適用はこのPCのみ。
-## 候補表示とCドライブの整理
-
-2026年10月7日、ユーザーがPCを再起動し、Spaceによる白い候補一覧の選択表示が切り替わることを確認した。この不具合は利用中のPCで解消済み。Windows検索欄の変換問題は引き続き再現している。
-
-Cドライブの空き0バイトを確認し、一時フォルダーのWSL・Ubuntu・VS CodeインストーラーをEドライブへコピー・SHA-256確認後、元ファイルを削除した。追加整理について対象を示してユーザー承認を受けたが、一般化した削除コマンドは自動審査で拒否された。ユーザーの追加指示を受け、ファイルを保持する移動へ切り替えた。
-
-旧Meltype配布物とUnityダウンロードキャッシュを `E:/Prog/Meltype/storage-recovery/20261007` へ移動し、全ファイルのSHA-256一致を確認した。Unityは10,779ファイル。元のパスへジャンクションを作り、参照先を維持している。GitHub Desktopの配布キャッシュと古いランタイムインストーラーも同じ方法で移動・ハッシュ照合・ジャンクション作成を完了した。整理後の実測空きは約2.6GB。現在稼働中のIME・辞書・Google・開発ランタイムの本体は移動していない。移動前のハッシュ一覧は退避先へ保存している。
-
-## 検索対応の通信試作
-
-隔離したAppContainerから試験用サービスのプロセス照会が拒否されることを追加再現した。特定のAppContainer SIDに限定照会とトークン読み取りを許可すると、既存の通信先確認に必要な情報を取得できた。特定SIDだけにパイプの読み書きを許可し、クライアントのアクセス要求からパイプの追加サーバー作成権限を除く方法で、接続と照会が成功した。別のSIDへの許可しかないパイプには接続できず、許可されたクライアントも追加サーバーを作成できない。
-
-2026年10月7日、`Test-NativeSearchPeerAccess.ps1` の4ケースと既存の `Test-NativeSearchSandbox.ps1` が通過。結果は `experimental-build/search-peer-access-result.json`。この実装は使い捨ての試験プロセスとパイプだけに適用し、導入済みIMEの登録・配置・通信権限は変更していない。検索欄での実入力はまだ未検証。次は試作した限定アクセス方式を製品の変換サービスへ組み込み、保護されたDLL配置と対応登録を準備する。導入前に具体的な変更・復旧方法と検証結果を示して承認を受ける。
-## 検証済みの実装と決定
-
-### 未公開のWindows検索対応試験版
-
-2026年10月7日、製品側へ特定のWindows 10検索パッケージだけの通信許可と双方の接続先確認を実装した。DLLはITfTextInputProcessorExに対応し、保護されたProgram Files版別フォルダーからHKLMへ登録する方式を準備した。成功後に旧HKCUのCOM登録を解除する。管理ルートはユーザー別InstallRootで保持する。更新・削除・自動起動・GUIの検出処理も対応した。旧ペイロードは上書きしない。
-
-隔離AppContainerでの製品通信・Googleライブ変換・候補取得・日本語確定、別パッケージ拒否、追加サーバー作成拒否、同名占有拒否が通過した。通常のGoogle・TSF、白い候補一覧の再描画、GUIと更新判定、管理者確認取消・登録不明・起動失敗の復旧試験も通過した。製品の検索通信試験は学習無効、復旧試験は偽の登録・管理者操作先を使い、実際の登録や導入済みIMEを変更していない。
-
-最新の配布元は`E:/Prog/Meltype/Windows/experimental-build/native-ime-package`。Build-Package.ps1で再構築し、NativeRegistration=Machineと各ファイルのSHA-256を記録した。ユーザー承認後、`C:/Program Files/MeltypeNativeGoogle/package-ae1030e60d444fcfaa688bfab9f985e8`へ適用した。HKLM登録の一致、旧HKCUのCOM登録解除、全ファイルのハッシュと保護ACL、変換サービスの起動、自動起動設定を確認した。DLLのSHA-256は`ADD5970D724FB01BB25231130AECFDD220987E85550DB8FDF82923E9B3EDB39A`。Windows検索欄で入力できることはユーザーが確認した。すべてのキー操作・候補UIは未確認。Windows 11の検索パッケージ、ほかのAppContainerは今回の対応対象に含めない。1.0.3の公開はユーザー承認を受けて完了済み。
-
-Eドライブ側のUpdate-NativeIme.ps1で適用し、Cドライブの導入先配布元も同期した。両方の更新判定は更新不要。Google・設定のバックアップは`E:/Prog/Meltype/Windows/backups/20261007-022544`、旧管理ファイルと状態は導入先の`backups/version-update-20261007-022545`。旧候補修正DLL（SHA-256 `5E4552EFCD152F528475434EFB3E22679253D3D986E91392379AF9DC91E9F1A5`）は元の配置先に保持した。新サービスへのGoogle・TSF実変換試験も通過し、管理画面を開き直した。適用結果は`experimental-build/approved-search-update-result.json`。ユーザーの入力アプリと検索プロセスは終了していない。検索欄への反映にアプリ再起動またはWindowsの再起動が必要になる可能性がある。公開候補のソース・管理画面の版番号を1.0.3へ更新したが、このPCの導入状態は試験版1.0.2のまま。公開はユーザー承認を受けて完了済み。
-
-TSFの未確定文字を入力先へ表示し、Google日本語入力と日英判別・ライブ変換・候補選択を連携する。辞書・学習履歴は導入先のGoogleのものを使う。管理画面、通知領域の停止・辞書操作、サインイン時の自動起動を提供する。Google本体や辞書は改造・同梱しない。
-
-秘密入力欄の保護をPIN・プライベート入力に拡張した。最初のパイプ作成で既存の同名サーバーを拒否し、送信前にサーバーのユーザーと整合性レベルを確認する。lnkiai氏の参考実装への出典をコードとREADMEへ記載した。同じユーザーの通常権限の悪意あるプロセスまで判別するものではない。
-
-DLLの更新では別の保存先へ配置して管理者確認付きで登録先を切り替える。確認の取消時は旧版を保持する。公開版の番号はユーザーの指定で1.0.2とし、本家の取り込み元1.0.1とは区別する。
-
-## 完了・進行中・残作業
-
-このPCのDLL更新・起動・自動起動設定は確認済み。管理者確認を取り消した初回は旧版へ戻り、承認した再試行では更新が成功した。試行時の内部表記1.0.1.1は公開せず、導入状態と管理画面・資料を1.0.2に統一済み。
-
-ソース・ビルド・配布物は`E:/Prog/Meltype/Windows`、参考Forkは`E:/Prog/Meltype/Reference`へ移動済み。導入済みIMEの登録先は元のCドライブの作業フォルダーに残し、稼働中のDLLは移動しない。Androidは専用リポジトリへソースとAPKの移転を完了した。
-
-1.0.2の通常Releaseと本家への新規Issue投稿は完了した。配布先は`https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.2`、紹介Issueは`https://github.com/yksr-melt/Meltype/issues/84`。対応ソースは`bbfe6b2`。ZIPのSHA-256は`A23D29BC3280BB3AA54ED25F90A353A08A8E11E2E718131DF4E89247D791CFF1`で、GitHubのdigestとも一致する。
-
-PC版READMEへ管理画面の画像を埋め込んだ。AndroidのREADMEにも4画面を表示し、専用Releaseへの移転は完了した。今後の未完了課題はWindows検索対応とAndroid実機検証。状態資料はこのチャットで更新しながら開発を続ける。
-
-## 検証日・方法と制限
-
-2026年10月7日、既存198件のテスト、TSF文書とGoogle接続、秘密入力欄・通信先確認、同名パイプ拒否、管理画面、自動起動と常駐メニューの試験が通過した。更新後もDLL→起動中の変換サービス→Google→TSF文書の試験と管理画面の試験を実行し、通過した。配布ZIPの必須ファイル、対応ソースのコミット、ペイロードのハッシュと個人データの除外を確認した。
-
-Windows 10の検索欄で入力できることはユーザーが確認済み。通常Releaseの対象はWindows 10／11 x64デスクトップアプリ。AppContainer・ストアアプリ・32ビット・ARM64・署名必須の入力先は対象外。全アプリでの実機確認や第三者のセキュリティ監査は未実施。詳細は`NATIVE_RELEASE.md`と`SECURITY.md`を参照する。
-## 公開前の確認
-
-Issue・コメント・PR・Release・GitHubへのpushなどの公開操作と、公開済みの内容・配布物の変更は、ユーザーに内容を提示して承認を受けてから実行する。公開先、本文、版番号、変更点、検証結果・制限と添付ファイルを確認できる状態にする。実装・検証・ローカルでの準備は先に進める。作業開始の依頼を公開内容への承認として扱わない。
-
-2026年10月7日のユーザー指定により、共通と各プロジェクトのAGENTS.mdへ記録した。この規則と状態資料の更新はローカルに保存し、公開はしていない。
-## 1.0.3の公開結果
-
-2026年10月7日、提示した本文とZIPへのユーザー承認後、ソース5322eb46a91130be9b2126304d4ca64d57f5ecc6をgoogle-native-imeへpushし、通常Releaseを公開した。公開先はhttps://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.3。draft=false、prerelease=falseをAPIで確認し、本文が承認済みRELEASE_1_0_3.mdと一致することも確認した。
-
-AssetsはMeltype-Native-Google-windows-x64-20261007-023356.zipと同名の.sha256。ZIPは113,627,995バイト、SHA-256は2FA5F277B59B0F55713E6434E0DA6596B6403CEAB40B6F57DB4AA4BF8F3EECA4で、GitHubのdigestと一致した。対応ソース・ランタイム・ライセンスを同梱し、個人の辞書・設定・履歴・ログは除外確認済み。公開結果はexperimental-build/release-1.0.3-published.json。
-
-このPCには検索対応の試験版1.0.2表記が導入済み。公開1.0.3とは管理画面・状態の版番号が異なるが、変換ペイロードは同じ。今回の公開で導入済みPCへの追加更新は行っていない。Windows 10検索欄での入力はユーザー確認済み。Windows 11の検索欄、一般のストアアプリと全キー操作は未確認。本家IssueとSNSへの追加投稿は今回行っていない。この公開結果の状態資料更新はローカルに保持し、追加pushしていない。
-
-## 管理画面の可読性と操作状態の修正
-
-2026年10月7日、ユーザーのPC版依頼を反映。エラーは日本語の説明と再操作の案内に変換し、生の技術出力はexperimental-build/gui-error-<ID>.txtへ保存する。管理者処理の結果がない場合はキャンセル・起動失敗などの可能性を示し、原因は断定しない。起動中は起動ボタン、停止中は停止ボタンを無効化し、状態取得前も両方を無効にする。無効な操作は起動処理側でも拒否する。単語登録・辞書管理を中立色のFlatボタンに変え、Tabによるキーボード操作を維持する。実際のGUIタイマーで修正前の起動ボタンが有効になる不具合を再現した。Test-NativeGuiUsability.ps1、既存GUI・更新可否・常駐メニュー試験を通過し、RenderToの画面画像で辞書ボタンの色を確認した。常駐メニュー試験は独立したpwsh -File実行で通過。同じ呼出しスコープ内の関数クロージャ解決では失敗するため、独立実行で検証した。このPCの導入先のHost-NativeControlPanel.ps1とNativeGuiCommon.ps1を一致確認して反映し、管理画面のみ再起動。旧2ファイルはE:/Prog/Meltype/Windows/backups/gui-usability-20261007-154321へ保存。入力サービス・DLL登録・辞書は変更しない。画像のOwner PCでの適用とGitHubの公開はまだ行っていない。保護処理が結果を返さない根本原因はこの画面の情報だけでは特定していない。
-
-## 起動操作と自動起動設定の整理
-
-2026年10月7日、ユーザーの最終指示を反映。起動・停止は実行ボタンを維持し、現在状態に応じて無効化する。自動起動のみチェック式に変更し、未導入・処理中・状態取得失敗時は無効にする。実際のRun設定を表示に反映する際はCheckedChangedから変更処理が走らないようにし、失敗後も設定を再取得する。アンインストールを明示した独立ボタンにし、未導入・処理中は無効化、確認後に既存の削除経路へ送る。登録・自動起動・ショートカットを削除し、Google日本語入力の辞書と学習履歴を残すことを説明する。実際のアンインストールは実行していない。管理者ヘルパーの起動引数へExecutionPolicy Bypassを追加し、結果なしの場合に終了コードを技術情報へ残す。これは別PCの既定ポリシーによる起動前失敗への対応で、画像の原因と断定しない。既存の管理者確認・SID・ハッシュ・ACL・登録復旧検証を維持する。GUIのチェック同期・操作経路・未導入時の操作不能、保護配置引数、GUI・更新可否・復旧試験を通過した。描画で最終UIを確認し、このPCの管理スクリプト3ファイルを一致確認後に反映し、管理画面のみ再起動。バックアップはE:\Prog\Meltype\Windows\backups\gui-actions-settings-20261007-155208。自動起動設定、IMEのDLL登録、辞書は今回の反映操作では変更していない。別PCの導入確認とGitHubへの公開は未実施。
-
-2026年10月7日の配置指示を反映。インストールとアンインストールを上段の同じ行に並べ、更新をその直下、起動・停止、自動起動チェック、辞書、設定・バックアップの順に配置した。アンインストール確認は共通操作入口へ移し、既定を「いいえ」にした。GUI・更新可否の試験と描画確認が通過。このPCの管理画面を一致確認して反映・再起動した。旧ファイルはE:\Prog\Meltype\Windows\backups\gui-layout-20261007-155330へ保存。アンインストールや自動起動変更は実行せず、GitHub公開・別PC適用も未実施。
-
-2026年10月7日、管理画面修正版の配布ZIPをローカル作成。distributions/Meltype-Native-Google-windows-x64-20261007-160029.zip、対応ソース084ba97、SHA-256 A27B2C5EF952F5FC62BE5CAD06DFBE4EDD068982907157C0A5009D7F0177067B。必須ファイル、管理スクリプト3件の一致、対応コミット、個人ログ・バックアップの除外を確認。GitHub公開と別PCのインストール確認は未実施。
-
-ユーザー指定により管理画面修正は1.0.4の新規通常Releaseとして準備する。1.0.3への追加配布案は取り下げた。管理画面と導入・更新状態、README・配布資料を1.0.4へ変更し、公開は本文と新ZIPへの承認待ち。
-
-1.0.4の配布ZIPはdistributions/Meltype-Native-Google-windows-x64-20261007-160630.zip。対応ソース92a647a、SHA-256 E4C3E4B856556356A6F3D378E4229B1B64E78C9E2892E6E9980AF87C601FE784。関連試験6本、必須ファイル・管理スクリプト・版番号・ペイロードハッシュ・個人ログ除外を確認。本文はdocs/RELEASE_1_0_4.md、公開計画はexperimental-build/release-1.0.4-publication.jsonに保存。通常Releaseの新規公開とソースpushは今回の内容への承認待ち。
-
-ユーザー指示により本家v1.0.3の取り込みを1.0.4公開の前提とした。管理画面のみのZIPと公開計画は旧候補であり公開しない。タグを取得して差分確認中。新版を再ビルド・検証し、変更後の本文とZIPへの承認を受ける。
-
-本家v1.0.3をマージし、競合したREADMEはFork向け導入説明を維持して本家の脅威検出案内を反映した。共通コア、常駐Windows実装、Mac・Linuxソース、候補辞書と回帰テストを取り込んだ。208/208の試験が通過。品質コーパスは1242/1243（apinoerrorの判定1件が期待と異なる）で既定合格基準を満たす。Native Brokerの選択範囲取得・置換は未実装のため、本家の再変換はNative IMEでは未対応と資料へ明記。タグv1.0.3の本家csproj内部版番号は1.0.2。これから配布ペイロード再ビルドとNative連携を検証する。
-
-本家1.0.3取り込み後のNativeパッケージを再ビルドした。Googleライブ変換のTSF実文書反映、候補再描画、同名パイプ拒否、AppContainerからのGoogle変換・候補・確定と接続先照合、検索パッケージの権限境界、GUI6本の試験が通過。導入済みIMEの登録・入力サービス・辞書は変更していない。脅威検査スクリプトの回帰試験も通過。これから新ZIPと配布物のDefender検査を実行し、確認後に最終公開案を提示する。
-
-## 本家1.0.3対応済み1.0.4候補
-
-本家タグv1.0.3（6703669）を履歴ごとマージした。ソースc4828cdbf528456a8085afee3a668402648df765。最新候補はdistributions/Meltype-Native-Google-windows-x64-20261007-161640.zip（113,654,008バイト）、SHA-256 8BEBAC80AAF2ECE5B21F3A4B6F91A9057097B1BE94912F9ECDD7BAD740BA118E。旧管理画面のみの候補は公開しない。共通・Windows208件、Google→TSF実文書、候補再描画、検索向けAppContainer通信・本人確認・権限境界、GUI・更新・復旧試験を確認。必須ファイル、対応コミット、ペイロードハッシュ、管理スクリプトの一致と個人ログ除外を確認。変換ペイロードのDefender検査は脅威なし。ZIPのDefender検査も脅威なしで完了した（定義1.459.576.0／エンジン1.1.26080.3）。新しい本文と添付はexperimental-build/release-1.0.4-publication.jsonへ保存した。通常Releaseとソースpushはユーザーへの再提示・承認待ち。導入済みPCへ新コアは適用していない。Native版の選択範囲再変換、Windows11検索欄、別PCのインストールエラー解消は未対応または未確認。
-
-ユーザー指示により1.0.4の主配布をEXEインストーラーへ変更し、デスクトップショートカットを追加する。ZIP候補の公開は保留。仕様はdocs/NATIVE_INSTALLER.md。作成ツールInno Setupのダウンロード・導入をまとめた操作は自動審査にblocked by policyで拒否された。既存ツール調査とソース・回帰試験の準備を進める。
-
-承認を受けて署名・公式SHA-256を確認したInno Setup 6.7.3をE:/Prog/Meltype/Tools/InnoSetup/compilerへ導入した。NSIS候補は配布ファイルを取得できず採用しない。NativeInstaller・Invoke-NativeSetupとInno Setup定義を実装。通常権限の新規導入・既存更新・取消・削除失敗と別アカウント拒否を隔離試験で確認。Windows PowerShellの日本語読込用にBOMを付けた。ショートカットを実際のCOMで隔離フォルダーへ作成・削除し、デスクトップの作成解除と他導入先のリンク保持を確認。GUIと更新・復旧6本も通過。ここからセットアップEXEをビルドする。現在の導入済みIMEと利用者デスクトップは変更していない。
-
-## セットアップ版1.0.4の現在候補
-
-2026年10月7日、主配布をEXEへ変更。distributions/Meltype-Native-Google-1.0.4-Setup.exe（82,787,661バイト）、SHA-256 13726E5573C14F767213A74A37AF2DF6C8B9CF468535DCB9D0C3EFE752ADFABA、対応ソースb15ee1b043aab60b216783752556d121f97c8fce。本家v1.0.3対応は維持。旧ZIP候補は公開しない。GUI6本、NativeInstallerの隔離試験、実COMショートカット試験が通過。Inno Setup同一定義を使った隔離パッケージでファイル配置・デスクトップリンク・アプリ一覧登録・ヘルパー実行と、削除時の全解除・バックアップ保持を確認（experimental-build/setup-smoke-7fc9548ab9fd464895a61edbcbe7f404）。別AppIdと隔離リンクパスを使い、実IMEを変更していない。最終EXEのDefender検査は脅威なし。セットアップによる実IME登録と別PCは未確認。実PCのデスクトップへ既存管理画面を開くショートカットを作成した。導入済みコア・DLL登録・入力サービスは変更していない。作成ツールはユーザー承認後にEドライブへ導入したInno Setup 6.7.3。公開候補と本文はexperimental-build/release-1.0.4-publication.json、docs/RELEASE_1_0_4.md。通常Release・README/セキュリティ/ソースpushは今回の内容への確認待ち。
-
-## 1.0.4の公開結果
-
-2026年10月7日、最終本文とセットアップEXEへのユーザー承認後、b15ee1b043aab60b216783752556d121f97c8fceをgoogle-native-imeへpushし、native-google-1.0.4を通常Releaseとして公開した。公開先https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.0.4。draft=false、prerelease=false、本文の一致をAPIで確認。AssetsはMeltype-Native-Google-1.0.4-Setup.exe（82,787,661バイト）と同名.sha256。両AssetsのサイズとGitHub digestをローカルSHA-256と照合し一致を確認。EXEのSHA-256は13726E5573C14F767213A74A37AF2DF6C8B9CF468535DCB9D0C3EFE752ADFABA。公開結果はexperimental-build/release-1.0.4-published.json。README・セキュリティ説明・本家v1.0.3対応ソースも公開済み。導入済みPCのコア/DLLは今回変更していない。セットアップによる実IME登録・別PCの確認は未実施。状態資料の公開結果はローカル保存のみ。
-
-## このPCの入力サービス復旧
-
-2026年10月7日、ユーザーが管理画面は開くが入力できないと報告。導入済みRootはC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-status。入力サービスのプロセスがなく、直近の起動ログは成功のみで停止理由は未特定。既存のStart-NativeIme.ps1を通常権限で実行して起動し直し、Native broker readyとActivate native=0x00000000を確認。名前付きパイプの準備完了=True。DLL登録・コア・辞書の更新は行っていない。ユーザーが「行けたわ」と入力の復旧を確認した。停止理由の特定は未完了。
+既存のWindows検索、句読点と学習停止、通信枠32、管理者確認付きの保護配置・復旧、管理画面・オンライン更新を維持する。Win10/11の検索パッケージはOSビルド22000を境に切り替える。ThinkPad側のWin11検索修正は統合済み。このPCの検索入力は過去に利用者確認済みだが、今回の追加機能の実検索欄操作は未確認。本家の選択範囲再変換とTab文節変換は独自TSFでは未対応。突然の停止報告と接続枠不足との因果は未確定。

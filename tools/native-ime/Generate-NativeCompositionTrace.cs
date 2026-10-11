@@ -9,6 +9,24 @@ using Meltype.Input;
 
 public static class NativeCompositionTrace
 {
+    public static void RunSnippets(string path)
+    {
+        using var stream = File.Create(path);
+        using var writer = new BinaryWriter(stream, Encoding.Unicode);
+        writer.Write(Encoding.ASCII.GetBytes("MTTSF1\n"));
+        var host = new Host(writer);
+        var store = new SnippetStore(null); store.Set("sig", "googleで検索\n署名");
+        var session = new NativeSnippetSession(() => store, host);
+        foreach (var c in ";sig") session.Handle(c, c, false, true);
+        session.Handle(0x20, ' ', false, false);
+        session.Handle(0x1b, '\0', false, false);
+        if (host.View?.Text != ";sig") throw new InvalidOperationException("Snippet Escape restore failed");
+        session.Handle(0x09, '\0', false, false);
+        session.Handle(0x0d, '\r', false, false);
+        if (host.Document != "googleで検索\n署名") throw new InvalidOperationException("Snippet multiline commit failed");
+        foreach (var c in ";sig") session.Handle(c, c, false, true);
+        session.Handle(0x1b, '\0', false, false);
+    }
     public static string RunPrediction(string path)
     {
         using var stream = File.Create(path);

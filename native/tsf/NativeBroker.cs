@@ -164,6 +164,7 @@ public static class MeltypeNativeBroker
             using var converter = new NativeEngineConverter(engine, learning, () => preferences.Current.LearningEnabled);
             var userDictionary = new UserDictionary(Path.Combine(DataDirectory, "userdict.txt"));
             var history = new ConversionHistory(Path.Combine(DataDirectory, "conversions.json"));
+            var snippets = new NativeSnippetSession(() => new SnippetStore(Path.Combine(DataDirectory, "snippets.json")), host);
             var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: engine == "Google"), converter, host,
                 new CompositionOptions { FullWidthCommaPeriod = true, Comma = () => preferences.Current.Comma[0],
                     Period = () => preferences.Current.Period[0], LearningEnabled = () => learning && preferences.Current.LearningEnabled,
@@ -189,10 +190,17 @@ public static class MeltypeNativeBroker
                     host.ReplayCurrent = false;
                     if (operation == 0)
                     {
-                        gate.OnKey(new KeyEvent(vk, scan, false, (flags & 1) != 0, false, time), e => !e.IsUp);
-                        controller.Pump();
+                        var hadSnippet = snippets.Active;
+                        if ((!snippets.Active && host.View != null) || !snippets.Handle(vk, host.Character, (flags & 1) != 0, (flags & 4) != 0))
+                        {
+                            if (hadSnippet && (vk == 0x20 || vk == 0x09) || !hadSnippet && host.View == null && host.Character == ';') host.ReplayCurrent = true;
+                            else {
+                                gate.OnKey(new KeyEvent(vk, scan, false, (flags & 1) != 0, false, time), e => !e.IsUp);
+                                controller.Pump();
+                            }
+                        }
                     }
-                    else if (operation == 1) controller.CommitPending();
+                    else if (operation == 1) { snippets.Commit(); controller.CommitPending(); }
                     else throw new InvalidDataException("Operation");
                     using var buffer = new MemoryStream();
                     using (var output = new BinaryWriter(buffer, Encoding.Unicode, leaveOpen: true))

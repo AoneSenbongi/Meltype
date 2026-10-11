@@ -1,4 +1,10 @@
 # 現在の状態
+## Androidの報告に伴うWindows側の確認
+
+2026年10月11日、利用者はAndroidで未確定のまま送信すると前の入力が戻る不具合を報告し、Windowsでも起こる可能性を指摘した。WindowsのNativeCompositionは終了通知でTSF状態を消し、NativeTextServiceのEligibleは次のキーを受ける前にbroker接続と未確定文字を破棄する処理を持つ。
+
+アプリが未確定入力を終了して送信文を消すケースをNativeCompositionTestへ追加。実TSF文書で、新しい文字とその確定が送信済み文字を再挿入しないことを確認した。既存の変換・取消・Googleの28更新も通過。証跡はexperimental-build/external-send-composition-tests.log。Windowsの本体と配布物は変更せず、実アプリ固有の送信処理は未確認。Androidの修正・端末状態はAndroid側の状態資料へ記録する。
+
 ## 本家1.2.1対応候補（1.0.8-rc.2、ローカル検証済み・未適用・未公開）
 
 2026年10月11日、利用者のWindows版対応依頼で本家v1.2.1（47ace14）を統合。Google連携、独自TSF、句読点、学習停止、括弧追跡を保持した。通常変換の従来の判定・分節・候補順を保持し、予測へ本家コアを使う方針を維持する。独自GUI・NativeVersion・インストーラー・更新処理は1.0.8-rc.2、本家BaseVersionは1.2.1で一致する。前候補1.0.8-rc.1を置き換える。

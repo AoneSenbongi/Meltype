@@ -218,6 +218,27 @@ int main(int argc, char** argv) {
       composition->Release();
       std::puts("PASS: application can reject composition without text changes");
     }
+    {
+      Fixture f(thread, client);
+      auto* composition = new meltype::NativeComposition;
+      Check(f.Run([&](TfEditCookie c) { return composition->Update(f.context, c, L"送信する文"); }), "pending text before external send");
+      ITfContextOwnerCompositionServices* owner = nullptr;
+      Check(f.context->QueryInterface(IID_ITfContextOwnerCompositionServices, reinterpret_cast<void**>(&owner)), "external send owner");
+      Check(owner->TerminateComposition(nullptr), "external send ends composition");
+      owner->Release();
+      Expect(!composition->Active(), "external send must clear native composition state");
+      auto length = static_cast<LONG>(f.document->text.size());
+      f.document->text.clear(); f.document->start = f.document->end = 0;
+      TS_TEXTCHANGE cleared{0, length, 0};
+      Check(f.document->sink->OnTextChange(0, &cleared), "app clears sent text");
+      Check(f.document->sink->OnSelectionChange(), "app clears selection after send");
+      Check(f.Run([&](TfEditCookie c) { return composition->Update(f.context, c, L"あ"); }), "new text after send");
+      Expect(f.document->text == L"あ", "new composition must not reinsert externally sent text");
+      Check(f.Run([&](TfEditCookie c) { return composition->Commit(f.context, c, L"あ"); }), "confirm new text after send");
+      Expect(f.document->text == L"あ" && !composition->Active(), "confirmation must not reinsert externally sent text");
+      composition->Release();
+      std::puts("PASS: app terminates and clears pending message; new typing and confirmation do not reinsert it");
+    }
     if (argc >= 2) {
       std::ifstream input(argv[1], std::ios::binary);
       char magic[7]{};

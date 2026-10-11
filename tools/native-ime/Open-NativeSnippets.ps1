@@ -12,6 +12,9 @@ $path=Join-Path $env:LOCALAPPDATA 'Meltype/snippets.json'
 $store=[Meltype.Composition.SnippetStore]::new($path)
 $type=$app.GetType('Meltype.UI.SnippetsForm',$true)
 $form=[Activator]::CreateInstance($type,[Reflection.BindingFlags]'Public,NonPublic,Instance',$null,[object[]]@($store,[Func[string]]{';'}),$null)
+# STARTUPINFO hides the first window along with the console. Re-show the form
+# after its first display so the registration window remains visible.
+$form.Add_Shown({$form.BeginInvoke([Action]{$form.Hide();$form.Show();$form.Activate()})|Out-Null})
 try {
     if($RenderTo){
         $form.Show();[Windows.Forms.Application]::DoEvents()

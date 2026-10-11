@@ -47,4 +47,13 @@ try {
     & (Join-Path $build 'native-composition-test.exe') $trace
     if($LASTEXITCODE -ne 0){throw 'Snippet broker transport -> real TSF document verification failed'}
     Write-Output 'PASS: official snippet form registration, edit, deletion, persistence; multiline expansion, Escape restore, Tab expansion, TSF commit/cancel; isolated profile.'
+    Add-Type -Path (Join-Path $PSScriptRoot 'NativeSnippetWindowTest.cs')
+    $launcher=Join-Path $PSScriptRoot 'Open-NativeSnippets.ps1'
+    $process=Start-Process (Join-Path $PSHOME 'pwsh.exe') -ArgumentList ('-NoProfile -STA -File "'+$launcher+'"') -WindowStyle Hidden -PassThru
+    try {
+        $watch=[Diagnostics.Stopwatch]::StartNew()
+        do {Start-Sleep -Milliseconds 100;$visible=[NativeSnippetWindowTest]::Visible($process.Id)}while(-not $visible -and -not $process.HasExited -and $watch.Elapsed.TotalSeconds -lt 5)
+        if(-not $visible){throw 'Snippet form remains hidden when launched by the management panel'}
+        Write-Output 'PASS: snippet form is visible while its PowerShell console is hidden.'
+    }finally{if(-not $process.HasExited){Stop-Process -Id $process.Id};$process.Dispose()}
 }finally{$form.Dispose()}

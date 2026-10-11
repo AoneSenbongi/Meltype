@@ -4,7 +4,7 @@
 
 Windows Native版を本家Meltypeに近づけ、Microsoft／Googleの変換先選択、自動／英語の切り替え、本家ロゴ、画面下端の候補配置、本家1.2.0の定型文登録・展開を提供する。正式公開の予定番号は1.1.0。本家の取り込み済み基準はv1.2.1、47ace1428e5d4c9213f64dbbaf00d73a01386c69。Androidはこの作業で変更しない。
 
-2026年10月11日、このPCへ1.1.0-rc.3を適用した。BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-167eace784f144a380ebb6dee210b1d2。稼働管理先はC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-statusを保持する。管理スクリプト・状態はrc.3へ更新済み。直接更新のためWindowsのアプリ一覧は先に適用した1.1.0表記のまま。入力アプリは新しいDLLを読み込むため開き直す必要がある。
+2026年10月11日、このPCへ1.1.0-rc.4を適用した。BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-167eace784f144a380ebb6dee210b1d2。稼働管理先はC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-statusを保持する。管理スクリプト・状態はrc.4へ更新済み。直接更新のためWindowsのアプリ一覧は先に適用した1.1.0表記のまま。入力アプリは新しいDLLを読み込むため開き直す必要がある。
 
 ## 実装と検証
 
@@ -18,7 +18,9 @@ Windows Native版を本家Meltypeに近づけ、Microsoft／Googleの変換先�
 
 Native関連17/17、Google13/13、Microsoft2/2、両エンジンからTSF文書への変換・確定・取消、予測、候補配置、モードとロゴの試験が通過した。定型文の本家画面の登録・編集・削除・保存と描画、複数行・Esc復元・Tab展開・確定・取消、製品brokerの通信からTSF文書への反映を隔離したファイルで検証した。管理画面、更新候補判定、版番号一致も通過。実アプリごとの新機能の実操作、複数モニター、32ビットアプリは未確認。
 
-導入済み6ファイルのmanifestとの一致、登録番号、サービス接続準備、定型文を開くスクリプトの一致、導入済みDLLのモード・拡大アイコンを確認した。バックアップはE:/prog/Meltype/Windows/backups/20261011-234701で、11ファイルの退避ハッシュが一致した。稼働中の履歴は変化するため適用前後の全ファイル一致は主張しない。rc.2時点ではGoogle辞書・設定は一致し、phrases.txtは既存行の削除なしで2行追加、history.dbは変化を確認した。
+導入済み6ファイルのmanifestとの一致、登録番号、サービス接続準備、定型文を開くスクリプトの一致、導入済みDLLのモード・拡大アイコンを確認した。バックアップはE:/prog/Meltype/Windows/backups/20261011-235841で、11ファイルの退避ハッシュが一致した。稼働中の履歴は変化するため適用前後の全ファイル一致は主張しない。rc.2時点ではGoogle辞書・設定は一致し、phrases.txtは既存行の削除なしで2行追加、history.dbは変化を確認した。
+
+定型文画面の初回起動がコンソールと一緒に隠れる不具合を再現し、初回表示後に画面を表示し直すよう修正した。1.1.0-rc.4の導入済みスクリプトの一致、実際の登録画面が表示されること、サービスの接続準備を確認した。証跡はexperimental-build/native-snippet-rc4-apply.logとapplied.json。
 
 証跡はexperimental-build/native-snippet-rc3-build.log、同接頭辞のapply.logとapplied.json、native-snippets-form.png、native-snippet-panel.png。定型文の通信試験はtools/native-ime/Test-NativeSnippets.ps1。Build-Packageから同試験を実行するよう追加済み。製品コードは適用済みだが、その後に追加した試験・資料の更新は配布物を再構築していない。
 

@@ -7,7 +7,7 @@ $version=$match.Groups[1].Value
 if($iss -match 'VersionInfoVersion=([^\r\n]+)' -and $Matches[1] -ne ($version.Split('-')[0]+'.0')){throw 'Installer binary version differs'}
 if($ExpectedVersion -and $version -ne $ExpectedVersion){throw "Expected version $ExpectedVersion, got $version"}
 $checks=@{
-    'Host-NativeControlPanel.ps1'="Meltype $version · Google日本語入力"
+    'Host-NativeControlPanel.ps1'="Meltype $version · Windows IME"
     'Install-NativeIme.ps1'="NativeVersion = '$version'"
     'Update-NativeIme.ps1'="NoteProperty NativeVersion '$version'"
     'Build-NativeInstaller.ps1'="Meltype-Native-Google-$version-Setup.exe"

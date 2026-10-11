@@ -13,6 +13,8 @@
 #include <inputscope.h>
 #include <cstdio>
 #include <shlobj.h>
+#include <ctfutb.h>
+#include "NativeModeIcon.h"
 
 DEFINE_GUID(CLSID_MeltypeNative, 0xf2d11628, 0x2679, 0x4dcc, 0x93,0x27,0x65,0x7e,0xf2,0xc1,0xa4,0x50);
 DEFINE_GUID(GUID_MeltypeNativeProfile, 0x825c8537, 0x9fc0, 0x4951, 0xa1,0x97,0x1c,0x33,0xf7,0x7b,0x92,0x43);
@@ -178,7 +180,7 @@ class Edit final : public ITfEditSession {
   std::function<HRESULT(TfEditCookie)> run_;
 };
 
-class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEventSink, public ITfThreadMgrEventSink {
+class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfLangBarItemButton, public ITfSource {
  public:
   explicit TextService(bool testing = false) : testing_(testing) { InterlockedIncrement(&liveObjects); }
   ~TextService() { Deactivate(); composition_->Release(); InterlockedDecrement(&liveObjects); }
@@ -188,6 +190,8 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (iid == IID_IUnknown || iid == IID_ITfTextInputProcessor || iid == IID_MeltypeTextInputProcessorEx) *value = static_cast<MeltypeTextInputProcessorEx*>(this);
     else if (iid == IID_ITfKeyEventSink) *value = static_cast<ITfKeyEventSink*>(this);
     else if (iid == IID_ITfThreadMgrEventSink) *value = static_cast<ITfThreadMgrEventSink*>(this);
+    else if (iid == IID_ITfLangBarItem || iid == IID_ITfLangBarItemButton) *value = static_cast<ITfLangBarItemButton*>(this);
+    else if (iid == IID_ITfSource) *value = static_cast<ITfSource*>(this);
     else return E_NOINTERFACE;
     AddRef(); return S_OK;
   }
@@ -211,11 +215,24 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     hr = thread_->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&source.p));
     if (SUCCEEDED(hr)) hr = source->AdviseSink(IID_ITfThreadMgrEventSink, static_cast<ITfThreadMgrEventSink*>(this), &focusCookie_);
     if (FAILED(hr)) { Deactivate(); return hr; }
+    if (!testing_) {
+      Ptr<ITfLangBarItemMgr> bar;
+      hr = thread_->QueryInterface(IID_ITfLangBarItemMgr, reinterpret_cast<void**>(&bar.p));
+      if (SUCCEEDED(hr)) hr = bar->AddItem(static_cast<ITfLangBarItemButton*>(this));
+      if (FAILED(hr)) { Deactivate(); return hr; }
+      modeRegistered_ = true;
+    }
     return S_OK;
   }
   HRESULT STDMETHODCALLTYPE Deactivate() override {
     if (!thread_) return S_OK;
     FinishCurrent();
+    if (modeRegistered_) {
+      Ptr<ITfLangBarItemMgr> bar;
+      if (SUCCEEDED(thread_->QueryInterface(IID_ITfLangBarItemMgr, reinterpret_cast<void**>(&bar.p)))) bar->RemoveItem(static_cast<ITfLangBarItemButton*>(this));
+      modeRegistered_ = false;
+    }
+    if (modeSink_) { modeSink_->Release(); modeSink_ = nullptr; }
     Ptr<ITfSource> source;
     if (SUCCEEDED(thread_->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&source.p))) && focusCookie_ != TF_INVALID_COOKIE) source->UnadviseSink(focusCookie_);
     focusCookie_ = TF_INVALID_COOKIE;
@@ -239,21 +256,92 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   HRESULT STDMETHODCALLTYPE OnTestKeyUp(ITfContext*, WPARAM vk, LPARAM, BOOL* eaten) override { *eaten = vk < 256 && captured_[vk]; return S_OK; }
   HRESULT STDMETHODCALLTYPE OnKeyDown(ITfContext* context, WPARAM vk, LPARAM lparam, BOOL* eaten) override { return Key(context, vk, lparam, false, eaten); }
   HRESULT STDMETHODCALLTYPE OnKeyUp(ITfContext* context, WPARAM vk, LPARAM lparam, BOOL* eaten) override { return Key(context, vk, lparam, true, eaten); }
+  HRESULT STDMETHODCALLTYPE GetInfo(TF_LANGBARITEMINFO* info) override {
+    if (!info) return E_POINTER;
+    *info = {}; info->clsidService = CLSID_MeltypeNative; info->guidItem = GUID_LBI_INPUTMODE;
+    info->dwStyle = TF_LBI_STYLE_BTN_BUTTON | TF_LBI_STYLE_SHOWNINTRAY;
+    lstrcpyW(info->szDescription, L"Meltypeの入力モード"); return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE GetStatus(DWORD* status) override { if (!status) return E_POINTER; *status = 0; return S_OK; }
+  HRESULT STDMETHODCALLTYPE Show(BOOL) override { return E_NOTIMPL; }
+  HRESULT STDMETHODCALLTYPE GetTooltipString(BSTR* text) override {
+    if (!text) return E_POINTER;
+    *text = SysAllocString(japanese_ ? L"Meltype: 自動（クリックで英語）" : L"Meltype: 英語（クリックで自動）");
+    return *text ? S_OK : E_OUTOFMEMORY;
+  }
+  HRESULT STDMETHODCALLTYPE GetText(BSTR* text) override {
+    if (!text) return E_POINTER;
+    *text = SysAllocString(japanese_ ? L"自動" : L"英語"); return *text ? S_OK : E_OUTOFMEMORY;
+  }
+  HRESULT STDMETHODCALLTYPE GetIcon(HICON* icon) override {
+    if (!icon) return E_POINTER;
+    *icon = CreateTextIcon(japanese_ ? L"自動" : L"英語");
+    return *icon ? S_OK : E_FAIL;
+  }
+  HRESULT STDMETHODCALLTYPE OnClick(TfLBIClick click, POINT, const RECT*) override {
+    if (click == TF_LBI_CLK_LEFT) SetInputMode(!japanese_); return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE InitMenu(ITfMenu*) override { return S_OK; }
+  HRESULT STDMETHODCALLTYPE OnMenuSelect(UINT) override { return S_OK; }
+  HRESULT STDMETHODCALLTYPE AdviseSink(REFIID iid, IUnknown* sink, DWORD* cookie) override {
+    if (iid != IID_ITfLangBarItemSink) return CONNECT_E_CANNOTCONNECT;
+    if (!sink || !cookie) return E_POINTER;
+    if (modeSink_) return CONNECT_E_ADVISELIMIT;
+    HRESULT hr = sink->QueryInterface(iid, reinterpret_cast<void**>(&modeSink_));
+    if (SUCCEEDED(hr)) *cookie = 1; return hr;
+  }
+  HRESULT STDMETHODCALLTYPE UnadviseSink(DWORD cookie) override {
+    if (cookie != 1 || !modeSink_) return CONNECT_E_NOCONNECTION;
+    modeSink_->Release(); modeSink_ = nullptr; return S_OK;
+  }
+  void SetInputMode(bool automatic) {
+    FinishCurrent(); japanese_ = automatic;
+    if (modeSink_) modeSink_->OnUpdate(TF_LBI_ICON | TF_LBI_TEXT | TF_LBI_TOOLTIP);
+  }
   bool CandidateRefreshForTest() {
     if (!testing_) return false;
     visible_.converting = true;
     visible_.candidates = {L"橋", L"箸", L"端"};
     visible_.selected = 0;
-    ShowPopup(-32000, -32000);
+    RECT anchor{-32000, -32000, -31998, -31976};
+    ShowPopup(anchor);
     if (!popup_) return false;
     UpdateWindow(popup_);
     ValidateRect(popup_, nullptr);
     visible_.selected = 1;
-    ShowPopup(-32000, -32000);
+    ShowPopup(anchor);
     bool refresh = GetUpdateRect(popup_, nullptr, FALSE) != FALSE;
     UpdateWindow(popup_);
     DestroyWindow(popup_); popup_ = nullptr;
     return refresh;
+  }
+
+  bool CandidatePlacementForTest() {
+    if (!testing_) return false;
+    POINT point{};
+    MONITORINFO monitor{}; monitor.cbSize = sizeof(monitor);
+    if (!GetMonitorInfoW(MonitorFromPoint(point, MONITOR_DEFAULTTOPRIMARY), &monitor)) return false;
+    const RECT work = monitor.rcWork;
+    HWND foreground = GetForegroundWindow();
+    visible_.converting = true;
+    auto show = [&](RECT anchor, int rows, bool above) {
+      visible_.candidates.assign(rows, L"候補"); visible_.selected = 0;
+      ShowPopup(anchor);
+      RECT actual{};
+      if (!popup_ || !GetWindowRect(popup_, &actual)) return false;
+      return actual.left >= work.left && actual.right <= work.right &&
+          actual.top >= work.top && actual.bottom <= work.bottom &&
+          (above ? actual.bottom <= anchor.top : actual.top >= anchor.bottom) &&
+          GetForegroundWindow() == foreground;
+    };
+    RECT bottom{work.left + 40, work.bottom - 26, work.left + 42, work.bottom - 2};
+    RECT top{work.left + 40, work.top + 10, work.left + 42, work.top + 34};
+    RECT right{work.right - 4, work.top + 10, work.right - 2, work.top + 34};
+    RECT resizing{work.left + 40, work.bottom - 110, work.left + 42, work.bottom - 86};
+    bool result = show(bottom, 9, true) && show(top, 9, false) && show(right, 9, false) &&
+        show(resizing, 1, false) && show(resizing, 9, true);
+    if (popup_) { DestroyWindow(popup_); popup_ = nullptr; }
+    return result;
   }
 
  private:
@@ -269,6 +357,8 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   HWND popup_ = nullptr;
   bool testing_ = false;
   bool japanese_ = true;
+  bool modeRegistered_ = false;
+  ITfLangBarItemSink* modeSink_ = nullptr;
   static bool Toggle(WPARAM vk) { return vk == VK_KANJI || vk == VK_IME_ON || vk == VK_IME_OFF || vk == 0xf3 || vk == 0xf4; }
   struct FinishState { bool pending = false; };
   std::shared_ptr<FinishState> finishing_ = std::make_shared<FinishState>();
@@ -335,8 +425,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (vk >= 256 || (up ? !captured_[vk] : !Eligible(context, vk))) return S_OK;
     if (Toggle(vk)) {
       if (!up) {
-        FinishCurrent();
-        japanese_ = vk == VK_IME_ON ? true : vk == VK_IME_OFF ? false : !japanese_;
+        SetInputMode(vk == VK_IME_ON ? true : vk == VK_IME_OFF ? false : !japanese_);
       }
       *eaten = TRUE;
       captured_[vk] = !up;
@@ -428,16 +517,25 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     TF_SELECTION selection{}; ULONG fetched = 0;
     if (SUCCEEDED(context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &fetched)) && fetched == 1) { range.p->Release(); range.p = selection.range; }
     if (FAILED(view->GetTextExt(cookie, range.p, &rect, &clipped))) return;
-    ShowPopup(rect.left, rect.bottom + 2);
+    ShowPopup(rect);
   }
-  void ShowPopup(int left, int top) {
+  void ShowPopup(const RECT& anchor) {
     if (!popup_) {
       WNDCLASSW type{}; type.hInstance = module; type.lpfnWndProc = Window; type.lpszClassName = L"MeltypeNativeCandidates";
       RegisterClassW(&type);
       popup_ = CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST, type.lpszClassName, L"", WS_POPUP | WS_BORDER, 0, 0, 300, 220, nullptr, nullptr, module, this);
     }
     int rows = std::min(9, static_cast<int>(visible_.candidates.size()) - std::max(0, visible_.selected) / 9 * 9);
-    SetWindowPos(popup_, HWND_TOPMOST, left, top, 320, std::max(1, rows) * 24 + 8, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    MONITORINFO monitor{}; monitor.cbSize = sizeof(monitor);
+    if (!GetMonitorInfoW(MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST), &monitor)) return;
+    const RECT& work = monitor.rcWork;
+    int width = std::min(320, static_cast<int>(work.right - work.left));
+    int height = std::min(std::max(1, rows) * 24 + 8, static_cast<int>(work.bottom - work.top));
+    int left = std::clamp(static_cast<int>(anchor.left), static_cast<int>(work.left), static_cast<int>(work.right) - width);
+    int top = anchor.bottom + 2;
+    if (top + height > work.bottom) top = anchor.top - height - 2;
+    top = std::clamp(top, static_cast<int>(work.top), static_cast<int>(work.bottom) - height);
+    SetWindowPos(popup_, HWND_TOPMOST, left, top, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     // Selecting another candidate often leaves the window bounds unchanged.
     // SetWindowPos alone does not schedule a paint in that case.
     InvalidateRect(popup_, nullptr, FALSE);
@@ -485,6 +583,12 @@ extern "C" __declspec(dllexport) BOOL WINAPI MeltypeCandidateRefreshForTest() {
   service->Release();
   return result;
 }
+extern "C" __declspec(dllexport) BOOL WINAPI MeltypeCandidatePlacementForTest() {
+  auto* service = new TextService(true);
+  bool result = service->CandidatePlacementForTest();
+  service->Release();
+  return result;
+}
 
 namespace {
 constexpr WCHAR comKey[] = L"Software\\Classes\\CLSID\\{F2D11628-2679-4DCC-9327-657EF2C1A450}";
@@ -503,7 +607,7 @@ HRESULT ComRegistration(bool remove, bool machine=false) {
   HKEY root = nullptr, server = nullptr;
   LONG error = RegCreateKeyExW(hive, comKey, 0, nullptr, 0, KEY_WRITE | KEY_WOW64_64KEY, nullptr, &root, nullptr);
   if (error != ERROR_SUCCESS) return HRESULT_FROM_WIN32(error);
-  const WCHAR description[] = L"Meltype Native Google (experimental)";
+  const WCHAR description[] = L"Meltype";
   error = RegSetValueExW(root, nullptr, 0, REG_SZ, reinterpret_cast<const BYTE*>(description), sizeof(description));
   if (error == ERROR_SUCCESS) error = RegCreateKeyExW(root, L"InprocServer32", 0, nullptr, 0, KEY_WRITE | KEY_WOW64_64KEY, nullptr, &server, nullptr);
   if (error == ERROR_SUCCESS) error = RegSetValueExW(server, nullptr, 0, REG_SZ, reinterpret_cast<const BYTE*>(path), (length + 1) * sizeof(WCHAR));
@@ -525,17 +629,19 @@ HRESULT RegisterServer(bool machine) {
     hr = profiles->Register(CLSID_MeltypeNative); registered = SUCCEEDED(hr);
     if (FAILED(hr)) std::fprintf(stderr, "ITfInputProcessorProfiles::Register failed: 0x%08lx\n", static_cast<unsigned long>(hr));
   }
-  const WCHAR description[] = L"Meltype Native Google (experimental)";
+  const WCHAR description[] = L"Meltype";
   WCHAR path[32768]; DWORD length = GetModuleFileNameW(module, path, 32768);
   if (SUCCEEDED(hr)) hr = profiles->AddLanguageProfile(CLSID_MeltypeNative, 0x0411, GUID_MeltypeNativeProfile, description, static_cast<ULONG>(std::size(description) - 1), path, length, 0);
   Ptr<ITfCategoryMgr> categories;
   if (SUCCEEDED(hr)) hr = CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories.p));
   if (SUCCEEDED(hr)) hr = categories->RegisterCategory(CLSID_MeltypeNative, GUID_TFCAT_TIP_KEYBOARD, CLSID_MeltypeNative);
+  if (SUCCEEDED(hr)) hr = categories->RegisterCategory(CLSID_MeltypeNative, MeltypeSystrayCategory, CLSID_MeltypeNative);
   if (SUCCEEDED(hr) && machine) hr = categories->RegisterCategory(CLSID_MeltypeNative, MeltypeImmersiveCategory, CLSID_MeltypeNative);
   if (SUCCEEDED(hr)) hr = profiles->EnableLanguageProfile(CLSID_MeltypeNative, 0x0411, GUID_MeltypeNativeProfile, TRUE);
   if (SUCCEEDED(hr) && machine) hr=ComRegistration(true,false);
   if (FAILED(hr)) {
     if (categories.p) categories->UnregisterCategory(CLSID_MeltypeNative, GUID_TFCAT_TIP_KEYBOARD, CLSID_MeltypeNative);
+    if (categories.p) categories->UnregisterCategory(CLSID_MeltypeNative, MeltypeSystrayCategory, CLSID_MeltypeNative);
     if (categories.p && machine) categories->UnregisterCategory(CLSID_MeltypeNative, MeltypeImmersiveCategory, CLSID_MeltypeNative);
     if (registered) profiles->Unregister(CLSID_MeltypeNative);
     ComRegistration(true,machine);
@@ -552,6 +658,7 @@ HRESULT UnregisterServer(bool machine) {
   Ptr<ITfCategoryMgr> categories;
   if (SUCCEEDED(CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr, reinterpret_cast<void**>(&categories.p)))) {
     categories->UnregisterCategory(CLSID_MeltypeNative, GUID_TFCAT_TIP_KEYBOARD, CLSID_MeltypeNative);
+    categories->UnregisterCategory(CLSID_MeltypeNative, MeltypeSystrayCategory, CLSID_MeltypeNative);
     if(machine)categories->UnregisterCategory(CLSID_MeltypeNative, MeltypeImmersiveCategory, CLSID_MeltypeNative);
   }
   HRESULT removed=ComRegistration(true,machine);

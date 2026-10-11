@@ -1,6 +1,8 @@
 ﻿# このForkのセキュリティと入力データの扱い
 
-対象はAoneSenbongi/MeltypeのWindows Native Google版1.0.6と、1.0.7です。元のMeltype常駐版とは処理方式、権限、保存場所が異なります。元作者やGoogleの公式配布版ではありません。
+対象はAoneSenbongi/MeltypeのWindows Native版1.0.6、1.0.7、1.1.0です。元のMeltype常駐版とは処理方式、権限、保存場所が異なります。元作者やGoogleの公式配布版ではありません。
+
+1.1.0ではMicrosoft／Googleの変換先を選べます。Microsoft選択時は本家のMicrosoft IME変換・候補取得をPC内で使い、Googleへ変換や学習を送りません。Microsoft IMEの辞書への学習書き込みは未対応です。Meltypeの予測履歴は学習設定に従います。変換先はinput-preferences.jsonのConversionEngineへ保存します。
 
 1.0.7では、利用者が「最新版を確認」または更新を選んだ時だけ、GitHubの公開APIとこのForkのRelease添付へ通信します。入力内容・辞書・学習履歴を送らず、GitHubの認証情報も使いません。通常Releaseの版番号・添付名・サイズ・SHA-256を検証し、不一致なら実行しません。ダウンロードは管理画面のフォルダー内のupdatesへ保存します。既存の管理者確認・バックアップ・復旧を使い、無人での自動インストールは行いません。SHA-256の一致は、コード署名や第三者の安全性保証を意味しません。
 

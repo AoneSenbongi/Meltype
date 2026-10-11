@@ -8,10 +8,12 @@ public sealed record InputPreferences
     public string Comma { get; init; } = "，";
     public string Period { get; init; } = "．";
     public bool LearningEnabled { get; init; } = true;
+    public string ConversionEngine { get; init; } = "Google";
     public InputPreferences Validate() => this with
     {
         Comma = Comma is "、" or "，" or "," ? Comma : "，",
-        Period = Period is "。" or "．" or "." ? Period : "．"
+        Period = Period is "。" or "．" or "." ? Period : "．",
+        ConversionEngine = ConversionEngine is "Google" or "Microsoft" ? ConversionEngine : "Google"
     };
 }
 

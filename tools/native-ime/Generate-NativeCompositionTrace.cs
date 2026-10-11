@@ -94,16 +94,16 @@ public static class NativeCompositionTrace
         public void RequestSurroundingText(Action<string, string> callback) => callback(null, null);
     }
 
-    public static string Run(string path)
+    public static string Run(string path, string engine = "Google")
     {
         using var stream = File.Create(path);
         using var writer = new BinaryWriter(stream, Encoding.Unicode);
         writer.Write(Encoding.ASCII.GetBytes("MTTSF1\n"));
         var host = new Host(writer);
         var gate = new CaptureGate(() => { });
-        var google = new GoogleImeConverter(learning: false);
-        var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: true), google, host,
-            new CompositionOptions { LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false });
+        using var converter = new NativeEngineConverter(engine, false, () => false);
+        var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: engine == "Google"), converter, host,
+            new CompositionOptions { LiveConversion = () => true, MoreCandidates = converter.Candidates, AutoCorrect = () => false });
         long time = 1000;
         void Key(int vk)
         {
@@ -115,7 +115,7 @@ public static class NativeCompositionTrace
         }
         foreach (var c in "kyouhagoogledekensaku") Key(char.ToUpperInvariant(c));
         var live = host.View?.Text ?? "";
-        if (!live.Contains("google") || !live.Contains("検索")) throw new InvalidOperationException("Google live conversion or English detection missing: " + live);
+        if (!live.Contains("google") || !live.Contains("検索")) throw new InvalidOperationException(engine + " live conversion or English detection missing: " + live);
         if (host.Commits != 0) throw new InvalidOperationException("Typing must remain uncommitted");
         Key(0x20);
         if (host.View is not { Converting: true } || host.View.Candidates.Count == 0) throw new InvalidOperationException("Space did not show candidates");
@@ -124,6 +124,6 @@ public static class NativeCompositionTrace
         foreach (var c in "nihongo") Key(char.ToUpperInvariant(c));
         Key(0x1B);
         if (host.View != null || host.Cancels != 1) throw new InvalidOperationException("Escape did not cancel");
-        return $"Google -> Meltype trace passed: {host.Updates} preedit updates, {host.Commits} commit, {host.Cancels} cancellation; live={live}; learning=false";
+        return $"{engine} -> Meltype trace passed: {host.Updates} preedit updates, {host.Commits} commit, {host.Cancels} cancellation; live={live}; learning=false";
     }
 }

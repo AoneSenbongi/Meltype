@@ -275,7 +275,7 @@ int main(int argc, char** argv) {
       Expect(committed.find(L"google") != std::wstring::npos && committed.find(L"検索") != std::wstring::npos, "Google conversion and English remain in native text");
       Expect(!composition->Active() && f.document->text == L"prefix " + committed + L"suffix", "native document matches committed Meltype text");
       composition->Release();
-      std::printf("PASS: Google -> Meltype -> real TSF document: %d updates, %d commit, %d cancel\n", updates, commits, cancels);
+      std::printf("PASS: conversion trace -> Meltype -> real TSF document: %d updates, %d commit, %d cancel\n", updates, commits, cancels);
     }
     if (argc >= 3) {
       HMODULE library = LoadLibraryA(argv[2]);

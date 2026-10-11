@@ -5,6 +5,12 @@ $fixtureRoot = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
 $script:fixturePath = Join-Path $fixtureRoot 'input-preferences.json'
 function Get-NativeInputPreferencesPath { return $script:fixturePath }
 try {
+    foreach ($engine in @('Google','Microsoft')) {
+        Save-NativeInputPreferences '，' '．' $true -ConversionEngine $engine
+        if ((Get-NativeInputPreferences).ConversionEngine -ne $engine) { throw 'Engine selection did not round-trip.' }
+        Save-NativeInputPreferences '、' '。' $false
+        if ((Get-NativeInputPreferences).ConversionEngine -ne $engine) { throw 'Punctuation save lost engine selection.' }
+    }
     foreach ($comma in @('、','，',',')) {
         foreach ($period in @('。','．','.')) {
             foreach ($learning in @($false,$true)) {

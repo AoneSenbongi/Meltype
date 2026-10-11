@@ -1,17 +1,47 @@
 # 現在の状態
+## 正式版1.1.0のGitHub公開準備（未公開）
+
+2026年10月11日、利用者のGitHubリリース依頼を受け、管理画面・登録・更新・セットアップを正式番号1.1.0へ統一した。Build-Packageを正式番号で再実行し、Native15/15、Google13/13、Microsoft2/2、両エンジンから実TSF文書への変換・確定・取消、予測、モードボタン、候補配置・再描画、先頭括弧の試験が通過。設定保存、管理画面操作性、更新候補判定・ダウンロード改変拒否、隔離インストーラー、更新失敗時の復旧も通過。証跡はexperimental-build/release-1.1.0-build.log。
+
+公開先はAoneSenbongi/Meltype、ブランチgoogle-native-ime、予定タグnative-google-1.1.0、通常ReleaseのタイトルはMeltype Native 1.1.0。公開本文はdocs/RELEASE_1_1_0.md。配布ZIPと正式版EXEの構築・照合、具体的な公開内容への利用者の承認が残る。まだpush・タグ公開・Release作成はしていない。このPCの登録版は1.1.0-rc.1を保持し、正式版への適用は行っていない。
+
+## 変換先選択・モード表示・候補配置のRC適用記録
+
+2026年10月11日、利用者のRC適用依頼により、検証済み候補をUpdate-NativeIme.ps1でこのPCへ適用した。登録版は1.1.0-rc.1、本家BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-5c47d6e77ab94b48ab2dfa5abfc00fa0。既存管理先C:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-statusを保持し、そのスクリプトを更新した。管理画面はE:/prog/Meltype/Windowsから新版を起動した。配置6ファイルのハッシュ一致、broker接続準備完了、更新不要、管理画面ソースの1.1.0-rc.1を確認。
+
+Google・Meltypeの辞書／履歴11ファイルはbackups/20261011-210316の退避時とハッシュ一致。入力設定は更新前と同じくファイル未作成。退避記録はbackups/apply-1.1.0-rc.1-20261011-210257。証跡はexperimental-build/apply-1.1.0-rc.1.log、同接頭辞のverified.jsonとprofile-check.json。今回はセットアップEXEを作らず、既存の更新スクリプトで適用した。Windowsのアプリ一覧の表示番号は今回更新していない。新DLLを入力アプリへ読み込ませるにはアプリを開き直す必要がある。実アプリでの候補配置・モード表示・変換先切り替えは利用者の確認待ち。
+
+2026年10月11日、利用者はMeltype内部のMicrosoft／Google変換先切り替え、本家のアイコン、「自動／英語」のモード表示、本家にできるだけ近づける方針を依頼し、正式版番号を1.1.0と指定した。Androidという最初の発言はGoogleへ訂正済み。仕様はdocs/NATIVE_ENGINE_MODE.md、公開本文案はdocs/RELEASE_1_1_0.md。
+
+管理画面の選択をinput-preferences.jsonのConversionEngineへ保存し、入力先へ戻った後の新しい接続で反映する。既存の初期値はGoogle。Microsoftは本家のMsImeKanjiConverter、WinRtCandidates、現在の日英判別を使い、専用STAスレッドでCOMを生成・呼び出し・解放する。Googleは従来の日英判別・学習処理を保持する。Microsoftの候補順は本体と一致するとは限らず、Microsoftの辞書への学習書き込みは未対応。本家の定型文管理画面、選択範囲再変換、Tab文節変換も独自TSFでは未対応。
+
+IME一覧の名前はMeltype。本家由来のnative/tip/meltype.icoをDLLへ組み込み、管理画面と通知領域にも使う。入力モードボタンは自動／英語で、クリックと半角／全角キーが同じ状態を変更し、未確定文字を確定する。通知領域対応のTSFカテゴリを登録する。独自版番号は管理画面・登録・更新・インストーラーで1.1.0-rc.1、本家BaseVersionは1.2.1。
+
+Native関連15/15、Google関連13/13、Microsoft専用2/2、両エンジンから実TSF文書への28更新・確定・取消、予測16更新、先頭括弧、モードボタンの左右クリック・状態通知・アイコン、設定保存、GUI操作性と描画、番号一致、パッケージ全6ファイルのハッシュを確認した。AppContainerから新DLL・実broker・Googleへの変換と双方の相手確認・不正接続拒否も通過。変換試験は学習無効。パッケージはexperimental-build/native-ime-package、画面はexperimental-build/native-engine-panel.png、検証記録はexperimental-build/native-engine-verified.json。
+
+同日、利用者の画面下端での候補見切れ報告を、実候補ウィンドウの配置試験で再現した。NativeTextServiceのShowPopupへ入力位置のRECTを渡し、そのモニターのrcWorkを基準に、下へ収まらなければ上へ配置する。上下左右を作業領域内へ収め、候補数の変更時も再計算する。配置試験で下端・上端・右端・1候補から9候補への変化・フォーカス保持が通過。既存の再描画とモードボタンの試験も通過した。Build-Packageへ配置・再描画試験を追加。新DLLを候補パッケージへ反映し、manifestのハッシュを更新した。証跡はexperimental-build/native-candidate-placement-verified.json。実アプリと複数モニターの実操作は未確認。
+
+このPCへの候補適用は完了。実アプリの入力欄でのモード表示・選択変更・候補配置は利用者の確認待ち。正式版の準備状況は冒頭を参照。外部公開は利用者の今回の内容への承認後に行う。
+
+## このPCへ1.0.8-rc.2を適用済み
+
+2026年10月11日、利用者の導入依頼で検証済みEXEを適用。初回の管理者確認は取り消され1.0.7へ復旧したが、利用者の再実行依頼後に成功した。登録版・Windowsのアプリ一覧は1.0.8-rc.2、本家BaseVersionは1.2.1。登録先はC:/Program Files/MeltypeNativeGoogle/package-87cfd2b8c22741ca8616c023a499d979、管理画面の起動先はLOCALAPPDATA/Programs/MeltypeNativeGoogle/1.0.8-rc.2。検証済みソース1215df4に対応する配置6ファイルのハッシュ一致、broker起動・接続準備完了、更新不要を確認。
+
+バックアップはbackups/20261011-190446。Google8ファイルとMeltype3ファイル、入力設定は適用前後でハッシュ一致。証跡はexperimental-build/release-1.0.8-rc.2-applied.json、retry.log。旧登録パッケージとC側稼働管理先は保持。開いている入力アプリは新DLLを読み込むため開き直す必要がある。実アプリでの入力欄確認と外部公開は未実施。
+
 ## Androidの報告に伴うWindows側の確認
 
 2026年10月11日、利用者はAndroidで未確定のまま送信すると前の入力が戻る不具合を報告し、Windowsでも起こる可能性を指摘した。WindowsのNativeCompositionは終了通知でTSF状態を消し、NativeTextServiceのEligibleは次のキーを受ける前にbroker接続と未確定文字を破棄する処理を持つ。
 
 アプリが未確定入力を終了して送信文を消すケースをNativeCompositionTestへ追加。実TSF文書で、新しい文字とその確定が送信済み文字を再挿入しないことを確認した。既存の変換・取消・Googleの28更新も通過。証跡はexperimental-build/external-send-composition-tests.log。Windowsの本体と配布物は変更せず、実アプリ固有の送信処理は未確認。Androidの修正・端末状態はAndroid側の状態資料へ記録する。
 
-## 本家1.2.1対応候補（1.0.8-rc.2、ローカル検証済み・未適用・未公開）
+## 本家1.2.1対応候補（1.0.8-rc.2、このPCへ適用済み・未公開）
 
 2026年10月11日、利用者のWindows版対応依頼で本家v1.2.1（47ace14）を統合。Google連携、独自TSF、句読点、学習停止、括弧追跡を保持した。通常変換の従来の判定・分節・候補順を保持し、予測へ本家コアを使う方針を維持する。独自GUI・NativeVersion・インストーラー・更新処理は1.0.8-rc.2、本家BaseVersionは1.2.1で一致する。前候補1.0.8-rc.1を置き換える。
 
 共通400/400、Windowsを含む422/422、品質1292/1292が通過。Nativeパッケージを構築し、Googleから実TSF文書の変換28更新・予測16更新、確定・取消、Tab選択・Esc解除、先頭括弧が通過。検索AppContainerから実DLL・broker・Googleへの変換、双方の相手確認、別パッケージ・追加サーバー・同名占有拒否も通過。Google試験は学習無効。版番号、句読点設定、通信枠32、管理画面、更新判定、改変拒否、隔離インストーラーと更新失敗時の復旧を検証した。
 
-対応仕様はdocs/UPSTREAM_1_2_1.md、配布説明はdocs/RELEASE_1_0_8_RC_2.md。構築済みパッケージはexperimental-build/native-ime-package。稼働中IME・実登録・個人辞書・学習履歴は変更していない。実機適用・入力欄確認と外部公開は未実施。本家の定型文管理画面、選択範囲再変換、Tab文節変換は独自TSFでは未対応。
+対応仕様はdocs/UPSTREAM_1_2_1.md、配布説明はdocs/RELEASE_1_0_8_RC_2.md。構築済みパッケージはexperimental-build/native-ime-package。このPCへの適用結果は冒頭の記録を参照。実アプリの入力欄確認と外部公開は未実施。本家の定型文管理画面、選択範囲再変換、Tab文節変換は独自TSFでは未対応。
 
 Androidは今回変更しない。独自UIと学習用の収集処理を保持し、共通コア・辞書の修正を別候補で選んで取り込むことを勧める。Androidの状態はE:/Prog/Meltype/Android/source/docs/CURRENT_STATE.mdを参照する。
 

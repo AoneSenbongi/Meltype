@@ -4,6 +4,15 @@ $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class NativeBrandIcon {
+    [DllImport("shell32.dll", CharSet=CharSet.Unicode)]
+    public static extern uint ExtractIconExW(string file, int index, out IntPtr large, out IntPtr small, uint count);
+    [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr icon);
+}
+'@
 [Windows.Forms.Application]::SetHighDpiMode([Windows.Forms.HighDpiMode]::PerMonitorV2) | Out-Null
 [Windows.Forms.Application]::EnableVisualStyles()
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -12,13 +21,18 @@ $mutex = [Threading.Mutex]::new($false, ('Local\Meltype.NativePanel.' + $sid), [
 $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\Meltype.NativePanel.Show.' + $sid))
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Meltype 1.0.8-rc.2 · Google日本語入力'
+$form.Text = 'Meltype 1.1.0 · Windows IME'
 $form.ClientSize = [Drawing.Size]::new(600, 646)
 $form.MinimumSize = [Drawing.Size]::new(616, 685)
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = [Drawing.Color]::White
 $form.Font = [Drawing.Font]::new('Yu Gothic UI', 10)
-$form.Icon = [Drawing.SystemIcons]::Application
+$iconDll = Join-Path $workspace 'experimental-build/native-ime-package/MeltypeNative64.dll'
+if (-not (Test-Path -LiteralPath $iconDll)) { $iconDll = Join-Path $workspace 'experimental-build/MeltypeNative64.dll' }
+$largeIcon=[IntPtr]::Zero; $smallIcon=[IntPtr]::Zero
+if ([NativeBrandIcon]::ExtractIconExW($iconDll,0,[ref]$largeIcon,[ref]$smallIcon,1) -eq 0 -or $largeIcon -eq [IntPtr]::Zero) { throw 'Meltypeのアイコンを読み込めません。' }
+try { $form.Icon = [Drawing.Icon]::FromHandle($largeIcon).Clone() }
+finally { [NativeBrandIcon]::DestroyIcon($largeIcon) | Out-Null; [NativeBrandIcon]::DestroyIcon($smallIcon) | Out-Null }
 $layout = [Windows.Forms.TableLayoutPanel]::new()
 $layout.Dock = 'Fill'; $layout.Padding = [Windows.Forms.Padding]::new(24)
 $layout.ColumnCount = 2; $layout.RowCount = 12
@@ -30,11 +44,26 @@ function Add-Label([string]$Text, [int]$Row, [int]$Height = 34) {
     $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,$Height)) | Out-Null
     return $label
 }
-$title = Add-Label 'Meltype · Google日本語入力' 0 42
+$title = Add-Label 'Meltype · Windows IME' 0 42
 $title.Font = [Drawing.Font]::new('Yu Gothic UI',18,[Drawing.FontStyle]::Bold)
 $status = Add-Label '状態を確認しています…' 1 40
-$hint = Add-Label '辞書・学習履歴は、このPCのGoogle日本語入力を使います。' 2 40
-$hint.ForeColor = [Drawing.Color]::DimGray
+$engineRow = [Windows.Forms.FlowLayoutPanel]::new(); $engineRow.Dock='Fill'
+$layout.Controls.Add($engineRow,0,2); $layout.SetColumnSpan($engineRow,2)
+$layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,40)) | Out-Null
+$engineLabel = [Windows.Forms.Label]::new(); $engineLabel.Text='変換エンジン'; $engineLabel.AutoSize=$true; $engineLabel.Margin=[Windows.Forms.Padding]::new(4,7,4,4)
+$engineRow.Controls.Add($engineLabel)
+$engineChoice = [Windows.Forms.ComboBox]::new(); $engineChoice.DropDownStyle='DropDownList'; $engineChoice.Width=220
+$engineChoice.Items.AddRange([object[]]@('Google日本語入力','Microsoft IME'))
+$engineChoice.SelectedIndex = if ((Get-NativeInputPreferences).ConversionEngine -eq 'Microsoft') { 1 } else { 0 }
+$engineChoice.Add_SelectionChangeCommitted({
+    try {
+        $current = Get-NativeInputPreferences
+        $selectedEngine = if ($engineChoice.SelectedIndex -eq 1) { 'Microsoft' } else { 'Google' }
+        Save-NativeInputPreferences $current.Comma $current.Period $current.LearningEnabled -ConversionEngine $selectedEngine
+        $message.Text='変換エンジンを保存しました。入力先へ戻ると反映します。'
+    } catch { Show-NativeGuiError ($_ | Out-String) }
+})
+$engineRow.Controls.Add($engineChoice)
 $buttons = @{}
 $script:actionProcess = $null; $script:resultFile = $null; $script:quitting = $false
 function Show-NativeGuiError([string]$Details) {
@@ -97,7 +126,7 @@ function Open-NativeGoogleDialog([string]$Mode) {
     try { Start-Process -FilePath (Get-NativeGoogleTool) -ArgumentList ('--mode='+$Mode) }
     catch { Show-NativeGuiError ($_ | Out-String) }
 }
-foreach ($item in @(@('単語登録','word_register_dialog',0),@('辞書を管理','dictionary_tool',1))) {
+foreach ($item in @(@('Googleの単語登録','word_register_dialog',0),@('Googleの辞書を管理','dictionary_tool',1))) {
     $button = [Windows.Forms.Button]::new(); $button.Text = $item[0]; $button.Dock = 'Fill'; $button.Margin = [Windows.Forms.Padding]::new(4)
     $button.FlatStyle = 'Flat'; $button.FlatAppearance.BorderColor = [Drawing.Color]::LightGray
     $mode = $item[1]
@@ -162,7 +191,7 @@ function Refresh-NativeLearningState {
 Refresh-NativeLearningState
 $message = Add-Label '画面を閉じると、タスクトレイに格納します。' 11 52
 $message.ForeColor = [Drawing.Color]::DimGray
-$icon = [Windows.Forms.NotifyIcon]::new(); $icon.Icon = $form.Icon; $icon.Text = 'Meltype · Google日本語入力'; $icon.Visible = -not [bool]$RenderTo
+$icon = [Windows.Forms.NotifyIcon]::new(); $icon.Icon = $form.Icon; $icon.Text = 'Meltype'; $icon.Visible = -not [bool]$RenderTo
 $menu = [Windows.Forms.ContextMenuStrip]::new()
 $open = $menu.Items.Add('管理画面を開く'); $open.Add_Click({ $form.Show(); $form.Activate() })
 function Add-NativeTrayActions([Windows.Forms.ContextMenuStrip]$Menu) {

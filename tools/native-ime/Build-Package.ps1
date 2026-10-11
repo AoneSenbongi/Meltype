@@ -6,12 +6,17 @@ $build = Join-Path $workspace 'experimental-build'
 $Runtime = (Resolve-Path -LiteralPath $Runtime).Path
 New-Item -ItemType Directory -Path $build -Force | Out-Null
 Set-Content (Join-Path $build 'runtime-path.txt') $Runtime -Encoding UTF8
-& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Build-WithBundledCompiler.ps1') -TestFilter NativeInput -JsonGenerator $JsonGenerator
+& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Build-WithBundledCompiler.ps1') -TestFilter Native -JsonGenerator $JsonGenerator
 if ($LASTEXITCODE -ne 0) { throw 'Managed build or input tests failed' }
 & (Join-Path $PSScriptRoot 'Build-NativeTextService.ps1') -Compiler $Compiler
+& (Join-Path $PSScriptRoot 'Test-NativeModeButton.ps1') -Compiler $Compiler
+& (Join-Path $PSScriptRoot 'Test-NativeCandidatePlacement.ps1') -Compiler $Compiler
+& (Join-Path $PSScriptRoot 'Test-NativeCandidateRefresh.ps1') -Compiler $Compiler
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Generate-NativeCompositionTrace.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Google conversion trace failed' }
 & (Join-Path $PSScriptRoot 'Build-NativeComposition.ps1') -Compiler $Compiler -GoogleTrace
+& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativeEngine.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Microsoft/Google conversion verification failed' }
 & (Join-Path $PSScriptRoot 'Test-NativeOpeningBracket.ps1')
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePredictionTrace.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Google prediction -> TSF document verification failed' }

@@ -160,13 +160,14 @@ public static class MeltypeNativeBroker
             var gate = new CaptureGate(() => { });
             var preferences = new Meltype.Config.InputPreferenceStore(Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MeltypeNativeGoogle", "input-preferences.json"));
-            var google = new GoogleImeConverter(learning) { LearningEnabled = () => preferences.Current.LearningEnabled };
+            var engine = preferences.Current.ConversionEngine;
+            using var converter = new NativeEngineConverter(engine, learning, () => preferences.Current.LearningEnabled);
             var userDictionary = new UserDictionary(Path.Combine(DataDirectory, "userdict.txt"));
             var history = new ConversionHistory(Path.Combine(DataDirectory, "conversions.json"));
-            var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: true), google, host,
+            var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: engine == "Google"), converter, host,
                 new CompositionOptions { FullWidthCommaPeriod = true, Comma = () => preferences.Current.Comma[0],
                     Period = () => preferences.Current.Period[0], LearningEnabled = () => learning && preferences.Current.LearningEnabled,
-                    LiveConversion = () => true, MoreCandidates = google.Candidates, AutoCorrect = () => false,
+                    LiveConversion = () => true, MoreCandidates = converter.Candidates, AutoCorrect = () => false,
                     Predictor = new Predictor(Phrases.Value, userDictionary, history),
                     Predictions = () => true });
             var request = new byte[32];

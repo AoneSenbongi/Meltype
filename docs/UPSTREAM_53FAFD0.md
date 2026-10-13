@@ -1,0 +1,10 @@
+# 本家main 53fafd0の取り込み計画
+
+取り込み元は47ace142から53fafd036b4d06fab7dae9ca0b9ea4eeafbfe976まで。本家Releaseは引き続き1.2.1。Windowsの共通コア、辞書、試験、Windows実装を三者比較で統合する。Android、Mac、Linuxの実装と外部公開は対象外。
+
+作業開始時点の入力モード修正とインストーラー修正は保持する。退避資料はexperimental-build/upstream-53fafd0-audit。独自Google変換の従来判定、句読点、学習停止、括弧追跡とMicrosoft/Google選択を維持する。
+
+CompositionTextの英単語末尾tと日本語のつの競合は、従来Google側の条件を維持して本家側へ新しい判定を追加する。CompositionServiceのCreateSessionは変換先選択を維持して、本家の任意directModeDetection引数を追加する。独自native/tsfの入力モード変更に本家native/tipを重ねない。本家TIPは別実装として更新する。
+
+まず本家の再現試験を追加し、共通・Windows・Google・Native回帰試験とビルドを行う。検証が通過した場合のみ候補番号を更新し、ローカル配布物を構築する。PC適用はバックアップと通常更新手順を使い、管理者確認を回避しない。検証結果と適用結果は完了後に記録する。
+検証結果は共通・Windows456/456、Native18/18、Google13/13、Microsoft2/2。検索AppContainer、管理画面、句読点と学習停止、配布物検証、更新失敗時復旧も通過した。1.1.1-rc.2の配布EXEと.sha256を作成済み。PC適用は管理者確認の取消により未完了で、旧1.1.1-rc.1へ復旧済み。公開は未承認。詳細はdocs/RELEASE_1_1_1_RC_2.md、証跡はexperimental-build/upstream-53fafd0-*。

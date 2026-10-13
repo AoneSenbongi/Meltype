@@ -281,9 +281,12 @@ struct CandidateWindow::Impl {
             } else if (index == hover) {
                 FillRounded(target, row, 4, p.hoverFill);
             }
-            wchar_t number[4];
-            swprintf_s(number, L"%d", i + 1);
-            DrawText(target, note, number, D2D1::RectF(row.left + kTextInset, row.top, row.left + kTextInset + kNumberWidth, row.bottom), p.secondary);
+            // 予測変換の候補には番号を出さない (変換していないときの数字は、そのまま打つ文字になる)
+            if (!view.prediction) {
+                wchar_t number[4];
+                swprintf_s(number, L"%d", i + 1);
+                DrawText(target, note, number, D2D1::RectF(row.left + kTextInset, row.top, row.left + kTextInset + kNumberWidth, row.bottom), p.secondary);
+            }
             float noteWidth = 0;
             if (index < static_cast<int>(view.notes.size()) && !view.notes[index].empty()) {
                 noteWidth = TextWidth(note, view.notes[index]);
@@ -456,7 +459,7 @@ struct CandidateWindow::Impl {
                 return 0;
             case WM_LBUTTONUP: {
                 int hit = self->HitTest(GET_Y_LPARAM_SAFE(lParam) / self->scale);
-                if (hit >= 0 && self->onSelect) self->onSelect(hit);
+                if (hit >= 0 && self->onSelect) self->onSelect(hit, self->view.prediction);
                 return 0;
             }
             case WM_TIMER:
@@ -544,7 +547,8 @@ void CandidateWindow::Show(const CandidateView& view, const RECT& anchor) {
         if (d.hwnd == nullptr) return;
         PrepareWindow(d.hwnd, CurrentPalette().border);
     }
-    bool samePlace = Visible() && EqualRect(&d.anchor, &anchor) && d.view.candidates == view.candidates && d.view.suggestion == view.suggestion;
+    bool samePlace = Visible() && EqualRect(&d.anchor, &anchor) && d.view.candidates == view.candidates && d.view.suggestion == view.suggestion &&
+                     d.view.prediction == view.prediction;
     d.view = view;
     d.anchor = anchor;
     d.first = std::max(0, view.selected) / kPageSize * kPageSize;

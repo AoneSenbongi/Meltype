@@ -82,7 +82,7 @@ private:
     ~TextService();
 
     // test: OnTestKeyDown から (入力欄の種類を読んだ結果を、続く OnKeyDown で使うために覚える)
-    bool WouldEat(ITfContext* context, UINT vk, wchar_t& ch, bool test);
+    bool WouldEat(ITfContext* context, UINT vk, LPARAM lParam, wchar_t& ch, bool test);
     void ForgetSecretField();
     bool IsReinjected(UINT vk);
     bool ServerReady();
@@ -119,7 +119,7 @@ private:
     // アプリが確定した打ちかけの文字を、変換中に戻す (戻せなければ確定したことにする)。context が null なら確定したことにする
     void ResumeOrCommit(ITfContext* context);
     void CommitInSession(TfEditCookie ec, ITfContext* context, bool keepAppCaret);
-    void SelectCandidate(int index);
+    void SelectCandidate(int index, bool prediction);
     void Reinject(UINT vk);
     void SurroundingText(TfEditCookie ec, ITfContext* context, std::wstring& before, std::wstring& after);
     bool ContextDisabled(ITfContext* context);
@@ -149,6 +149,8 @@ private:
     PipeClient pipe_;
     std::string sid_;
     bool serverActive_ = false;
+    bool directDetection_ = false; // 英数状態でもローマ字検知が有効 (Meltype.exe の応答)
+    bool directEnglishWord_ = false;
     ULONGLONG lastHello_ = 0;
     bool open_ = true;
     bool codeApp_ = false;         // コードエディター・ターミナル (Meltype.exe の応答の code)

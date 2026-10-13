@@ -439,9 +439,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _keyboardModeItem.Checked = keyboard;
         _autoSwitchModeItem.Checked = settings.Mode == InputMode.AutoSwitch;
         _tsfModeItem.Checked = tsf;
-        // Meltype IME を Windows に登録していなければ選べない (選ぶとキーボードフックが止まり、どこでも何も起きなくなる)
+        // Meltype IME を使えない (ARM64 の Windows・登録されていない・キーボードの一覧に無い) なら選べない
+        // (選ぶとキーボードフックが止まり、どこでも何も起きなくなる)
         var registered = Tip.TipServer.IsRegistered;
-        _tsfModeItem.Enabled = tsf || registered;
+        _tsfModeItem.Enabled = tsf || Tip.TipServer.IsUsable;
         foreach (ToolStripMenuItem item in _levelItem.DropDownItems) item.Checked = item.Tag is DetectionLevel level && level == settings.DetectionLevel;
         _levelItem.Text = $"自動判定の強さ: {LevelName(settings.DetectionLevel).Split(' ')[0]}";
         _profileItem.Text = $"プロファイル: {settings.ActiveProfile}";

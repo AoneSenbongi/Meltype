@@ -22,7 +22,7 @@ docker podman kubernetes kubectl helm terraform ansible aws azure gcp linux ubun
 wsl windows macos ios android bash zsh fish powershell pwsh cmd terminal console server client localhost
 http https www html css scss sass json yaml yml toml xml csv sql mysql postgres postgresql sqlite mongodb
 redis nginx apache kafka rabbitmq elasticsearch commit commits push pull merge rebase branch checkout
-clone fetch stash status diff log init install uninstall update upgrade build run test tests debug deploy
+clone fetch stash sync synced syncing status diff log init install uninstall update upgrade build run test tests debug deploy
 release config configure setup start stop restart reset revert cherry pick tag tags dev prod staging api
 apis rest graphql grpc sdk cli gui ide vscode vim neovim emacs nano code visual studio dotnet csharp cpp
 rust golang kotlin swift ruby rails php laravel django flask fastapi spring boot maven gradle cargo pip
@@ -94,8 +94,10 @@ close cloth cloud club coach coast coat coffee cold collect college come comes c
 compare complete concern consider contain content context continue control cook cool core corn corner
 cost could count country couple course court cover cow crash crazy cream create credit crew crime crop
 cross crowd crown cry culture cup current curve customer cut cute cycle dad daily damage dame dance
-danger dare dark data date daughter day dead deal dear death debate debt decade decide deep deer defeat
+danger dare dark data date daughter day dead deal dear death debate debt decade decide declutter deep deer defeat
 defend define degree delay demand demo demon denial dense density deny depend deposit depth describe
+danger dare dark data date daughter day dead deal dear death debate debt decade decide deep deer defeat
+defend define defuse degree delay demand demo demon denial dense density deny depend deposit depth describe
 design desk detail detect develop device dew diet differ dig digital dinner direct dirt dirty discover
 dish dog doing dollar domestic dominant donate donkey donor door dose double doubt down dozen draft
 drama draw dream dress drink drive drop drum dry duck due during dust duty each eager early earn earth
@@ -191,7 +193,7 @@ beta cafe cage cane cape coma cone cube cure dine dire dome dope dude duke ego f
 lane logo meta mute nude nuke pane pine poke polo pope rage rake ripe rode rune sage sane soda solo tore
 wade wipe woke wore anime demo dojo emoji kimono karate tsunami typhoon tycoon
 # 技術用語 (日本語の文の中でもそのまま英字で書くことが多い)
-api apis url urls uri json yaml csv pdf png jpg jpeg gif svg html css xml sql ssh ssl tls dns ip tcp udp http https
+api apis url urls uri json yaml csv pdf png jpg jpeg gif svg html css xml sql ssh ssl tls dns ip tcp udp http https oem
 cpu gpu ram rom ssd hdd usb hdmi wifi bluetooth nfc os ui ux io ai ml llm gpt rag mcp sdk ide cli gui repo repos
 bug bugs issue issues pull push merge commit commits branch branches deploy build release tag tags diff patch
 token tokens prompt prompts model models agent agents tool tools server servers client clients browser

@@ -25,6 +25,23 @@ template<class T> static T Export(HMODULE library, const char* name) {
   return result;
 }
 
+struct ModeObserver final : ITfLangBarItemSink {
+  ULONG refs = 1;
+  int updates = 0;
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** value) override {
+    if (!value) return E_POINTER;
+    *value = nullptr;
+    if (iid != IID_IUnknown && iid != IID_ITfLangBarItemSink) return E_NOINTERFACE;
+    *value = static_cast<ITfLangBarItemSink*>(this); AddRef(); return S_OK;
+  }
+  ULONG STDMETHODCALLTYPE AddRef() override { return ++refs; }
+  ULONG STDMETHODCALLTYPE Release() override { return --refs; }
+  HRESULT STDMETHODCALLTYPE OnUpdate(DWORD flags) override {
+    if (flags == (TF_LBI_ICON | TF_LBI_TEXT | TF_LBI_TOOLTIP)) ++updates;
+    return S_OK;
+  }
+};
+
 class Document final : public ITextStoreACP, public ITfContextOwnerCompositionSink {
  public:
   std::wstring text;
@@ -309,21 +326,36 @@ int main(int argc, char** argv) {
       CloseHandle(testClient); CloseHandle(testServer);
       MeltypeTextInputProcessorEx* extended = nullptr;
       Check(service->QueryInterface(IID_MeltypeTextInputProcessorEx, reinterpret_cast<void**>(&extended)), "Windows app activation interface");
+      // Set the isolated test thread's mode explicitly; production activation preserves it.
+      ITfCompartmentMgr* initialModes = nullptr; ITfCompartment* initialOpen = nullptr;
+      Check(thread->QueryInterface(IID_ITfCompartmentMgr, reinterpret_cast<void**>(&initialModes)), "initial test mode manager");
+      Check(initialModes->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &initialOpen), "initial test open mode");
+      VARIANT initialMode; VariantInit(&initialMode); initialMode.vt = VT_I4; initialMode.lVal = 1;
+      Check(initialOpen->SetValue(client, &initialMode), "start isolated conversion tests in automatic mode");
+      initialOpen->Release(); initialModes->Release();
       Check(extended->ActivateEx(thread, client, 0x40000000), "activate service through Windows app interface");
       extended->Release();
       ITfKeyEventSink* keys = nullptr;
       Check(service->QueryInterface(IID_ITfKeyEventSink, reinterpret_cast<void**>(&keys)), "native key sink");
       {
         Fixture f(thread, client);
+        Check(thread->SetFocus(f.manager), "focus editable mode test context");
+        ITfThreadMgrEventSink* focusEvents = nullptr;
+        Check(service->QueryInterface(IID_ITfThreadMgrEventSink, reinterpret_cast<void**>(&focusEvents)), "mode focus sink");
+        Check(focusEvents->OnSetFocus(f.manager, nullptr), "deliver isolated application focus event");
+        focusEvents->Release();
         BOOL bracketCaptured = FALSE;
         Check(keys->OnTestKeyDown(f.context, VK_OEM_4, 0, &bracketCaptured), "opening bracket starts composition");
         Expect(bracketCaptured, "opening bracket must remain in composition until following language is known");
         ITfLangBarItemButton* mode = nullptr;
         Check(service->QueryInterface(IID_ITfLangBarItemButton, reinterpret_cast<void**>(&mode)), "mode button for keyboard switching");
+        int modeChecks = 0;
         auto modeText = [&](const wchar_t* expected) {
+          ++modeChecks;
           BSTR text = nullptr;
           Check(mode->GetText(&text), "keyboard mode text");
           bool matches = text && std::wstring(text) == expected;
+          if (!matches) std::fprintf(stderr, "mode check=%d expected=U+%04x actual=U+%04x\n", modeChecks, expected[0], text ? text[0] : 0);
           SysFreeString(text);
           Expect(matches, "keyboard toggle updates displayed mode");
         };
@@ -342,6 +374,37 @@ int main(int argc, char** argv) {
         Expect(preserved, "preserved toggle consumed"); modeText(L"英語");
         Check(keys->OnPreservedKey(f.context, MeltypeToggleKey, &preserved), "preserved key returns from closed mode");
         Expect(preserved, "preserved toggle reopens IME"); modeText(L"自動");
+        f.document->readOnly = true;
+        Check(f.document->sink->OnStatusChange(TS_SD_READONLY), "read-only mode status");
+        modeText(L"英語");
+        Check(mode->OnClick(TF_LBI_CLK_LEFT, {}, nullptr), "restricted mode click");
+        f.document->readOnly = false;
+        Check(f.document->sink->OnStatusChange(TS_SD_READONLY), "editable mode status");
+        modeText(L"自動");
+        ModeObserver observer; ITfSource* modeSource = nullptr; DWORD observerCookie = 0;
+        Check(service->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&modeSource)), "mode notification source");
+        Check(modeSource->AdviseSink(IID_ITfLangBarItemSink, &observer, &observerCookie), "mode notification observer");
+        ITfCompartmentMgr* modeCompartments = nullptr;
+        Check(f.context->QueryInterface(IID_ITfCompartmentMgr, reinterpret_cast<void**>(&modeCompartments)), "mode context compartments");
+        for (const GUID* id : {&GUID_COMPARTMENT_KEYBOARD_DISABLED, &GUID_COMPARTMENT_EMPTYCONTEXT}) {
+          ITfCompartment* restriction = nullptr;
+          Check(modeCompartments->GetCompartment(*id, &restriction), "mode restriction");
+          VARIANT value; VariantInit(&value); value.vt = VT_I4; value.lVal = 1;
+          int beforeUpdates = observer.updates;
+          Check(restriction->SetValue(client, &value), "restrict focused mode context"); modeText(L"英語");
+          Expect(observer.updates > beforeUpdates, "restriction refreshes taskbar without typing");
+          BOOL captured = TRUE;
+          Check(keys->OnTestKeyDown(f.context, 'A', 0, &captured), "restricted mode key");
+          Expect(!captured, "English display agrees with direct input in restricted context");
+          value.lVal = 0;
+          beforeUpdates = observer.updates;
+          Check(restriction->SetValue(client, &value), "restore focused mode context"); modeText(L"自動");
+          Expect(observer.updates > beforeUpdates, "restriction removal refreshes taskbar without typing");
+          restriction->Release();
+        }
+        modeCompartments->Release();
+        Check(modeSource->UnadviseSink(observerCookie), "release mode notification observer");
+        modeSource->Release(); Expect(observer.refs == 1, "mode observer released");
         mode->Release();
         const bool eligibilityOnly = argc > 3 && std::string(argv[3]) == "--eligibility-only";
         if (!eligibilityOnly) {

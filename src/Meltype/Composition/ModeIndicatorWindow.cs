@@ -11,8 +11,8 @@ namespace Meltype.Composition;
 internal sealed class ModeIndicatorWindow : Form
 {
     private const int WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOOLWINDOW = 0x00000080, WS_EX_TOPMOST = 0x00000008, WS_EX_TRANSPARENT = 0x00000020;
-    private static readonly Color DefaultJapaneseColor = Color.FromArgb(76, 160, 255);
-    private static readonly Color DefaultDirectColor = Color.FromArgb(110, 110, 120);
+    internal static readonly Color DefaultJapaneseColor = Color.FromArgb(76, 160, 255);
+    internal static readonly Color DefaultDirectColor = Color.FromArgb(110, 110, 120);
     // 設定で変えた色 (issue #359)。
     private Color _japaneseColor = DefaultJapaneseColor, _directColor = DefaultDirectColor, _textColor = Color.White;
     private readonly Font _font = new("Yu Gothic UI", 14F, FontStyle.Bold);

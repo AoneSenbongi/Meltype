@@ -92,11 +92,14 @@ public sealed partial class CompositionDetector
                 // はっきりした決まり (今までの FindSpans と同じ順) に当たれば、その区間だけを取る
                 var forced = -1;
                 if (level != DetectionLevel.Manual && i > 0 && units[i - 1].Raw == "." && PrecededByEnglish(i) == true) forced = DotSuffixEnd(units, i, pending, final);
+                if (forced < 0 && level != DetectionLevel.Manual) forced = ReadableStemDotSuffixEnd(units, i, pending, final, level);
+                if (forced < 0) forced = LeadingDotfileEnd(units, i, pending, final, level);
                 if (IsAsciiSymbol(units[i]) && PrecededByEnglish(i) == true && Segments().All(s => s.IsEnglish || !s.Raw.Any(char.IsAsciiLetter)) &&
                     KeepsPunctuationAfterEnglish(units, i, pending, precedingEnglish)) forced = i + 1;
                 if (forced < 0) forced = UserNameEnd(units, i, pending);
                 if (forced < 0 && level != DetectionLevel.Manual) forced = CapitalizedWordEnd(units, i, pending, final);
                 if (forced < 0 && level != DetectionLevel.Manual) forced = HyphenatedWordEnd(units, i, pending);
+                if (forced < 0 && level != DetectionLevel.Manual) forced = NumeronymEnd(units, i, pending);
                 if (forced < 0 && level != DetectionLevel.Manual && (i > 0 && units[i - 1].Raw is [var digit] && char.IsAsciiDigit(digit) ? AlphanumericSuffixEnd(units, i, pending, Segments(), path.JapaneseStart) : -1) is var suffix and > 0) forced = suffix;
                 if (forced < 0 && level != DetectionLevel.Manual) forced = EnglishBeforeParticleAndEnglishTail(units, i, pending);
                 if (forced > i)

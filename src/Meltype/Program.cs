@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Yukishiro
 
+using System.Diagnostics;
 using Meltype.Config;
 using Meltype.Diagnostics;
 using Meltype.UI;
@@ -9,6 +10,10 @@ namespace Meltype;
 
 internal static class Program
 {
+    /// <summary>ターミナル上で完結する引数 (親シェルに待ってもらう)。常駐 GUI ではない。</summary>
+    private static bool IsConsoleOnlyCommand(string? head) =>
+        head is "--version" or "--selftest" or "--exit" or "--judge-words" or "--restore";
+
     /// <summary>
     /// 語ごとの自動の判定 (学習は使わない)。今の版の判定にも同じものを使う (<see cref="Updater.PreviewChanges"/>)。
     /// </summary>
@@ -36,6 +41,21 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // 内部フラグ: コンソールから常駐起動するとき、親シェルを待たせないよう付け直した子プロセス。
+        var gui = false;
+        if (args.Length > 0 && args[0] == "--gui")
+        {
+            gui = true;
+            args = args[1..];
+        }
+
+        // Meltype.exe --version: 版だけを出して終わる (フック・UI は起動しない)。
+        // OutputType=Exe なので cmd がプロセス終了まで待ち、標準出力がプロンプトの前に出る。
+        if (args.FirstOrDefault() == "--version")
+        {
+            Console.WriteLine($"Meltype {AppInfo.Version}");
+            return 0;
+        }
         // Meltype.exe --selftest [結果ファイル]: キーボードフックを掛けずに、主な機能が動くかだけを確かめる。
         if (args.FirstOrDefault() == "--selftest") return SelfTest.Run(args.ElementAtOrDefault(1));
         // Meltype.exe --exit: 動いている Meltype を終了させる (インストール・アンインストール用。管理者として動いていても止められる)。
@@ -43,6 +63,21 @@ internal static class Program
         // Meltype.exe --judge-words <語の一覧> <結果>: 語ごとの自動の判定を書き出す。前の版の Meltype が、更新の前に
         // 「あなたの打ち方で変わる語」を調べるために、ダウンロードした新しい版をこれで動かす (issue #285)。
         if (args.FirstOrDefault() == "--judge-words" && args.Length >= 3) return JudgeWords(args[1], args[2]);
+
+        // ターミナルから常駐起動: Exe のまま動かすと cmd が Meltype 終了まで待つので、窓なしで自分を立ち上げ直してすぐ終わる。
+        // GetConsoleWindow だけではエクスプローラー起動も真になるので、親とコンソールを共有しているときだけ付け直す。
+        if (!gui && !IsConsoleOnlyCommand(args.FirstOrDefault()) && Native.SharesConsoleWithParent() &&
+            Environment.ProcessPath is { } path)
+        {
+            var start = new ProcessStartInfo(path) { UseShellExecute = false, CreateNoWindow = true };
+            start.ArgumentList.Add("--gui");
+            foreach (var arg in args) start.ArgumentList.Add(arg);
+            Process.Start(start);
+            return 0;
+        }
+
+        // 常駐 GUI: コンソール窗があれば外す (二重起動の子・エクスプローラー起動の黒い窓)。
+        if (Native.GetConsoleWindow() != IntPtr.Zero) Native.FreeConsole();
 
         // フックを二重に掛けると同じ打鍵を二重に保留・再入力してしまうので、多重起動させない。
         using var mutex = new Mutex(initiallyOwned: true, @"Local\Meltype.SingleInstance", out var createdNew);

@@ -163,12 +163,61 @@ internal static class Quality
         new("混在", "pythonnobug", "pythonのbug"),
         new("混在", "GitHub no repo", "GitHub のれぽ"),
         new("混在", "Google to Apple", "Google とApple"),
+        // 助詞「や」+ 英単語 / 英単語 + 助詞「や」(Particles / TrailingParticles に ya)
+        new("混在", "yagithub", "やgithub"),
+        new("混在", "kyouhayagithub", "きょうはやgithub"),
+        new("混在", "hagithub", "はgithub"),
+        new("混在", "githubya", "githubや"),
+        new("混在", "githubni", "githubに"),
+        // 助詞「や」+ 英単語が 1 語にまとまらないこと (IsUnknownEnglishWord / yap|lay の誤分割)
+        new("混在", "yapython", "やpython"),
+        new("混在", "yacursor", "やcursor"),
+        new("混在", "yaslack", "やslack"),
+        new("混在", "yastack", "やstack"),
+        new("混在", "yaplay", "やplay"),
+        new("混在", "yasync", "やsync"),
+        // 全体で 1 語の英単語は、助詞 + 英単語に分けない (de|light、mo|rally)
+        new("英語", "delight", "delight"),
+        new("英語", "devote", "devote"),
+        new("英語", "morally", "morally"),
+        new("混在", "kokodevote", "ここでvote"),
+        new("混在", "githubdevote", "githubでvote"),
+        // 英字のあいだの と は、chotto の っと や、英単語の途中 (stories) では助詞にしない
+        new("混在", "chottodehijacked", "ちょっとでhijacked"),
+        new("混在", "korekarastories", "これからstories"),
+        new("混在", "devtoprod", "devとprod"),
+        new("混在", "edittopub", "editとpub"),
+        new("混在", "dottonet", "dotとnet"),
+        new("混在", "rdstoredshift", "rdsとredshift"),
+        new("混在", "mottopython", "もっとpython"),
+        new("混在", "uikittoswiftui", "uikitとswiftui"),
+        // 英単語の最後の t + s は つ にしないが、つ まで読むと日本語の語になるなら つ (しゅつ・おちつ)
+        new("日本語", "teishutsushita", "ていしゅつした"),
+        new("日本語", "ochitsuite", "おちついて"),
+        new("混在", "kyoucommitsuru", "きょうcommitする"),
+        new("混在", "shutsita", "shutした"),
+        // -pedia / -pedias (ローマ字だと ぺぢあ。#207)
+        // site (=して) のあと英字が続いても、確定し直しで site に戻さない
+        new("混在", "sitePR", "してPR"),
+        new("混在", "site PR", "して PR"),
+        // -pedia (ローマ字だと ぺぢあ。#207)
+        new("混在", "pedia", "pedia"),
+        new("混在", "protopedia", "protopedia"),
+        new("混在", "conservapedia", "conservapedia"),
+        new("混在", "wikipedia", "wikipedia"),
+        new("混在", "wikipedias", "wikipedias"),
+        new("混在", "protopedias", "protopedias"),
+        new("混在", "Protopedia", "Protopedia"),
+        new("混在", "Protopedias", "Protopedias"),
+        new("混在", "worldpedia", "worldpedia"),
+        new("英語", "yahoo", "yahoo"),
 
         // --- 英語の後の短い語 (助詞と同じ形) ---
         new("短い語", "no", "の", Before: "GitHub"),
         new("短い語", "de", "で", Before: "Chrome"),
         new("短い語", "ni", "に", Before: "今日は GitHub "),
         new("短い語", "ga", "が", Before: "Python"),
+        new("短い語", "ya", "や", Before: "GitHub"),
         new("短い語", "to", "to", Before: "I want "),
         new("短い語", "is", "is", Before: "this "),
         new("短い語", "at", "at", Before: "look "),
@@ -209,6 +258,13 @@ internal static class Quality
         new("大文字", "AInituite", "AIについて"),
         new("大文字", "AIdekiru", "AIできる"),
         new("大文字", "McAfeeto", "McAfeeと"),
+
+        // --- #406 ---
+        new("英語", "overcute", "overcute"),
+        // --- #434 数字挟み略語 ---
+        new("英語", "i18n", "i18n"),
+        new("英語", "l10n", "l10n"),
+        new("英語", "h2o", "h2o"),
     ];
 
     /// <summary>コードの行のキャレット位置 (コメント・文字列の中か)。</summary>

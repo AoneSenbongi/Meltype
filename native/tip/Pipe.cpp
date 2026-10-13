@@ -160,6 +160,8 @@ bool PipeClient::Wait(OVERLAPPED& overlapped, DWORD timeoutMs, DWORD& transferre
 
 bool PipeClient::Transact(const std::string& request, std::string& response, DWORD timeoutMs) {
     response.clear();
+    // 前からのつながりを使う (Meltype.exe を起動し直していたら、書き込みで切れていたと分かる)
+    bool reused = pipe_ != INVALID_HANDLE_VALUE;
     if (!Connect()) return false;
     ULONGLONG deadline = GetTickCount64() + timeoutMs;
     auto remaining = [&]() -> DWORD {
@@ -172,8 +174,15 @@ bool PipeClient::Transact(const std::string& request, std::string& response, DWO
     ResetEvent(event_);
     DWORD transferred = 0;
     if (!WriteFile(pipe_, request.data(), static_cast<DWORD>(request.size()), nullptr, &overlapped) && GetLastError() != ERROR_IO_PENDING) {
-        TipLog(L"パイプに書けません: %lu", GetLastError());
+        DWORD error = GetLastError();
+        TipLog(L"パイプに書けません: %lu", error);
         Close();
+        // 前の Meltype.exe とのつながりが切れていた (起動し直した): まだ何も送っていないので、つなぎ直して 1 回だけ送り直す。
+        // 送り直さないと、起動し直した後の最初のキーが、応答が無いときと同じく打った文字のまま入る
+        if (reused && (error == ERROR_NO_DATA || error == ERROR_BROKEN_PIPE || error == ERROR_PIPE_NOT_CONNECTED)) {
+            TipLog(L"つなぎ直して送り直します");
+            return Transact(request, response, remaining());
+        }
         return false;
     }
     if (!Wait(overlapped, remaining(), transferred)) {

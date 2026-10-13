@@ -25,6 +25,8 @@ internal static class ProfileTests
         // 標準に戻すと、標準の値に戻る。共通の項目 (ログ・更新) は切り替えても変わらない
         work.FileLog = true;
         work.TsfOffered = true;
+        work.SettingsShowHelp = false;
+        work.SettingsWheelChangesValue = false;
         var standard = work.SwitchProfile("標準");
         Assert.Equal("標準", standard.ActiveProfile);
         Assert.Equal(DetectionLevel.Balanced, standard.DetectionLevel);
@@ -32,6 +34,7 @@ internal static class ProfileTests
         Assert.Equal(0, standard.AppKinds.Count, "表 (独自の種類) もプロファイルごと");
         Assert.True(standard.FileLog, "ログはどのプロファイルでも共通");
         Assert.True(standard.TsfOffered, "Meltype IME を入れるかを聞いたかは、どのプロファイルでも共通 (切り替えるたびに聞かない)");
+        Assert.True(!standard.SettingsShowHelp && !standard.SettingsWheelChangesValue, "設定画面の説明の欄・ホイールの設定は、どのプロファイルでも共通");
 
         // もう一度 仕事用 にすると、仕事用で変えた値が戻ってくる
         var back = standard.SwitchProfile("仕事用");

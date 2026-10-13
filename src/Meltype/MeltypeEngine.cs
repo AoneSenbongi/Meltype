@@ -120,7 +120,8 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         _composition = composition;
         composition.PasteCommit = () => PastePolicy.ShouldPaste(_settings, _foreground.Current.ProcessName, IsQt(_foreground.Current.Window));
         composition.InputAllowed = () => KeyboardLayoutPolicy.AllowsInput(_settings);
-        composition.Focus.TreatsAsTextInput = () => _settings.TreatsAsTextInput(_foreground.Current.ProcessName);
+        composition.Focus.TreatsAsTextInput = () => _settings.TreatsAsTextInput(_foreground.Current.ProcessName)
+            || LineContext.TerminalProcesses.Contains(_foreground.Current.ProcessName);
         composition.Focus.TreatsWindowAsTextInput = () => WindowInputApps.Contains(_foreground.Current.ProcessName);
         composition.ShowModeOnFocus = ShowModeOnFocus;
         composition.Focus.ForegroundProcessName = () => _foreground.Current.ProcessName;
@@ -158,6 +159,13 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
     /// <summary>入力欄にフォーカスが移っても UI Automation の通知が来ないことがあるブラウザー (#364)。打ったときに調べ直す。</summary>
     private static readonly HashSet<string> Browsers = new(StringComparer.OrdinalIgnoreCase)
         { "firefox.exe", "chrome.exe", "msedge.exe", "vivaldi.exe", "brave.exe", "opera.exe", "floorp.exe", "zen.exe", "waterfox.exe", "librewolf.exe" };
+
+    /// <summary>
+    /// 入力欄と判定できていないとき、打った時点でフォーカスを調べ直すアプリか。
+    /// ブラウザーはタブ切替後に通知が来ないことがある (#364)。LINE は起動直後、入力欄の通知が来ず「入力欄ではない」のまま残ることがある。
+    /// </summary>
+    internal static bool RechecksStaleFocus(string? processName) =>
+        processName is not null && (Browsers.Contains(processName) || WindowInputApps.Contains(processName));
 
     private static bool IsQt(IntPtr window)
     {
@@ -592,7 +600,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         if (!_foreground.Check(settings).Allowed) return false;
         // 文字入力欄 (パスワード以外) にフォーカスがあるときだけ。ショートカットキーやゲームの操作を横取りしない。
         if (_composition?.Focus.CanCaptureWaiting() != true &&
-            !(Browsers.Contains(_foreground.Current.ProcessName) && _composition?.Focus.RecheckStale() == true)) return false;
+            !(RechecksStaleFocus(_foreground.Current.ProcessName) && _composition?.Focus.RecheckStale() == true)) return false;
         // コードエディター・ターミナル: コードの中は英数のまま通す (補完もそのまま効く)。コメント・文字列の中は日本語を判定する。
         if (!reconvert && !_keyboardDirect && IsCodeApp(settings))
         {
@@ -687,9 +695,7 @@ internal sealed class MeltypeEngine : ISessionEnvironment, IDisposable
         var previous = _settings;
         // 設定画面で Meltype IME を選んだ (「既定値に戻す」を含む) が、ARM64 の Windows か、登録されていないか、このユーザーのキーボードの一覧に無い:
         // どこでも何も起きなくなるので選ばせない
-        if (next.Mode == InputMode.Tsf && previous.Mode != InputMode.Tsf &&
-            (System.Runtime.InteropServices.RuntimeInformation.OSArchitecture == System.Runtime.InteropServices.Architecture.Arm64 ||
-             !Tip.TipServer.IsRegistered || !Tip.TipServer.IsInUserLanguageList))
+        if (next.Mode == InputMode.Tsf && previous.Mode != InputMode.Tsf && !Tip.TipServer.IsUsable)
         {
             next.Mode = previous.Mode;
             Log.Warn("Meltype IME を使えない (ARM64 の Windows・登録されていない・キーボードの一覧に無い) ので、動作モードは変えません。");

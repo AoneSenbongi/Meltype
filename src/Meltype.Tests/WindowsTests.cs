@@ -61,6 +61,29 @@ internal static class WindowsTests
     }
 
     [Test]
+    public static void Line_RechecksStaleFocusOnKey()
+    {
+        // 起動直後の LINE は、入力欄の通知が来ず「入力欄ではない」のままキーが素通しになる。打った時点で調べ直す。
+        Assert.True(MeltypeEngine.RechecksStaleFocus("LINE.exe"), "LINE は打鍵時に入力欄を調べ直す");
+        Assert.True(MeltypeEngine.RechecksStaleFocus("line.EXE"), "大小文字は無視");
+        Assert.True(MeltypeEngine.RechecksStaleFocus("firefox.exe"), "ブラウザーは今までどおり");
+        Assert.True(!MeltypeEngine.RechecksStaleFocus("notepad.exe"), "関係ないアプリは調べ直さない");
+        Assert.True(!MeltypeEngine.RechecksStaleFocus(null), "プロセス名が無いときは調べ直さない");
+    }
+
+    [Test]
+    public static void RecheckStale_CooldownIsPerForegroundWindow()
+    {
+        // ブラウザーで再確認した直後に LINE へ移っても、共有クールダウンで抑止されない
+        var browser = new IntPtr(0x100);
+        var line = new IntPtr(0x200);
+        Assert.True(Composition.FocusInspector.RecheckCooldownActive(browser, browser, 500, 0, 1000), "同じウィンドウは 1 秒以内なら抑止");
+        Assert.True(!Composition.FocusInspector.RecheckCooldownActive(line, browser, 500, 0, 1000), "別ウィンドウへ移ったらすぐ再確認してよい");
+        Assert.True(!Composition.FocusInspector.RecheckCooldownActive(browser, browser, 1500, 0, 1000), "同じウィンドウでも 1 秒過ぎれば再確認してよい");
+        Assert.True(!Composition.FocusInspector.RecheckCooldownActive(IntPtr.Zero, browser, 500, 0, 1000), "前面ウィンドウが無いときは抑止しない");
+    }
+
+    [Test]
     public static void WebInputClassNames_AreTextInputs()
     {
         // #70: Chatwork の検索欄は Group で、クラス名 (sc-kzAZJu ijnNh inputLong) でしか入力欄と分からない
@@ -122,6 +145,31 @@ internal static class WindowsTests
             now = 0; var calls = 0;
             active = Imm32ImeController.HasInputContext(20, (_, _) => { calls++; now = success ? 21 : 0; return (success, 0x19); }, () => TimeSpan.FromMilliseconds(now));
             Assert.True(!active && calls == 1, "失敗や期限後の肯定結果を採用せず、追加の問い合わせをしない");
+        }
+    }
+
+    [Test]
+    public static void SettingsToolTip_BreaksLinesForReading()
+    {
+        Assert.Equal("ひとつめ。\nふたつめ。", UI.SettingsForm.WrapToolTip("ひとつめ。ふたつめ。"), "文ごとに改行する");
+        Assert.Equal($"{new string('あ', 39)}\nAnyDesk を使う", UI.SettingsForm.WrapToolTip($"{new string('あ', 39)}AnyDesk を使う"), "英単語の途中で折り返さない");
+        Assert.Equal($"{new string('あ', 39)}\nあ、い", UI.SettingsForm.WrapToolTip($"{new string('あ', 40)}、い"), "読点を行頭に置かない");
+        Assert.Equal($"{new string('あ', 39)}\n(OFF)", UI.SettingsForm.WrapToolTip($"{new string('あ', 39)}(OFF)"), "開き括弧を行末に置かない");
+
+        // 設定画面に出す説明すべてで、文字を落とさず、長すぎる行・行頭の閉じ括弧・行末の開き括弧を作らない
+        var descriptions = typeof(Settings).GetProperties()
+            .Select(p => p.GetCustomAttributes(typeof(System.ComponentModel.DescriptionAttribute), false).OfType<System.ComponentModel.DescriptionAttribute>().FirstOrDefault()?.Description)
+            .OfType<string>().ToList();
+        Assert.True(descriptions.Count > 20, "説明を読めている");
+        foreach (var description in descriptions)
+        {
+            var wrapped = UI.SettingsForm.WrapToolTip(description);
+            Assert.Equal(description.Replace(" ", ""), wrapped.Replace("\n", "").Replace(" ", ""), description);
+            foreach (var line in wrapped.Split('\n'))
+            {
+                Assert.True(line.Sum(c => c < 0x80 ? 1 : 2) <= 80, $"長すぎる行: {line}");
+                Assert.True(line.Length > 0 && !")）」』]、。,.・".Contains(line[0]) && !"(（「『[".Contains(line[^1]), $"括弧・句読点の位置: {line}");
+            }
         }
     }
 }

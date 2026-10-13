@@ -207,7 +207,7 @@ public sealed class Settings
     public bool AutoCorrectAfterCommit { get; set; } = true;
 
     [Category("1. 全般"), DisplayName("英数状態でもローマ字を検知"),
-     Description("Keyboard モードの英数 (直接入力) 状態でも単語の打ち始めを判定し、ローマ字 (日本語) なら自動で日本語入力に戻します。")]
+     Description("Keyboard モードまたは Meltype IME の英数状態でも単語の打ち始めを判定し、ローマ字 (日本語) なら自動で日本語入力に戻します。")]
     public bool DirectModeAutoDetect { get; set; } = true;
 
     [Category("1. 全般"), DisplayName("/ $ @ で始まる語はそのまま入力"),
@@ -395,6 +395,14 @@ public sealed class Settings
     [Browsable(false)]
     public bool TsfOffered { get; set; }
 
+    /// <summary>設定画面の下に、項目の説明を出すか (設定画面のチェックボックスで切り替える)。</summary>
+    [Browsable(false)]
+    public bool SettingsShowHelp { get; set; } = true;
+
+    /// <summary>設定画面で、プルダウン・数値の上でホイールを回したときに値を変えるか (OFF なら設定の一覧をスクロールする)。</summary>
+    [Browsable(false)]
+    public bool SettingsWheelChangesValue { get; set; } = true;
+
     /// <summary>プロファイル (仕事用・趣味用・SNS 用など)。設定画面の上と、トレイのメニューで切り替える。</summary>
     [Browsable(false)]
     public List<SettingsProfile> Profiles { get; set; } = [];
@@ -414,6 +422,8 @@ public sealed class Settings
         nameof(Enabled), nameof(JapaneseKeyboardOnly), nameof(AllowInjectedInput), nameof(FileLog), nameof(LogTypedText), nameof(AutoUpdate),
         // 入力の方式 (Windows の IME として入力するか) は PC 全体の選び方なので、プロファイルで変えない
         nameof(Mode), nameof(TsfIntroduced), nameof(TsfOffered),
+        // 設定画面の見た目は、プロファイルを切り替えても変えない
+        nameof(SettingsShowHelp), nameof(SettingsWheelChangesValue),
     ];
 
     /// <summary>今の設定の値のうち、プロファイルに入れるもの。</summary>
@@ -643,7 +653,7 @@ public sealed class Settings
         "Code.exe", "Code - Insiders.exe", "Cursor.exe", "Windsurf.exe", "zed.exe", "devenv.exe",
         "idea64.exe", "pycharm64.exe", "webstorm64.exe", "rider64.exe", "clion64.exe", "goland64.exe",
         "phpstorm64.exe", "rubymine64.exe", "datagrip64.exe", "studio64.exe", "sublime_text.exe", "notepad++.exe",
-        "WindowsTerminal.exe", "cmd.exe", "powershell.exe", "pwsh.exe", "wezterm-gui.exe", "alacritty.exe", "mintty.exe",
+        "WindowsTerminal.exe", "cmd.exe", "powershell.exe", "pwsh.exe", "wezterm-gui.exe", "alacritty.exe", "mintty.exe", "rio.exe",
         // アプリの中にスクリプトエディターがある 3DCG ソフト (Maya の Script Editor)
         "maya.exe",
     ];

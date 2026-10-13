@@ -53,6 +53,8 @@ public interface ICompositionHost
         CommitText(text);
     }
 
+    void RecordDirectReplay(char c) { }
+
     /// <summary>
     /// 入力欄の確定済みの文字を消せるか。消せない入力欄 (Linux で周りの文字の削除に対応していないアプリ) では、
     /// 確定し直すと元の文字が残ったまま書き足されてしまう (api → apiあぴ) ので、確定し直さない。
@@ -111,6 +113,8 @@ public sealed record CompositionOptions
 
     /// <summary>英数状態での判定結果を知らせる (true: 日本語だったので日本語入力に戻った / false: 英語だった)。</summary>
     public Action<bool>? DirectDecided { get; init; }
+
+    public Action? DirectHoldCleared { get; init; }
 
     /// <summary>同音異義語などの補助候補。</summary>
     public CandidateDictionary? Candidates { get; init; }
@@ -384,6 +388,12 @@ public sealed class CompositionController
         Pump();
     }
 
+    public void AbandonDirectHold()
+    {
+        ClearHeld();
+        _replayedDown.Clear();
+    }
+
     /// <summary>変換中の文節の候補を番号で選ぶ (Mac の候補ウィンドウをクリックしたときなど)。</summary>
     public void SelectCandidate(int index)
     {
@@ -398,6 +408,16 @@ public sealed class CompositionController
         if (index < 0 || index >= clause.Candidates.Count) return;
         clause.Index = index;
         clause.Changed = true;
+        UpdateView();
+    }
+
+    /// <summary>予測変換の候補を番号で選んで確定する (Meltype IME の候補の一覧をクリックしたとき)。</summary>
+    public void CommitPredictionAt(int index)
+    {
+        if (_converting) return;
+        var predictions = CurrentPredictions();
+        if (index < 0 || index >= predictions.Count) return;
+        CommitPrediction(predictions[index]);
         UpdateView();
     }
 
@@ -999,6 +1019,7 @@ public sealed class CompositionController
     private void SendHeld(KeyEvent e)
     {
         _host.Replay(e);
+        if (_host.CharFromKey(e, _swallowedShift.Count > 0) is { } c) _host.RecordDirectReplay(c);
         _replayedDown.Add(e.Vk);
         _heldSent++;
     }
@@ -1034,9 +1055,9 @@ public sealed class CompositionController
     {
         var letters = _heldLetters.ToString();
         var sent = _heldSent;
-        ClearHeld();
         // 判定を待たずに送っていた英字を消して、変換ボックスに入れ直す。
         _host.DeleteBackward(sent);
+        ClearHeld();
         _options.DirectDecided?.Invoke(true);
         BeginComposition();
         foreach (var c in letters)
@@ -1070,6 +1091,7 @@ public sealed class CompositionController
     {
         _heldLetters.Clear();
         _heldSent = 0;
+        _options.DirectHoldCleared?.Invoke();
     }
 
     // ---- 変換 (文節) ----
@@ -1364,22 +1386,23 @@ public sealed class CompositionController
             {
                 if (i < kana.Length && keep[i] == keep[start]) continue;
                 var run = kana[start..i];
-                if (keep[start]) result.Add(new Clause(run, false, Distinct([run, .. _options.Candidates?.Lookup(run) ?? [], CompositionText.ToFullWidth(run)])));
+                // ユーザー辞書に英字のまま登録した読み (zh → ←) はここでも引く
+                if (keep[start]) result.Add(new Clause(run, false, Distinct([.. _options.UserDictionary?.Lookup(run) ?? [], run, .. _options.Candidates?.Lookup(run) ?? [], CompositionText.ToFullWidth(run)])));
                 else result.AddRange(ConvertJapanese(run));
                 start = i;
             }
             return result;
         }
-        if (_options.UserDictionary?.Split(kana) is not { } pieces) return ConvertWithEngine(kana);
-        pieces = AlignUserWords(kana, pieces);
-        if (pieces.All(p => p.Word is null)) return ConvertWithEngine(kana);
+        if (_options.UserDictionary?.Split(kana) is not { } split) return ConvertWithEngine(kana);
+        var pieces = AlignUserWords(kana, split);
+        if (pieces.All(p => p.Word is null && p.Engine is null)) return ConvertWithEngine(kana);
         var clauses = new List<Clause>();
         var registered = new List<Clause>();
-        foreach (var (reading, word) in pieces)
+        foreach (var (reading, word, engine) in pieces)
         {
             if (word is null)
             {
-                clauses.AddRange(ConvertWithEngine(reading));
+                clauses.AddRange(ConvertWithEngine(reading, engine));
                 continue;
             }
             var clause = new Clause(reading, false, JapaneseCandidates(reading, word));
@@ -1401,31 +1424,66 @@ public sealed class CompositionController
     /// ユーザーが登録した語の読みが、変換エンジンの文節の途中から始まるなら、その語では区切らない (issue #374)。
     /// しの → 紫乃 を登録すると、わたしのことがすき の途中の しの で区切って ワタ紫乃ことが好き になっていた
     /// (変換エンジンは わたしの|ことが|すき と区切るので、しの は文節の途中から始まる)。文節の頭から始まる語 (しのがきた の しの) は今までどおり。
-    /// 同梱の語句 (phrases.txt) は、変換エンジンが区切りを間違える語句を補うものなので、そのまま使う。
+    /// 同梱の語句 (phrases.txt) は、変換エンジンが区切りを間違える語句を補うものなので、文節の途中から始まっても使う。
+    ///
+    /// 語の始まりが変換エンジンの文節の境目に合い、そこからの文節の文字が語で始まる (変換エンジンが文の中でその語にできている) なら、
+    /// その語では区切らず、語から後ろは文全体を変換したときの変換エンジンの文節をそのまま使う (Engine)。
+    /// 語で区切ると、残りのかなを単独で変換することになり崩れる (あげあしとら → 揚げ足取ら で区切ると、ないで が 内で になる)。
+    /// 語より前は今までどおり別に変換する (文全体の変換エンジンの結果にすると、これほんあか が コレ本垢 になる)。
+    /// 始まりが文節の途中の語は、どの文字が語の読みに当たるか分からないので、今までどおり語で区切る。
     /// </summary>
-    private List<(string Reading, string? Word)> AlignUserWords(string kana, List<(string Reading, string? Word)> pieces)
+    private List<(string Reading, string? Word, IReadOnlyList<ConversionClause>? Engine)> AlignUserWords(string kana, List<(string Reading, string? Word)> pieces)
     {
-        if (_options.UserDictionary is not { } dictionary || !pieces.Any(p => p.Word is not null && dictionary.IsUserReading(p.Reading))) return pieces;
+        var unchanged = pieces.Select(p => (p.Reading, p.Word, (IReadOnlyList<ConversionClause>?)null)).ToList();
+        if (_options.UserDictionary is not { } dictionary) return unchanged;
         var engine = ConversionContext() is { } context ? ConvertWithContext(kana, context) : _converter.ConvertClauses(kana);
-        if (engine is null || string.Concat(engine.Select(c => c.Reading)) != kana) return pieces;
+        if (engine is null || string.Concat(engine.Select(c => c.Reading)) != kana) return unchanged;
         var starts = new HashSet<int>();
         for (int i = 0, offset = 0; i < engine.Count; offset += engine[i].Reading.Length, i++) starts.Add(offset);
-        var aligned = new List<(string Reading, string? Word)>();
+        var aligned = new List<(string Reading, string? Word, IReadOnlyList<ConversionClause>? Engine)>();
         var position = 0;
-        foreach (var (reading, word) in pieces)
+        for (var p = 0; p < pieces.Count; p++)
         {
-            var keep = word is null || !dictionary.IsUserReading(reading) || starts.Contains(position);
-            if (!keep) Diagnostics.Log.Info($"ユーザー辞書の語は、変換エンジンの文節の途中から始まるので使いません: {Diagnostics.Log.Text(reading)}");
-            // 使わない語の読みは、前後の変換エンジンに渡す部分とつなげる
-            if (!keep || word is null)
+            var (reading, word) = pieces[p];
+            var midStart = word is not null && dictionary.IsUserReading(reading) && !starts.Contains(position);
+            if (midStart) Diagnostics.Log.Info($"ユーザー辞書の語は、変換エンジンの文節の途中から始まるので使いません: {Diagnostics.Log.Text(reading)}");
+            if (word is not null && !midStart && starts.Contains(position) && EngineStartsWith(position, word))
             {
-                if (aligned.Count > 0 && aligned[^1].Word is null) aligned[^1] = (aligned[^1].Reading + reading, null);
-                else aligned.Add((reading, null));
+                // 次に文節の境目から始まる語の手前までを、変換エンジンの文節にする
+                var next = p + 1;
+                var stop = position + reading.Length;
+                for (; next < pieces.Count && !(pieces[next].Word is not null && starts.Contains(stop)); next++) stop += pieces[next].Reading.Length;
+                var span = new List<ConversionClause>();
+                for (int i = 0, offset = 0; i < engine.Count; offset += engine[i].Reading.Length, i++)
+                    if (offset >= position && offset < stop) span.Add(engine[i]);
+                // 変換エンジンの文節が次の語にまたがるときは、変換エンジンの結果を使わない
+                if (string.Concat(span.Select(c => c.Reading)) == kana[position..stop])
+                {
+                    aligned.Add((kana[position..stop], null, span));
+                    position = stop;
+                    p = next - 1;
+                    continue;
+                }
             }
-            else aligned.Add((reading, word));
+            // 使わない語の読みは、前後の変換エンジンに渡す部分とつなげる
+            if (word is null || midStart)
+            {
+                if (aligned.Count > 0 && aligned[^1] is { Word: null, Engine: null } last) aligned[^1] = (last.Reading + reading, null, null);
+                else aligned.Add((reading, null, null));
+            }
+            else aligned.Add((reading, word, null));
             position += reading.Length;
         }
         return aligned;
+
+        // start から始まる変換エンジンの文節の文字が、語で始まるか
+        bool EngineStartsWith(int start, string word)
+        {
+            var text = new StringBuilder();
+            for (int i = 0, offset = 0; i < engine.Count && text.Length < word.Length; offset += engine[i].Reading.Length, i++)
+                if (offset >= start) text.Append(engine[i].Text);
+            return text.ToString().StartsWith(word, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -1433,16 +1491,17 @@ public sealed class CompositionController
     ///   1. 文脈の手がかり辞書 (前後に 気温 があれば あつい → 暑い)
     ///   2. ユーザーが前に選び直した変換 (学習)
     ///   3. 変換エンジンの結果 (入力欄のキャレットの前の文字を文脈として渡している)
+    /// engine を渡したときは、変換エンジンに頼まずにその文節を使う (文全体を変換したときの一部: AlignUserWords)。
     /// </summary>
-    private List<Clause> ConvertWithEngine(string kana)
+    private List<Clause> ConvertWithEngine(string kana, IReadOnlyList<ConversionClause>? engine = null)
     {
         // 文脈が無いまま「に」で始まる読みを変換すると、変換エンジンは「に」を語の頭と読む (になってしまう → 担ってしまう)。
         // 前の文脈が取れないときは、仮の文脈「これ」を付けて助詞として読ませる (これ + になってしまう → になってしまう)。
         // 「は」「で」なども助詞になりうるが、仮の文脈を付けると はしる → は知る のように崩れるので「に」だけ。
         var context = ConversionContext();
-        var parts = context is not null
+        var parts = engine ?? (context is not null
             ? ConvertWithContext(kana, context)
-            : _converter.ConvertClauses(kana, kana.Length >= 3 && kana[0] == 'に' ? "これ" : null);
+            : _converter.ConvertClauses(kana, kana.Length >= 3 && kana[0] == 'に' ? "これ" : null));
         parts ??= [new ConversionClause(kana, _converter.Convert(kana) ?? kana)];
         // 読み全体が補助辞書・絵文字の辞書の語 (かんがえるかお → 🤔) なら、文節に分けずに 1 つの文節にして候補を出す。
         if (parts.Count > 1 && _options.Candidates?.Contains(kana) == true)
@@ -1518,6 +1577,21 @@ public sealed class CompositionController
 
     /// <summary>する の活用 (した・して・しない・しよう・したい …) で始まる読み。</summary>
     private static readonly string[] SuruForms = ["する", "すれ", "した", "して", "しま", "しな", "しよ", "しと", "しちゃ", "しろ", "され", "させ", "せず"];
+
+    /// <summary>
+    /// 確定し直しで英語に戻さない、する活用のローマ字。
+    /// sure は make sure で英文に直す必要があるので入れない (すれ と読めても除外)。
+    /// </summary>
+    private static readonly HashSet<string> SuruRomajiKeepJapanese =
+        ["site", "sita", "suru", "shite", "shita", "shimasu", "shinai", "shiyou", "shiro", "sezu"];
+
+    private bool IsSuruRomajiKeepJapanese(string raw)
+    {
+        var lower = raw.ToLowerInvariant();
+        if (!SuruRomajiKeepJapanese.Contains(lower)) return false;
+        var reading = _detector.Romaji.ConvertLenient(lower, final: true);
+        return SuruForms.Any(reading.StartsWith) && reading.All(c => c is >= 'ぁ' and <= 'ゖ' or 'ー');
+    }
 
     /// <summary>英単語の後ろの、する の活用の文節を、変換エンジンが漢字で始めた (した → 下、したい → 死体、しよう → 使用)。</summary>
     private static bool IsSuruAfterEnglish(Clause clause) =>
@@ -2122,7 +2196,19 @@ public sealed class CompositionController
             // 助詞と同じ形の短い語 (to, no) 1 語だけを、大文字で始まる語 (固有名詞) で直すことはしない (Google と Apple は日本語でもよく書く)。
             // 小文字の英単語で英文と分かったとき (let me know、do it) は直す。
             if (targets.Count == 1 && targets[0].Raw.Length <= 2 && targets[0].Raw != "i" && char.IsAsciiLetterUpper(raw.FirstOrDefault(char.IsAsciiLetter))) return null;
-            replacement = string.Concat(targets.Select(t => (t.Raw == "i" ? "I" : t.Raw) + (t.SpaceIntended ? " " : "")));
+            // する の活用のローマ字 (site→して、sita→した) は、後ろが英語でも日本語のまま
+            // (site PR → site PR に確定し直さず、して PR を保つ)。
+            // sure→すれ は英文 (make sure) でも使うので含めない。
+            if (targets.Any(t => IsSuruRomajiKeepJapanese(t.Raw)))
+            {
+                // Space で変換を始めていた分の空白だけは残す (してPR → して PR)。
+                if (!targets.Any(t => t.SpaceIntended)) return null;
+                replacement = string.Concat(targets.Select(t => t.Text + (t.SpaceIntended ? " " : "")));
+            }
+            else
+            {
+                replacement = string.Concat(targets.Select(t => (t.Raw == "i" ? "I" : t.Raw) + (t.SpaceIntended ? " " : "")));
+            }
         }
         // 前に英語が続いていた普通の英単語 (Are you の you) は、英文の続きとして打ったもの。後ろが日本語 (すし？) でも日本語に直さない (#265)。
         // 日本語由来の語 (I love sushi + がすき) は、日本語のつもりのことがあるので今までどおり直す。

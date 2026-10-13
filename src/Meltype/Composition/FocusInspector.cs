@@ -108,19 +108,30 @@ public sealed class FocusInspector : IDisposable
     public FocusInfo Current => _info;
 
     private long _lastRecheck;
+    private long _lastRecheckForeground;
 
     /// <summary>
-    /// 前に調べた結果が「入力欄ではない」でも、ブラウザーではもう一度調べ直す (最大 waitMs 待つ。1 秒に 1 回まで)。
+    /// 同じ前面ウィンドウでの再確認は cooldownMs 以内なら抑止する。別ウィンドウへ移ったらすぐ再確認してよい
+    /// (ブラウザーで再確認した直後に LINE へ移ると、共有クールダウンで最初の打鍵が素通りしていた)。
+    /// </summary>
+    internal static bool RecheckCooldownActive(IntPtr foreground, IntPtr lastRecheckForeground, long now, long lastRecheck, int cooldownMs = 1000) =>
+        foreground != IntPtr.Zero && foreground == lastRecheckForeground && now - lastRecheck < cooldownMs;
+
+    /// <summary>
+    /// 前に調べた結果が「入力欄ではない」でも、ブラウザーではもう一度調べ直す (最大 waitMs 待つ。同じ前面ウィンドウでは 1 秒に 1 回まで)。
     /// Firefox でタブを切り替えた後、入力欄にフォーカスが移っても UI Automation の通知が来ず、「入力欄ではない」(ページそのもの) のまま
     /// 変換ボックスを出さなくなることがあった (issue #364)。打った時点で調べ直せば、そのときのフォーカスで決められる。
     /// </summary>
     public bool RecheckStale(int waitMs = 60)
     {
         var now = Environment.TickCount64;
-        if (now - Interlocked.Read(ref _lastRecheck) < 1000) return false;
-        if (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) || Native.GetForegroundWindow() != _inspectedForeground) return false;
+        var foreground = Native.GetForegroundWindow();
+        var lastForeground = new IntPtr(Interlocked.Read(ref _lastRecheckForeground));
+        if (RecheckCooldownActive(foreground, lastForeground, now, Interlocked.Read(ref _lastRecheck))) return false;
+        if (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) || foreground != _inspectedForeground) return false;
         if (_info is { IsTextInput: true } or { IsPassword: true }) return false;
         Interlocked.Exchange(ref _lastRecheck, now);
+        Interlocked.Exchange(ref _lastRecheckForeground, foreground.ToInt64());
         Invalidate();
         var deadline = now + waitMs;
         while (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) && Environment.TickCount64 < deadline) Thread.Sleep(5);

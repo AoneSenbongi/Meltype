@@ -28,7 +28,7 @@ public sealed class LanguageMemory
         public bool Explicit { get; set; }
     }
 
-    /// <summary>学習した語 (設定の「学習した語」の一覧に出す)。Active は今効いているか (2 回目を待っている語は false)。</summary>
+    /// <summary>学習した語 (設定の「学習した語」の一覧に出す)。Active は今有効になっているか (2 回目を待っている語は false)。</summary>
     public sealed record Learned(string Word, bool English, int Count, DateTime Used, bool Active);
 
     /// <summary>

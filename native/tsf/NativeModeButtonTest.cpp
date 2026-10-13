@@ -4,6 +4,39 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <vector>
+#include <fstream>
+
+static void SaveModeBitmap(const char* path, const std::vector<unsigned char>& pixels) {
+  const int size = GetSystemMetrics(SM_CXSMICON);
+  BITMAPFILEHEADER file{}; file.bfType = 0x4d42;
+  file.bfOffBits = sizeof(file) + sizeof(BITMAPINFOHEADER);
+  file.bfSize = file.bfOffBits + static_cast<DWORD>(pixels.size());
+  BITMAPINFOHEADER info{}; info.biSize = sizeof(info); info.biWidth = size; info.biHeight = -size;
+  info.biPlanes = 1; info.biBitCount = 32;
+  std::ofstream output(path, std::ios::binary);
+  output.write(reinterpret_cast<const char*>(&file), sizeof(file));
+  output.write(reinterpret_cast<const char*>(&info), sizeof(info));
+  output.write(reinterpret_cast<const char*>(pixels.data()), pixels.size());
+}
+
+static std::vector<unsigned char> ModePixels(ITfLangBarItemButton* button) {
+  HICON icon = nullptr;
+  if (FAILED(button->GetIcon(&icon)) || !icon) return {};
+  const int size = GetSystemMetrics(SM_CXSMICON);
+  BITMAPINFO info{}; info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  info.bmiHeader.biWidth = size; info.bmiHeader.biHeight = -size;
+  info.bmiHeader.biPlanes = 1; info.bmiHeader.biBitCount = 32;
+  void* pixels = nullptr; HDC dc = CreateCompatibleDC(nullptr);
+  HBITMAP bitmap = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+  HGDIOBJ before = SelectObject(dc, bitmap);
+  std::memset(pixels, 0, size * size * 4);
+  DrawIconEx(dc, 0, 0, icon, size, size, 0, nullptr, DI_NORMAL); GdiFlush();
+  auto* bytes = static_cast<unsigned char*>(pixels);
+  std::vector<unsigned char> result(bytes, bytes + size * size * 4);
+  SelectObject(dc, before); DeleteObject(bitmap); DeleteDC(dc); DestroyIcon(icon);
+  return result;
+}
 
 struct Sink final : ITfLangBarItemSink {
   ULONG refs = 1;
@@ -22,7 +55,7 @@ struct Sink final : ITfLangBarItemSink {
   }
 };
 int wmain(int argc, wchar_t** argv) {
-  if (argc != 2) return 2;
+  if (argc != 2 && argc != 3) return 2;
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
   HMODULE dll = LoadLibraryW(argv[1]);
   if (!dll) return 3;
@@ -41,7 +74,7 @@ int wmain(int argc, wchar_t** argv) {
   ITfCompartment* openClose = nullptr;
   TfClientId client = 0;
   ok = ok && SUCCEEDED(CoCreateInstance(CLSID_TF_ThreadMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfThreadMgr, reinterpret_cast<void**>(&thread)));
-  ok = ok && SUCCEEDED(thread->Activate(&client)) && SUCCEEDED(service->Activate(thread, client));
+  ok = ok && SUCCEEDED(thread->Activate(&client));
   ok = ok && SUCCEEDED(thread->QueryInterface(IID_ITfCompartmentMgr, reinterpret_cast<void**>(&compartments)));
   ok = ok && SUCCEEDED(compartments->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &openClose));
   auto open = [&](LONG expected) {
@@ -49,7 +82,13 @@ int wmain(int argc, wchar_t** argv) {
     bool match = openClose && SUCCEEDED(openClose->GetValue(&value)) && value.vt == VT_I4 && value.lVal == expected;
     VariantClear(&value); return match;
   };
-  if (!open(1)) { std::puts("FAIL: activation did not open the Windows IME compartment"); ok = false; }
+  VARIANT initial; VariantInit(&initial); initial.vt = VT_I4; initial.lVal = 0;
+  ok = ok && SUCCEEDED(openClose->SetValue(client, &initial)) && SUCCEEDED(service->Activate(thread, client));
+  if (!open(0)) { std::puts("FAIL: activation overwrote the existing English mode"); ok = false; }
+  BSTR initialText = nullptr;
+  ok = ok && SUCCEEDED(button->GetText(&initialText)) && initialText && std::wstring(initialText) == L"英語";
+  SysFreeString(initialText);
+  initial.lVal = 1; openClose->SetValue(client, &initial);
   if (ok) {
     ok = SUCCEEDED(source->AdviseSink(IID_ITfLangBarItemSink, &sink, &cookie));
     TF_LANGBARITEMINFO info{};
@@ -63,12 +102,22 @@ int wmain(int argc, wchar_t** argv) {
       return match;
     };
     ok = ok && state(L"自動");
+    const auto automaticIcon = ModePixels(button);
     button->OnClick(TF_LBI_CLK_RIGHT, {}, nullptr);
     ok = ok && state(L"自動") && sink.updates == 0;
     button->OnClick(TF_LBI_CLK_LEFT, {}, nullptr);
     ok = ok && state(L"英語") && open(0) && sink.updates == 1;
+    const auto englishIcon = ModePixels(button);
+    if (argc == 3) {
+      SaveModeBitmap("native-mode-automatic.bmp", automaticIcon);
+      SaveModeBitmap("native-mode-english.bmp", englishIcon);
+    }
+    if (automaticIcon.empty() || englishIcon.empty() || automaticIcon == englishIcon) {
+      std::puts("FAIL: taskbar icons are identical in automatic and English mode"); ok = false;
+    }
     button->OnClick(TF_LBI_CLK_LEFT, {}, nullptr);
     ok = ok && state(L"自動") && open(1) && sink.updates == 2;
+    ok = ok && ModePixels(button) == automaticIcon;
     VARIANT value; VariantInit(&value); value.vt = VT_I4; value.lVal = 0;
     openClose->SetValue(client, &value);
     ok = ok && state(L"英語") && sink.updates == 3;
@@ -110,7 +159,7 @@ int wmain(int argc, wchar_t** argv) {
   if (thread) { thread->Deactivate(); thread->Release(); }
   if (service) service->Release();
   FreeLibrary(dll); CoUninitialize();
-  std::puts(ok ? "PASS: automatic/English text, clicks, Windows open/close synchronization, external mode changes, notifications, official blue/pink logo resource"
+  std::puts(ok ? "PASS: distinct automatic/English taskbar icons, text, clicks, existing Windows mode preserved, open/close synchronization, external changes, notifications, official blue/pink logo resource"
                : "FAIL: native input mode button or brand icon");
   return ok ? 0 : 1;
 }

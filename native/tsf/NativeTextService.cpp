@@ -22,6 +22,76 @@ HINSTANCE module;
 LONG liveObjects = 0;
 // Input scope protections also used by lnkiai's Meltype IME (GPL-3.0-or-later).
 // Keep PIN and private fields out of conversion and Google learning.
+// Copyright (C) 2026 lnkiai, GPL-3.0-or-later (mode icon rendering).
+bool TaskbarIsDark() {
+    DWORD value = 0, size = sizeof(value);
+    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", L"SystemUsesLightTheme",
+                     RRF_RT_REG_DWORD, nullptr, &value, &size) == ERROR_SUCCESS) {
+        return value == 0;
+    }
+    return true;
+}
+
+// Adapted from lnkiai/Meltype LangBar.cpp (GPL-3.0-or-later).
+HICON CreateModeIcon(const wchar_t* text) {
+    int size = GetSystemMetrics(SM_CXSMICON);
+    if (size <= 0) size = 16;
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = size;
+    info.bmiHeader.biHeight = -size;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HDC screen = GetDC(nullptr);
+    HDC dc = CreateCompatibleDC(screen);
+    HBITMAP color = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+    ReleaseDC(nullptr, screen);
+    if (color == nullptr) {
+        DeleteDC(dc);
+        return nullptr;
+    }
+    HGDIOBJ oldBitmap = SelectObject(dc, color);
+    // 白で描いて、明るさをそのまま不透明度にする
+    memset(bits, 0, static_cast<size_t>(size) * size * 4);
+    HFONT font = CreateFontW(-MulDiv(size, 9, 16), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                             ANTIALIASED_QUALITY, DEFAULT_PITCH, L"Yu Gothic UI");
+    HGDIOBJ oldFont = SelectObject(dc, font);
+    SetBkMode(dc, TRANSPARENT);
+    SetTextCharacterExtra(dc, -std::max(1, size / 16));
+    SetTextColor(dc, RGB(255, 255, 255));
+    RECT rect = {0, 0, size, size};
+    DrawTextW(dc, text, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    GdiFlush();
+    BYTE ink = TaskbarIsDark() ? 255 : 0;
+    auto* pixels = static_cast<BYTE*>(bits);
+    for (int i = 0; i < size * size; i++) {
+        BYTE alpha = pixels[i * 4 + 1];  // 緑の明るさ
+        // 乗算済みアルファ
+        BYTE value = static_cast<BYTE>(ink * alpha / 255);
+        pixels[i * 4 + 0] = value;
+        pixels[i * 4 + 1] = value;
+        pixels[i * 4 + 2] = value;
+        pixels[i * 4 + 3] = alpha;
+    }
+    SelectObject(dc, oldFont);
+    DeleteObject(font);
+    SelectObject(dc, oldBitmap);
+    DeleteDC(dc);
+
+    HBITMAP mask = CreateBitmap(size, size, 1, 1, nullptr);
+    ICONINFO iconInfo = {};
+    iconInfo.fIcon = TRUE;
+    iconInfo.hbmColor = color;
+    iconInfo.hbmMask = mask;
+    HICON icon = CreateIconIndirect(&iconInfo);
+    DeleteObject(color);
+    DeleteObject(mask);
+    return icon;
+}
+
+
 bool ProtectedInputScope(InputScope scope) {
   switch (scope) {
     case IS_PASSWORD: case IS_NUMERIC_PASSWORD: case IS_NUMERIC_PIN:
@@ -179,7 +249,7 @@ class Edit final : public ITfEditSession {
   std::function<HRESULT(TfEditCookie)> run_;
 };
 
-class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfLangBarItemButton, public ITfSource, public ITfCompartmentEventSink {
+class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfLangBarItemButton, public ITfSource, public ITfCompartmentEventSink, public ITfTextEditSink {
  public:
   explicit TextService(bool testing = false) : testing_(testing) { InterlockedIncrement(&liveObjects); }
   ~TextService() { Deactivate(); composition_->Release(); InterlockedDecrement(&liveObjects); }
@@ -192,6 +262,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     else if (iid == IID_ITfLangBarItem || iid == IID_ITfLangBarItemButton) *value = static_cast<ITfLangBarItemButton*>(this);
     else if (iid == IID_ITfSource) *value = static_cast<ITfSource*>(this);
     else if (iid == IID_ITfCompartmentEventSink) *value = static_cast<ITfCompartmentEventSink*>(this);
+    else if (iid == IID_ITfTextEditSink) *value = static_cast<ITfTextEditSink*>(this);
     else return E_NOINTERFACE;
     AddRef(); return S_OK;
   }
@@ -224,8 +295,16 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     Ptr<ITfCompartmentMgr> compartments;
     hr = thread_->QueryInterface(IID_ITfCompartmentMgr, reinterpret_cast<void**>(&compartments.p));
     if (SUCCEEDED(hr)) hr = compartments->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &openClose_.p);
-    VARIANT open; VariantInit(&open); open.vt = VT_I4; open.lVal = japanese_ ? 1 : 0;
-    if (SUCCEEDED(hr)) hr = openClose_->SetValue(client_, &open);
+    VARIANT open; VariantInit(&open);
+    if (SUCCEEDED(hr)) hr = openClose_->GetValue(&open);
+    if (SUCCEEDED(hr)) {
+      if (open.vt == VT_I4) japanese_ = open.lVal != 0;
+      else {
+        open.vt = VT_I4; open.lVal = japanese_ ? 1 : 0;
+        hr = openClose_->SetValue(client_, &open);
+      }
+    }
+    VariantClear(&open);
     Ptr<ITfSource> openSource;
     if (SUCCEEDED(hr)) hr = openClose_->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&openSource.p));
     if (SUCCEEDED(hr)) hr = openSource->AdviseSink(IID_ITfCompartmentEventSink, static_cast<ITfCompartmentEventSink*>(this), &openCookie_);
@@ -237,11 +316,13 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       if (FAILED(hr)) { Deactivate(); return hr; }
       modeRegistered_ = true;
     }
+    RefreshInputContext();
     return S_OK;
   }
   HRESULT STDMETHODCALLTYPE Deactivate() override {
     if (!thread_) return S_OK;
     FinishCurrent();
+    ClearInputContext();
     if (openClose_.p) {
       Ptr<ITfSource> openSource;
       if (openCookie_ != TF_INVALID_COOKIE && SUCCEEDED(openClose_->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&openSource.p)))) openSource->UnadviseSink(openCookie_);
@@ -273,9 +354,9 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   HRESULT STDMETHODCALLTYPE OnSetFocus(BOOL foreground) override { if (!foreground) FinishCurrent(); return S_OK; }
   HRESULT STDMETHODCALLTYPE OnInitDocumentMgr(ITfDocumentMgr*) override { return S_OK; }
   HRESULT STDMETHODCALLTYPE OnUninitDocumentMgr(ITfDocumentMgr*) override { return S_OK; }
-  HRESULT STDMETHODCALLTYPE OnSetFocus(ITfDocumentMgr* now, ITfDocumentMgr* before) override { if (now != before) FinishCurrent(); return S_OK; }
-  HRESULT STDMETHODCALLTYPE OnPushContext(ITfContext*) override { return S_OK; }
-  HRESULT STDMETHODCALLTYPE OnPopContext(ITfContext* context) override { if (context == composition_->Context()) FinishCurrent(); return S_OK; }
+  HRESULT STDMETHODCALLTYPE OnSetFocus(ITfDocumentMgr* now, ITfDocumentMgr* before) override { if (now != before) FinishCurrent(); RefreshInputContext(now, true); return S_OK; }
+  HRESULT STDMETHODCALLTYPE OnPushContext(ITfContext*) override { RefreshInputContext(); return S_OK; }
+  HRESULT STDMETHODCALLTYPE OnPopContext(ITfContext* context) override { if (context == composition_->Context()) FinishCurrent(); RefreshInputContext(); return S_OK; }
   HRESULT STDMETHODCALLTYPE OnPreservedKey(ITfContext* context, REFGUID guid, BOOL* eaten) override {
     if (!eaten) return E_POINTER;
     *eaten = guid == MeltypeToggleKey && Eligible(context, VK_KANJI);
@@ -298,20 +379,21 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   HRESULT STDMETHODCALLTYPE Show(BOOL) override { return E_NOTIMPL; }
   HRESULT STDMETHODCALLTYPE GetTooltipString(BSTR* text) override {
     if (!text) return E_POINTER;
-    *text = SysAllocString(japanese_ ? L"Meltype: 自動（クリックで英語）" : L"Meltype: 英語（クリックで自動）");
+    *text = SysAllocString(!InputContextAvailable() ? L"Meltype: 英語（この入力欄ではIMEを使用できません）" :
+        japanese_ ? L"Meltype: 自動（クリックで英語）" : L"Meltype: 英語（クリックで自動）");
     return *text ? S_OK : E_OUTOFMEMORY;
   }
   HRESULT STDMETHODCALLTYPE GetText(BSTR* text) override {
     if (!text) return E_POINTER;
-    *text = SysAllocString(japanese_ ? L"自動" : L"英語"); return *text ? S_OK : E_OUTOFMEMORY;
+    *text = SysAllocString(AutomaticForDisplay() ? L"自動" : L"英語"); return *text ? S_OK : E_OUTOFMEMORY;
   }
   HRESULT STDMETHODCALLTYPE GetIcon(HICON* icon) override {
     if (!icon) return E_POINTER;
-    *icon = static_cast<HICON>(LoadImageW(module, MAKEINTRESOURCEW(101), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0));
+    *icon = CreateModeIcon(AutomaticForDisplay() ? L"自動" : L"英語");
     return *icon ? S_OK : E_FAIL;
   }
   HRESULT STDMETHODCALLTYPE OnClick(TfLBIClick click, POINT, const RECT*) override {
-    if (click == TF_LBI_CLK_LEFT) SetInputMode(!japanese_); return S_OK;
+    if (click == TF_LBI_CLK_LEFT && InputContextAvailable()) SetInputMode(!japanese_); return S_OK;
   }
   HRESULT STDMETHODCALLTYPE InitMenu(ITfMenu*) override { return S_OK; }
   HRESULT STDMETHODCALLTYPE OnMenuSelect(UINT) override { return S_OK; }
@@ -339,10 +421,21 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (modeSink_) modeSink_->OnUpdate(TF_LBI_ICON | TF_LBI_TEXT | TF_LBI_TOOLTIP);
   }
   HRESULT STDMETHODCALLTYPE OnChange(REFGUID guid) override {
+    if (guid == GUID_COMPARTMENT_KEYBOARD_DISABLED || guid == GUID_COMPARTMENT_EMPTYCONTEXT) {
+      NotifyInputMode(); return S_OK;
+    }
     if (guid != GUID_COMPARTMENT_KEYBOARD_OPENCLOSE || !openClose_.p) return S_OK;
     VARIANT value; VariantInit(&value);
     if (SUCCEEDED(openClose_->GetValue(&value)) && value.vt == VT_I4) ApplyInputMode(value.lVal != 0);
     VariantClear(&value); return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE OnEndEdit(ITfContext* context, TfEditCookie cookie, ITfEditRecord*) override {
+    if (context == inputContext_.p) {
+      const bool before = inputAvailable_;
+      inputAvailable_ = ContextAllowsInput(context, false, cookie);
+      if (before != inputAvailable_) NotifyInputMode();
+    }
+    return S_OK;
   }
   bool CandidateRefreshForTest() {
     if (!testing_) return false;
@@ -409,6 +502,62 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   bool toggleRegistered_ = false;
   bool modeRegistered_ = false;
   ITfLangBarItemSink* modeSink_ = nullptr;
+  Ptr<ITfContext> inputContext_;
+  DWORD inputEditCookie_ = TF_INVALID_COOKIE;
+  bool inputAvailable_ = true;
+  std::array<Ptr<ITfCompartment>, 2> inputRestrictions_;
+  std::array<DWORD, 2> inputCookies_{TF_INVALID_COOKIE, TF_INVALID_COOKIE};
+  void NotifyInputMode() {
+    if (modeSink_) modeSink_->OnUpdate(TF_LBI_ICON | TF_LBI_TEXT | TF_LBI_TOOLTIP);
+  }
+  void ClearInputContext() {
+    for (size_t i = 0; i < inputRestrictions_.size(); ++i) {
+      if (!inputRestrictions_[i].p) continue;
+      Ptr<ITfSource> source;
+      if (inputCookies_[i] != TF_INVALID_COOKIE && SUCCEEDED(inputRestrictions_[i]->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&source.p))))
+        source->UnadviseSink(inputCookies_[i]);
+      inputCookies_[i] = TF_INVALID_COOKIE;
+      inputRestrictions_[i]->Release(); inputRestrictions_[i].p = nullptr;
+    }
+    if (inputContext_.p) {
+      Ptr<ITfSource> source;
+      if (inputEditCookie_ != TF_INVALID_COOKIE && SUCCEEDED(inputContext_->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&source.p))))
+        source->UnadviseSink(inputEditCookie_);
+      inputEditCookie_ = TF_INVALID_COOKIE;
+      inputContext_->Release(); inputContext_.p = nullptr;
+    }
+  }
+  void RefreshInputContext(ITfDocumentMgr* focused = nullptr, bool focusEvent = false) {
+    ClearInputContext();
+    Ptr<ITfDocumentMgr> document;
+    if (focusEvent) { document.p = focused; if (document.p) document->AddRef(); }
+    else if (thread_) thread_->GetFocus(&document.p);
+    if (document.p)
+      document->GetTop(&inputContext_.p);
+    if (inputContext_.p) {
+      Ptr<ITfSource> source;
+      if (SUCCEEDED(inputContext_->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&source.p))))
+        source->AdviseSink(IID_ITfTextEditSink, static_cast<ITfTextEditSink*>(this), &inputEditCookie_);
+      Ptr<ITfCompartmentMgr> manager;
+      if (SUCCEEDED(inputContext_->QueryInterface(IID_ITfCompartmentMgr, reinterpret_cast<void**>(&manager.p)))) {
+        const GUID* ids[]{&GUID_COMPARTMENT_KEYBOARD_DISABLED, &GUID_COMPARTMENT_EMPTYCONTEXT};
+        for (size_t i = 0; i < inputRestrictions_.size(); ++i) {
+          Ptr<ITfSource> source;
+          if (SUCCEEDED(manager->GetCompartment(*ids[i], &inputRestrictions_[i].p)) &&
+              SUCCEEDED(inputRestrictions_[i]->QueryInterface(IID_ITfSource, reinterpret_cast<void**>(&source.p))))
+            source->AdviseSink(IID_ITfCompartmentEventSink, static_cast<ITfCompartmentEventSink*>(this), &inputCookies_[i]);
+        }
+      }
+    }
+    NotifyInputMode();
+  }
+  bool InputContextAvailable() {
+    // With no editor Windows owns the disabled indicator; preserve the selected mode.
+    if (!inputContext_.p) return true;
+    inputAvailable_ = ContextAllowsInput(inputContext_.p, false);
+    return inputAvailable_;
+  }
+  bool AutomaticForDisplay() { return japanese_ && InputContextAvailable(); }
   static bool Toggle(WPARAM vk) { return vk == VK_KANJI || vk == VK_IME_ON || vk == VK_IME_OFF || vk == 0xf3 || vk == 0xf4; }
   struct FinishState { bool pending = false; };
   std::shared_ptr<FinishState> finishing_ = std::make_shared<FinishState>();
@@ -420,6 +569,17 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       channel_.Close(); preedit_.clear(); captured_.fill(false);
       if (popup_) ShowWindow(popup_, SW_HIDE);
     }
+    if (!ContextAllowsInput(context, true)) return false;
+    if (Toggle(vk)) return true;
+    if (!japanese_) return false;
+    if (composition_->Active()) return true;
+    if (!testing_ && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0 || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0)) return false;
+    return (vk >= 'A' && vk <= 'Z') ||
+      vk == VK_OEM_1 || vk == VK_OEM_PLUS ||
+      ((vk == VK_OEM_4 || vk == VK_OEM_6) && (testing_ || GetKeyState(VK_SHIFT) >= 0)) ||
+      ((vk == VK_OEM_COMMA || vk == VK_OEM_PERIOD) && (testing_ || GetKeyState(VK_SHIFT) >= 0));
+  }
+  bool ContextAllowsInput(ITfContext* context, bool inspectBoundary, TfEditCookie readCookie = TF_INVALID_COOKIE) {
     TF_STATUS status{};
     if (FAILED(context->GetStatus(&status)) || (status.dwDynamicFlags & TF_SD_READONLY)) return false;
     Ptr<ITfCompartmentMgr> manager;
@@ -435,14 +595,14 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       }
     }
     bool protectedInput = false;
-    snippetBoundary_ = false;
+    if (inspectBoundary) snippetBoundary_ = false;
     auto* scopeEdit = new Edit([&](TfEditCookie cookie) {
       TF_SELECTION selection{}; ULONG fetched = 0;
       HRESULT hr = context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &fetched);
       Ptr<ITfRange> range; range.p = selection.range;
       if (FAILED(hr) || fetched != 1 || !range.p) return E_FAIL;
       Ptr<ITfRange> before;
-      if (SUCCEEDED(range->Clone(&before.p)) && SUCCEEDED(before->Collapse(cookie, TF_ANCHOR_START))) {
+      if (inspectBoundary && SUCCEEDED(range->Clone(&before.p)) && SUCCEEDED(before->Collapse(cookie, TF_ANCHOR_START))) {
         LONG shifted = 0;
         if (SUCCEEDED(before->ShiftStart(cookie, -1, &shifted, nullptr))) {
           WCHAR character = 0; ULONG read = 0;
@@ -469,17 +629,14 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       return S_OK;
     });
     HRESULT scopeResult = E_FAIL;
-    HRESULT scopeRequest = context->RequestEditSession(client_, scopeEdit, TF_ES_SYNC | TF_ES_READ, &scopeResult);
+    HRESULT scopeRequest = S_OK;
+    if (readCookie != TF_INVALID_COOKIE) scopeResult = scopeEdit->DoEditSession(readCookie);
+    else scopeRequest = context->RequestEditSession(client_, scopeEdit, TF_ES_SYNC | TF_ES_READ, &scopeResult);
     scopeEdit->Release();
-    if (FAILED(scopeRequest) || FAILED(scopeResult) || protectedInput) return false;
-    if (Toggle(vk)) return true;
-    if (!japanese_) return false;
-    if (composition_->Active()) return true;
-    if (!testing_ && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0 || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0)) return false;
-    return (vk >= 'A' && vk <= 'Z') ||
-      vk == VK_OEM_1 || vk == VK_OEM_PLUS ||
-      ((vk == VK_OEM_4 || vk == VK_OEM_6) && (testing_ || GetKeyState(VK_SHIFT) >= 0)) ||
-      ((vk == VK_OEM_COMMA || vk == VK_OEM_PERIOD) && (testing_ || GetKeyState(VK_SHIFT) >= 0));
+    // The shell can request an icon while the application already owns a TSF lock.
+    // Keep the last inspected state for display; key handling still requires a successful read.
+    if (!inspectBoundary && (FAILED(scopeRequest) || FAILED(scopeResult))) return inputAvailable_;
+    return SUCCEEDED(scopeRequest) && SUCCEEDED(scopeResult) && !protectedInput;
   }
   HRESULT Key(ITfContext* context, WPARAM vk, LPARAM lparam, bool up, BOOL* eaten) {
     *eaten = FALSE;

@@ -8,6 +8,7 @@ namespace Meltype.Tests;
 ///   dotnet run --project src/Meltype.Core.Tests                 … すべてのテスト
 ///   dotnet run --project src/Meltype.Core.Tests -- Composition  … 名前に一致するテストだけ
 ///   dotnet run --project src/Meltype.Core.Tests -- --eval       … 品質テストの正解率と外れた例
+///   dotnet run --project src/Meltype.Core.Tests -- --version    … 版 (Meltype.Core)
 ///   dotnet run --project src/Meltype.Core.Tests -- --explain konnichiwa hello … 1 文字ずつの判定理由
 /// Windows では src/Meltype.Tests から実行すると、Windows のスペルチェッカーを使い、Windows 専用のテストもまとめて流す。
 /// </summary>
@@ -17,6 +18,9 @@ internal static class Program
     {
         switch (args.FirstOrDefault())
         {
+            case "--version":
+                Console.WriteLine($"Meltype {Meltype.Config.ProjectInfo.CoreVersion}");
+                return 0;
             case "--eval":
                 Quality.Print(Quality.Run());
                 return 0;

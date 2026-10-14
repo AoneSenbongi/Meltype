@@ -2,7 +2,7 @@
 
 ## 目的と作業場所
 
-本家mainの9a25e7cまでを取り込んだWindows Native Google版に、直接入力のローマ字判定・選択範囲再変換・Tab変換を移植する。利用者は2026年10月14日にこの3機能の対応を依頼し、Androidを対象外とした。新候補は1.1.2-rc.2。本家ReleaseとBaseVersionは1.2.1。PC適用済みは1.1.2-rc.1で、外部公開は今回の内容への確認待ち。
+本家mainの9a25e7cまでを取り込んだWindows Native Google版に、直接入力のローマ字判定・選択範囲再変換・Tab変換を移植する。利用者は2026年10月14日にこの3機能の対応を依頼し、Androidを対象外とした。候補は1.1.2-rc.2で、2026年10月15日の利用者の指示によりPCへ適用済み。本家ReleaseとBaseVersionは1.2.1。外部公開は今回の内容への確認待ち。
 
 専用ソース作業場所はE:/prog/Meltype/Tools/1.1.1-source、開始コミットは正式1.1.1の86a8ff96b0ce5103f7be8b59fa866d66f488b958。E:/prog/Meltype/Windowsの未コミット作業を編集・取り込んでいない。Android、Mac、Linuxの製品実装は変更していない。別作業の青丸入力モード素材は未取り込み。
 
@@ -36,6 +36,10 @@
 
 通常apphostの共通・Windows489/489、品質1337/1337、Native18/18、Google13/13、Microsoft2/2が通過した。Google/Microsoftの変換、予測16更新、定型文各11更新、入力モード、候補配置、設定保持、管理画面描画とインストーラー隔離試験も通過。dotnetからDLLを直接実行する形式ではMozc自己起動試験1件が失敗し、通常apphostで全件を再検証した。試験がEnvironment.ProcessPathをヘルパーとして起動するためで、製品変更は不要。通常ビルドの既存nullable警告は3件。証跡はexperimental-build/native-upstream-package.log、native-upstream-apphost-tests.log、native-upstream-quality.log、native-upstream-features.log、native-upstream-panel.png。
 
-セットアップEXEを作成済み。distributions/Meltype-Native-Google-1.1.2-rc.2-Setup.exe、SHA256は447EF10B129E1CB2DFCE1C7693C9A9675C36A787D634F7F734C0917B21ECD089。対応ソースは019f81f7ec1cdf02b92447ce55444a5b0c5b2262。製品番号1.1.2-rc.2・ファイル番号1.1.2.0、同梱主要ソース12ファイル、管理対象6ファイル、manifestとSHA256を照合した。証跡はexperimental-build/native-upstream-verified.json。PCの登録が1.1.2-rc.1のままであることを確認した。PC適用と外部公開は未実施。
+セットアップEXEを作成済み。distributions/Meltype-Native-Google-1.1.2-rc.2-Setup.exe、SHA256は447EF10B129E1CB2DFCE1C7693C9A9675C36A787D634F7F734C0917B21ECD089。対応ソースは019f81f7ec1cdf02b92447ce55444a5b0c5b2262。製品番号1.1.2-rc.2・ファイル番号1.1.2.0、同梱主要ソース12ファイル、管理対象6ファイル、manifestとSHA256を照合した。証跡はexperimental-build/native-upstream-verified.json。外部公開は未実施。
+
+2026年10月15日、利用者の適用指示と通常の管理者確認後、Update-NativeIme.ps1で1.1.2-rc.2を適用した。登録先はC:/Program Files/MeltypeNativeGoogle/package-69e97bf1f2f540a5a662ac944ca585a1。管理対象6/6ファイル、主要管理スクリプト6/6、入力設定のハッシュ一致、新パッケージを指定したbrokerの接続準備とプロセス、導入済みDLLの入力モード、Native日本語プロファイル有効状態を確認した。証跡はexperimental-build/native-upstream-apply.log、native-upstream-applied.json、native-upstream-active-profile.log。
+
+バックアップはbackups/20261015-073913の11ファイルで、退避ハッシュ11/11が一致した。適用前後で7ファイルは一致し、Googleのhistory.dbは変化した。使用中のboundary.db・cform.db・segment.dbは照合不可。ユーザー辞書、Meltypeのconfig.json・conversions.json・phrases.txtは一致した。入力設定の追加退避はbackups/native-features-preferences-20261015-073910。実アプリの新機能の手入力確認は残る。入力アプリを開き直して新しいDLLを読み込む必要がある。
 
 実アプリでの手入力、複数モニター、テーマ切替、32ビットアプリは未確認。Microsoft辞書への学習書き込みは未対応。直接入力の自動復帰にはTSFから文字位置を取得できる入力欄が必要で、取得できない場合は直接入力を維持する。漢字再変換にはMicrosoft IMEの逆変換を使い、読みを取得できない場合は文字を変更しない。配布物にはMozcヘルパーを含めない。PC適用時は辞書・設定をバックアップし、登録、配置manifest、broker接続準備、辞書・設定の保持を確認する。管理者確認の取消・適用失敗・検証失敗を適用済みと扱わない。

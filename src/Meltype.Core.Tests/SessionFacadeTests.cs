@@ -712,4 +712,39 @@ internal static class SessionFacadeTests
         session.Direct = false;
         Assert.True(Type(session, "@", before: "")[0].Consumed, "taro と打った後の @ は変換ボックスへ");
     }
+
+    [Test]
+    public static void CreateDefault_SessionsShareLearning()
+    {
+        // 入力欄 (セッション) が 2 つあっても、学習データは 1 つ。B で選び直して保存しても、A で選び直したものが消えない
+        var directory = Path.Combine(Path.GetTempPath(), "meltype-session-share-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            IReadOnlyList<string> More(string reading) => reading switch
+            {
+                "かわ" => ["川", "皮", "河"],
+                "あつい" => ["熱い", "暑い", "厚い"],
+                _ => [],
+            };
+            var a = MeltypeSession.CreateDefault(directory, new CompositionTests.FakeConverter(), More, null);
+            var b = MeltypeSession.CreateDefault(directory, new CompositionTests.FakeConverter(), More, null);
+            void Choose(MeltypeSession session, string typed, string word)
+            {
+                var view = Type(session, typed + " ")[^1].View;
+                Assert.True(view?.Candidates.Contains(word) == true, $"{typed}: {string.Join(",", view?.Candidates ?? [])}");
+                session.SelectCandidate(view!.Candidates.ToList().IndexOf(word));
+                Assert.Equal(word, Type(session, "\n")[0].Commits.Single().Text, typed);
+            }
+            Choose(a, "kawa", "皮");
+            Choose(b, "atsui", "暑い");
+
+            var saved = new ConversionHistory(Path.Combine(directory, "conversions.json"));
+            Assert.Equal("皮", saved.Get("かわ"), "A で覚えたものが B の保存で消えない");
+            Assert.Equal("暑い", saved.Get("あつい"));
+            // 次に作った入力欄でも、A・B で覚えたものを使う
+            var c = MeltypeSession.CreateDefault(directory, new CompositionTests.FakeConverter(), More, null);
+            Assert.Equal("皮", Type(c, "kawa ")[^1].View?.Candidates[0]);
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
 }

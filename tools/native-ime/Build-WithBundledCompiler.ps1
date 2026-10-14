@@ -11,7 +11,7 @@ $baseReferences = [System.Collections.Generic.List[Microsoft.CodeAnalysis.Metada
 foreach ($dll in Get-ChildItem (Join-Path $PSHOME 'ref') -Filter '*.dll') {
     $baseReferences.Add([Microsoft.CodeAnalysis.MetadataReference]::CreateFromFile($dll.FullName))
 }
-foreach ($name in @('System.Windows.Forms.dll','System.Windows.Forms.Primitives.dll','System.Drawing.Common.dll','System.Private.Windows.Core.dll','System.Private.Windows.GdiPlus.dll','Accessibility.dll')) {
+foreach ($name in @('System.Windows.Forms.dll','System.Windows.Forms.Primitives.dll','System.Drawing.Common.dll','System.Private.Windows.Core.dll','System.Private.Windows.GdiPlus.dll','Accessibility.dll','Microsoft.Win32.SystemEvents.dll')) {
     $file = Join-Path $PSHOME $name
     if (Test-Path $file) { $baseReferences.Add([Microsoft.CodeAnalysis.MetadataReference]::CreateFromFile($file)) }
 }

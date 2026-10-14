@@ -225,7 +225,12 @@ STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, void** ppv) {
     return g_factory.QueryInterface(riid, ppv);
 }
 
-STDAPI DllCanUnloadNow() { return g_locks <= 0 ? S_OK : S_FALSE; }
+STDAPI DllCanUnloadNow() {
+    if (g_locks > 0) return S_FALSE;
+    // このあと DLL が外れると静的変数ごと消えるので、ファクトリーはここで解放する
+    CandidateWindow::ReleaseFactories();
+    return S_OK;
+}
 
 STDAPI DllRegisterServer() {
     HRESULT hr = RegisterComServer();

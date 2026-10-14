@@ -119,6 +119,7 @@ public sealed class TranslationHistory
         }
         catch (Exception ex)
         {
+            try { File.Copy(path, path + ".broken", overwrite: true); } catch { }
             Diagnostics.Log.Warn($"英訳の学習データを読めませんでした: {ex.Message}");
         }
     }

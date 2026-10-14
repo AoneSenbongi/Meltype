@@ -196,6 +196,15 @@ public sealed class CompositionText
                 foreach (var letter in _pending.ToString()[..^1]) _units.Add(new CompositionUnit(letter.ToString(), letter.ToString()));
                 _pending.Remove(0, _pending.Length - 1);
             }
+            // zh / zj / zk / zl → ← ↓ ↑ →。z が 1 文字のときだけ (puzzle の zz の次の l は英単語)。
+            if (_pending.Length == 1 && char.ToLowerInvariant(_pending[0]) == 'z' && ZSymbol(c) is { } arrow)
+            {
+                var raw = _pending[0].ToString() + c;
+                _pending.Clear();
+                Normalize(final: true);
+                _units.Add(new CompositionUnit(arrow.ToString(), raw));
+                return;
+            }
             _pending.Append(c);
             SplitUnitAfterNumber(final: false);
             Normalize(final: false);
@@ -213,8 +222,7 @@ public sealed class CompositionText
         // 記号・数字の前で、途中の n は ん に、読めない子音は英字のまま確定させる。
         Normalize(final: true);
         // 数字の前では打ち間違いを直さない (rta2026・ps5・win11 の英字は略語)。数字の後ろの単位を英字のままにするのは FixTypos の中
-        if (char.IsAsciiDigit(c)) SplitUnitAfterNumber(final: true);
-        else FixTypos();
+        if (!char.IsAsciiDigit(c)) FixTypos();
         // 数字の後の . と , は小数点・桁区切り (GPL3.0、1,000)。句点・読点にしない。
         if (c is ',' or '.' && _units.Count > 0 && _units[^1].Raw is [var previous] && char.IsAsciiDigit(previous))
         {
@@ -1277,8 +1285,8 @@ public sealed class CompositionText
         return new string(chars);
     }
 
-    /// <summary>z + 記号 (Microsoft IME と同じ): z/ → ・、z. → …、z, → ‥、z- → ～、z[ → 『、z] → 』。</summary>
-    private static char? ZSymbol(char c) => c switch
+    /// <summary>z + 記号 (Microsoft IME と同じ): z/ → ・、z. → …、z, → ‥、z- → ～、z[ → 『、z] → 』。zh zj zk zl → ← ↓ ↑ →。</summary>
+    private static char? ZSymbol(char c) => char.ToLowerInvariant(c) switch
     {
         '/' => '・',
         '.' => '…',
@@ -1286,6 +1294,10 @@ public sealed class CompositionText
         '-' => '～',
         '[' => '『',
         ']' => '』',
+        'h' => '←',
+        'j' => '↓',
+        'k' => '↑',
+        'l' => '→',
         _ => null,
     };
 

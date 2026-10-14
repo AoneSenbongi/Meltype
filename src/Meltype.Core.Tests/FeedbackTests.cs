@@ -88,6 +88,18 @@ internal static class FeedbackTests
     }
 
     [Test]
+    public static void Issue413_VibeCodingStaysEnglish()
+    {
+        // vibe も coding もローマ字として途中まで読める (ゔぃべ、こぢん + g)。2 語の合成語なので英語のまま。
+        foreach (var (typed, expected) in new[] { ("vibecoding", "vibecoding"), ("vibecodingga", "vibecodingが") })
+        {
+            var k = new CompositionTests.Keyboard();
+            k.Type(typed + "\n");
+            Assert.Equal(expected, k.Host.Document, typed);
+        }
+    }
+
+    [Test]
     public static void Issue377_EnglishCompound_StaysEnglish()
     {
         // Issue #377: gameover が がめover になっていた (game は がめ と読める)。英単語 2 つの合成語で、後ろの語 (over) が

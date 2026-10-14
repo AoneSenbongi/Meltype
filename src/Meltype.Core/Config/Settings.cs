@@ -243,7 +243,7 @@ public sealed class Settings
     public bool TranslationCandidates { get; set; } = true;
 
     [Category("1. 全般"), DisplayName("予測変換の候補"),
-     Description("打っている途中に、続きの候補を変換ボックスの下に出します (前に確定した語句・ユーザー辞書・選び直した変換の学習・英単語の続き)。Tab / Shift+Tab で選んで Enter で確定します。確定した語句は %LOCALAPPDATA%\\Meltype\\phrases.txt (Mac・Linux は設定と同じフォルダー) に暗号化せずに覚え (この PC の外には送りません)、「学習データをリセット」で消えます。")]
+     Description("打っている途中に、続きの候補を変換ボックスの下に出します (前に確定した語句・ユーザー辞書・選び直した変換の学習・英単語の続き)。Tab / Shift+Tab で選んで Enter で確定します。確定した語句は %LOCALAPPDATA%\\Meltype\\phrases.txt に暗号化せずに覚え (この PC の外には送りません)、「学習データをリセット」で消えます。")]
     public bool PredictiveCandidates { get; set; } = true;
 
     [Category("1. 全般"), DisplayName("Tab で変換"),
@@ -435,6 +435,7 @@ public sealed class Settings
     }
 
     /// <summary>プロファイルの名前の一覧 (使っているものも含む。並びは作った順)。</summary>
+    [JsonIgnore]
     public IReadOnlyList<string> ProfileNames => Profiles.Select(p => p.Name).ToList();
 
     /// <summary>
@@ -544,6 +545,59 @@ public sealed class Settings
         current.Profiles.Add(new SettingsProfile { Name = unique, Values = values });
         return current.SwitchProfile(unique);
     }
+
+    /// <summary>
+    /// 設定画面で変えた項目だけを今の設定 (current) に重ねた設定を返す。opened は画面を開いた時点の画面の値、edited は閉じる時点の画面の値。
+    /// 画面を開いている間にトレイなどで変えた項目 (一時停止・動作モード・判定の強さ・プロファイルなど) は、画面で変えていなければ current のまま。
+    /// プロファイルごとの値はプロファイルの名前ごとに比べる。トレイでプロファイルを切り替えても、画面で変えた値は画面で選んでいたプロファイルに入る。
+    /// 使っているプロファイルは、画面で切り替えたときだけ画面のものにする。プロファイルの一覧 (足す・名前を変える・消す) は画面のもの (トレイでは切り替えるだけ)。
+    /// </summary>
+    public static Settings MergeEdits(Settings opened, Settings edited, Settings current)
+    {
+        if (edited.ToJson() == opened.ToJson()) return current.Clone().Normalize();
+        var openedJson = JsonSerializer.SerializeToNode(opened, JsonType)!.AsObject();
+        var editedJson = JsonSerializer.SerializeToNode(edited, JsonType)!.AsObject();
+        var merged = JsonSerializer.SerializeToNode(current, JsonType)!.AsObject();
+        foreach (var key in SharedKeys)
+        {
+            if (key is nameof(Profiles) or nameof(ActiveProfile)) continue;
+            if (!JsonNode.DeepEquals(openedJson[key], editedJson[key])) merged[key] = editedJson[key]?.DeepClone();
+        }
+        var active = edited.ActiveProfile != opened.ActiveProfile || edited.Profiles.All(p => p.Name != current.ActiveProfile) ? edited.ActiveProfile : current.ActiveProfile;
+        var profiles = new List<SettingsProfile>();
+        foreach (var name in edited.ProfileNames)
+        {
+            var values = MergeValues(opened.ValuesOf(name), edited.ValuesOf(name)!, current.ValuesOf(name));
+            if (name == active)
+            {
+                foreach (var (key, value) in values)
+                {
+                    if (!SharedKeys.Contains(key)) merged[key] = value?.DeepClone();
+                }
+            }
+            profiles.Add(new SettingsProfile { Name = name, Values = values });
+        }
+        var next = merged.Deserialize(JsonType) ?? current.Clone();
+        next.Profiles = profiles;
+        next.ActiveProfile = active;
+        return next.Normalize();
+
+        // 画面で足した (名前を変えた・読み込んだ) プロファイルは、画面の値のまま
+        static JsonObject MergeValues(JsonObject? opened, JsonObject edited, JsonObject? current)
+        {
+            if (opened is null || current is null) return edited.DeepClone().AsObject();
+            var values = current.DeepClone().AsObject();
+            foreach (var (key, value) in edited)
+            {
+                if (!JsonNode.DeepEquals(opened[key], value)) values[key] = value?.DeepClone();
+            }
+            return values;
+        }
+    }
+
+    /// <summary>プロファイルの値。使っているプロファイルは今の値。そのプロファイルが無ければ null。</summary>
+    private JsonObject? ValuesOf(string name) =>
+        name == ActiveProfile ? ProfileValues() : Profiles.FirstOrDefault(p => p.Name == name) is { } profile ? profile.Values ?? [] : null;
 
     public const int CurrentVersion = 5;
 
@@ -769,7 +823,12 @@ public sealed class Settings
             var json = File.ReadAllText(path);
             var settings = JsonSerializer.Deserialize(json, JsonType) ?? new Settings();
             if (!json.Contains(nameof(SettingsVersion))) settings.SettingsVersion = 1;
-            if (settings.Migrate()) settings.Save(path);
+            if (settings.Migrate())
+            {
+                // 保存できなくても、読み込んだ設定は使う (既定値に戻すと、次の保存でユーザーの設定が消える)。
+                try { settings.Save(path); }
+                catch (Exception ex) { Diagnostics.Log.Warn($"移行した config.json を保存できませんでした: {ex.Message}"); }
+            }
             return settings.Normalize();
         }
         catch (Exception ex)

@@ -367,6 +367,14 @@ public sealed class CompositionController
             if (IsComposing) return;
             // 読みをすべて削除した場合も、元の選択範囲は置換せず再変換を終了する。
             if (_reconversion is not null) ClearComposition();
+            // 送らずにいた Shift (押したまま) は、横取りをやめる前に送る。送らないと、次に打つキーが Shift なしでアプリに届く
+            // (英数状態で判定中の語を Shift で打ち切ったとき、(bow) の ) が 0 になっていた)。
+            foreach (var shift in _swallowedShift)
+            {
+                _host.Replay(new KeyEvent(shift, 0, false, false, false, 0));
+                _replayedDown.Add(shift);
+            }
+            _swallowedShift.Clear();
             if (_gate.TryRelease())
             {
                 // 以降のキーアップはフックを素通りしてアプリに直接届くので、追跡をやめる。
@@ -508,7 +516,13 @@ public sealed class CompositionController
     {
         // クリックで別の場所に移る前に、今の位置へ確定しておく。
         CommitPending();
-        // 送らずにいた Ctrl は、クリックと一緒に送る (Ctrl+クリック)。
+        // 送らずにいた Shift / Ctrl は、クリックと一緒に送る (Shift+クリックの範囲選択、Ctrl+クリック)。
+        foreach (var shift in _swallowedShift)
+        {
+            _host.Replay(new KeyEvent(shift, 0, false, false, false, 0));
+            _replayedDown.Add(shift);
+        }
+        _swallowedShift.Clear();
         foreach (var control in _swallowedControl)
         {
             _host.Replay(new KeyEvent(control, 0, false, false, false, 0));
@@ -657,10 +671,12 @@ public sealed class CompositionController
             case VirtualKeys.NonConvert when _options.SeparateKeyRoles():
                 // 無変換: 今までの入力を英字にする (F10 と同じ。続けて押すと大文字・小文字も切り替わる)
                 SetAlphanumericMode(DisplayMode.HalfWidthAlphanumeric);
+                _modeByKey = true;
                 return;
             case VirtualKeys.Kana when _options.SeparateKeyRoles():
                 // ひらがな / カタカナ キー: 押すたびに ひらがな ⇔ カタカナ (漢字・英字の状態からは、まずひらがな)
                 SetMode(_text.Mode == DisplayMode.Hiragana && !_converting ? DisplayMode.Katakana : DisplayMode.Hiragana);
+                _modeByKey = true;
                 return;
             case VirtualKeys.Space:
                 // 保護区間 (メンション・URL・パス) の末尾は、自動変換せず原文のまま + 半角空白で確定する。
@@ -715,11 +731,11 @@ public sealed class CompositionController
                 StartConversion();
                 _tabStartedConversion = _converting;
                 return;
-            case VirtualKeys.F6: SetMode(DisplayMode.Hiragana); return;
-            case VirtualKeys.F7: SetMode(DisplayMode.Katakana); return;
-            case VirtualKeys.F8: SetMode(DisplayMode.HalfWidthKatakana); return;
-            case VirtualKeys.F9: SetAlphanumericMode(DisplayMode.FullWidthAlphanumeric); return;
-            case VirtualKeys.F10: SetAlphanumericMode(DisplayMode.HalfWidthAlphanumeric); return;
+            case VirtualKeys.F6: SetMode(DisplayMode.Hiragana); _modeByKey = true; return;
+            case VirtualKeys.F7: SetMode(DisplayMode.Katakana); _modeByKey = true; return;
+            case VirtualKeys.F8: SetMode(DisplayMode.HalfWidthKatakana); _modeByKey = true; return;
+            case VirtualKeys.F9: SetAlphanumericMode(DisplayMode.FullWidthAlphanumeric); _modeByKey = true; return;
+            case VirtualKeys.F10: SetAlphanumericMode(DisplayMode.HalfWidthAlphanumeric); _modeByKey = true; return;
             case VirtualKeys.Left or VirtualKeys.Right or VirtualKeys.Up or VirtualKeys.Down when !_text.IsAlphanumeric:
                 // 変換前でも矢印キーで文節の選択に入る (Mac のライブ変換と同じ)。
                 EnterClauseSelection(vk);
@@ -734,15 +750,14 @@ public sealed class CompositionController
 
         if (_text.KanaInput && KanaOf(e) is { } key)
         {
-            if (_converting) CommitOrKeepConversion();
+            CommitBeforeTyping();
             _text.AppendKana(key.Raw, key.Kana);
             return;
         }
 
         if (_host.CharFromKey(e, _swallowedShift.Count > 0) is { } ch && !char.IsControl(ch) && ch != ' ')
         {
-            // 変換中に次の文字を打ったら、今の候補で確定して新しい入力を始める (IME と同じ。設定で、確定せずに続けることもできる)。
-            if (_converting) CommitOrKeepConversion();
+            CommitBeforeTyping();
             _text.Append(ch);
             return;
         }
@@ -818,6 +833,7 @@ public sealed class CompositionController
     /// </summary>
     private void CommitOrKeepConversion()
     {
+        _modeByKey = false;
         if (!_options.ContinueAfterConversion() || _reconversion is not null)
         {
             Commit();
@@ -827,6 +843,23 @@ public sealed class CompositionController
         foreach (var clause in _clauses.Where(c => !c.IsEnglish)) _keptChoices[clause.Reading] = clause.Text;
         _converting = false;
     }
+
+    /// <summary>
+    /// 入力中に次の文字を打ったとき。変換中なら、今の候補で確定して新しい入力を始める (IME と同じ。設定で、確定せずに続けることもできる)。
+    /// F6〜F10 でかな・英字にしたあとなら、見えているとおりに確定して新しい入力を始める (続けて打った文字までカタカナ・大文字にしない)。
+    /// </summary>
+    private void CommitBeforeTyping()
+    {
+        if (_converting) CommitOrKeepConversion();
+        else if (_modeByKey)
+        {
+            Commit();
+            BeginComposition();
+        }
+    }
+
+    // F6〜F10 (Ctrl+U/I/O/P・無変換・ひらがなキーも) でかな・英字にしたか。次に文字を打ったら確定する。
+    private bool _modeByKey;
 
     // 続けて打つ前に選んでいた候補 (読み → 文字)。確定するか、変換ボックスを空にするまで。
     private readonly Dictionary<string, string> _keptChoices = [];
@@ -897,6 +930,7 @@ public sealed class CompositionController
     {
         _text.PreviousSquareBracketIsEnglish = _squareBrackets.TryPeek(out var ascii) && ascii;
         _keptChoices.Clear();
+        _modeByKey = false;
         _text.KanaInput = _options.KanaInput();
         _text.Punctuation = _options.Punctuation();
         var id = ++_compositionId;
@@ -1170,9 +1204,10 @@ public sealed class CompositionController
                 _converting = false;
                 _tabStartedConversion = false;
                 return true;
-            case >= 0x31 and <= 0x39 when !shift:
+            case >= 0x31 and <= 0x39 when !shift && !_text.KanaInput:
             case >= 0x61 and <= 0x69 when !shift:
                 // 候補の一覧の番号 (1〜9) で選ぶ。番号の無い候補 (一覧より後ろ) なら、普通に打った数字として扱う。
+                // かな入力では数字の段のキーは ぬふあうえおやゆよ なので、テンキーだけで選ぶ。
                 return SelectByNumber(vk >= 0x61 ? vk - 0x61 : vk - 0x31);
             default:
                 return false;
@@ -1927,26 +1962,37 @@ public sealed class CompositionController
     /// </summary>
     private void Resize(int delta)
     {
-        if (_clauses[_selectedClause].IsEnglish && (_detector.LegacyGoogleConversion || !ReadAsJapanese(_selectedClause))) return;
         var current = _clauses[_selectedClause];
         var next = _selectedClause + 1 < _clauses.Count ? _clauses[_selectedClause + 1] : null;
+        // 区切りを動かせないときは、英語の文節を読み直さずにそのままにする
+        if (current.IsEnglish && (_detector.LegacyGoogleConversion || !CanReadAsJapanese(current))) return;
+        if (delta > 0 && (next is null || next.IsEnglish && (_detector.LegacyGoogleConversion || !CanReadAsJapanese(next)))) return;
+        if (delta < 0 && (current.IsEnglish ? current.Kana! : current.Reading).Length <= 1) return;
+
+        if (current.IsEnglish)
+        {
+            ReadAsJapanese(_selectedClause);
+            current = _clauses[_selectedClause];
+        }
         if (next is { IsEnglish: true })
         {
-            if (_detector.LegacyGoogleConversion || delta < 0) next = null;
-            else next = ReadAsJapanese(_selectedClause + 1) ? _clauses[_selectedClause + 1] : null;
+            if (delta < 0) next = null;
+            else
+            {
+                ReadAsJapanese(_selectedClause + 1);
+                next = _clauses[_selectedClause + 1];
+            }
         }
 
         if (delta > 0)
         {
-            if (next is null) return;
-            current.Reading += next.Reading[0];
+            current.Reading += next!.Reading[0];
             next.Reading = next.Reading[1..];
             if (next.Reading.Length == 0) _clauses.Remove(next);
             else Reconvert(next);
         }
         else
         {
-            if (current.Reading.Length <= 1) return;
             var moved = current.Reading[^1];
             current.Reading = current.Reading[..^1];
             if (next is null)
@@ -1963,18 +2009,24 @@ public sealed class CompositionController
     /// <summary>英語の文節を、打ったローマ字のかなを読みにした日本語の文節に置き換える。かなに読めない英字だけ (xyz) なら置き換えずに false。</summary>
     private bool ReadAsJapanese(int index)
     {
-        if (_clauses[index] is not { IsEnglish: true, Kana: { } kana } || !kana.Any(IsKana)) return false;
-        var clause = new Clause(kana, false, []);
+        if (!CanReadAsJapanese(_clauses[index])) return false;
+        var clause = new Clause(_clauses[index].Kana!, false, []);
         Reconvert(clause);
         _clauses[index] = clause;
         return true;
     }
+
+    private static bool CanReadAsJapanese(Clause clause) => clause is { IsEnglish: true, Kana: { } kana } && kana.Any(IsKana);
 
     private void Reconvert(Clause clause)
     {
         clause.Candidates = JapaneseCandidates(clause.Reading, null);
         clause.Index = 0;
         clause.Changed = false;
+        // 前の読みのもの。候補の一覧は、文節を選んだときに新しい読みで取り直す
+        clause.Expanded = false;
+        clause.Raw = null;
+        clause.Translations.Clear();
         if (_options.History?.Get(clause.Reading) is { } learned) Prefer(clause, learned);
     }
 

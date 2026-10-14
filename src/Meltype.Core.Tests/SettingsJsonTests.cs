@@ -50,6 +50,33 @@ internal static class SettingsJsonTests
     }
 
     [Test]
+    public static void SettingsJson_KeepsMigratedSettingsWhenSaveFails()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "meltype-settings-json-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "config.json");
+        try
+        {
+            File.WriteAllText(path, "{ \"SettingsVersion\": 4, \"Mode\": \"AutoSwitch\", \"SpaceAroundEnglish\": true }");
+            // 移行のあとの保存を失敗させる。Windows は読み取り専用のファイルに置き換えられない。
+            // Mac・Linux は読み取り専用でも置き換えられるので、.tmp の場所にフォルダーを置いて書けなくする
+            if (OperatingSystem.IsWindows()) File.SetAttributes(path, FileAttributes.ReadOnly);
+            else Directory.CreateDirectory(path + ".tmp");
+            var loaded = Settings.Load(path);
+            Assert.Equal(InputMode.AutoSwitch, loaded.Mode, "保存に失敗しても読み込んだ値を使う");
+            Assert.True(loaded.SpaceAroundEnglish, "保存に失敗しても既定値に戻さない");
+            Assert.Equal(Settings.CurrentVersion, loaded.SettingsVersion, "移行は済ませる");
+            Assert.True(loaded.AppRules.Any(r => r.Process == "maya.exe"), "移行で足したアプリの設定を残す");
+            Assert.True(!File.Exists(path + ".broken"), "保存の失敗を壊れたファイルとして扱わない");
+        }
+        finally
+        {
+            foreach (var file in Directory.GetFiles(directory)) File.SetAttributes(file, FileAttributes.Normal);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
     public static void ModeIndicatorColors_AreParsed()
     {
         // #359: 入力モードの表示の色は #RRGGBB (# は無くても・#RGB でも)。空・読めない値は既定の色

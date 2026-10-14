@@ -66,6 +66,14 @@ if (-not (Test-Path (Join-Path $MozcSource '.git'))) {
     New-Item -ItemType Directory -Force -Path $MozcSource | Out-Null
     Invoke-Native git @('-C', $MozcSource, 'init', '-q') 'git init に失敗しました。'
     Invoke-Native git @('-C', $MozcSource, 'remote', 'add', 'origin', 'https://github.com/google/mozc.git') 'git remote に失敗しました。'
+}
+# 前に取ってきた版が MOZC_COMMIT と違えば取り直す (取ってきていなければ HEAD は空)
+$head = & git -C $MozcSource rev-parse -q --verify HEAD
+if ($head) {
+    # 前に足したヘルパーの定義を消し、取ってきたときの BUILD.bazel に戻す (BUILD.fragment の変更を反映し、checkout が止まらないように)
+    Invoke-Native git @('-C', $MozcSource, 'checkout', '-q', 'HEAD', '--', 'src/converter/BUILD.bazel') 'BUILD.bazel を戻せませんでした。'
+}
+if ($head -ne $commit) {
     Invoke-Native git @('-C', $MozcSource, 'fetch', '-q', '--depth', '1', 'origin', $commit) "Mozc ($commit) を取得できませんでした。"
     Invoke-Native git @('-C', $MozcSource, 'checkout', '-q', 'FETCH_HEAD') 'git checkout に失敗しました。'
     Invoke-Native git @('-C', $MozcSource, 'submodule', 'update', '-q', '--init', '--recursive', '--depth', '1') 'Mozc のサブモジュールを取得できませんでした。'
@@ -75,9 +83,7 @@ $src = Join-Path $MozcSource 'src'
 # ヘルパーのソースと BUILD の定義を Mozc の converter パッケージに入れる (エンジンを使えるのがこのパッケージのため)。
 Copy-Item -LiteralPath (Join-Path $here 'meltype_mozc_helper.cc') -Destination (Join-Path $src 'converter') -Force
 $build = Join-Path $src 'converter\BUILD.bazel'
-if (-not (Select-String -LiteralPath $build -Pattern 'name = "meltype_mozc_helper"' -Quiet)) {
-    Add-Content -LiteralPath $build -Value ("`n" + (Get-Content -Raw -LiteralPath (Join-Path $here 'BUILD.fragment'))) -Encoding utf8
-}
+Add-Content -LiteralPath $build -Value ("`n" + (Get-Content -Raw -LiteralPath (Join-Path $here 'BUILD.fragment'))) -Encoding utf8
 
 Push-Location $src
 try {

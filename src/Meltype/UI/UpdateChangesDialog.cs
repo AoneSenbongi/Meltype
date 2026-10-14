@@ -16,9 +16,13 @@ internal sealed class UpdateChangesDialog : Form
     /// 変わる語を調べて、あれば見せる。更新してよければ true (「あとで」なら false)。
     /// 調べられない (新しい版がこの仕組みを持たない) ・変わる語が無いときは、何も見せずに true。
     /// </summary>
-    public static bool Confirm(LanguageMemory languages, string version, Config.Settings settings)
+    public static bool Confirm(LanguageMemory languages, string version, Config.Settings settings) =>
+        Confirm(languages, version, settings, Updater.PreviewChanges(languages.Entries().Select(e => e.Word)));
+
+    /// <summary>調べ終えた結果 (<see cref="Updater.PreviewChanges"/> の戻り値) で確認する。</summary>
+    public static bool Confirm(LanguageMemory languages, string version, Config.Settings settings, IReadOnlyList<WordChange>? preview)
     {
-        if (Updater.PreviewChanges(languages.Entries().Select(e => e.Word)) is not { Count: > 0 } changes) return true;
+        if (preview is not { Count: > 0 } changes) return true;
         using var dialog = new UpdateChangesDialog(changes, version, Diagnostics.ReportInfo.Environment(settings));
         switch (dialog.ShowDialog())
         {

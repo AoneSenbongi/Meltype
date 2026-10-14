@@ -51,6 +51,17 @@ public sealed class FocusInspector : IDisposable
         Enqueue(() => InspectIfLatest(sequence));
     }
 
+    /// <summary>前面のウィンドウが変わったとき (フックのスレッドから呼ばれる。ブロックしない)。</summary>
+    public void InvalidateForeground()
+    {
+        Interlocked.Exchange(ref _foregroundChangedAt, Environment.TickCount64);
+        Invalidate();
+    }
+
+    // 前面のウィンドウが変わった時刻と、移った先を調べ終わるのを待ち切れなかったフォーカス (同じフォーカスでは 2 回待たない)
+    private long _foregroundChangedAt = long.MinValue / 2;
+    private long _gaveUpSequence = -1;
+
     /// <summary>最新のフォーカスについて調べ終わっていて、パスワード以外の入力欄なら true。</summary>
     public bool CanCapture
     {
@@ -75,9 +86,16 @@ public sealed class FocusInspector : IDisposable
         var lastState = _state;
         if (lastState.AffinityWindow != IntPtr.Zero) return AllowsCapture(lastState);
         var last = lastState.Info;
-        if (!last.IsTextInput || last.IsPassword || Native.GetForegroundWindow() != _inspectedForeground) waitMs = 0;
+        // 別のウィンドウに移った直後 (500ms 以内) で、移った先をまだ調べているときも待つ。前のウィンドウ (デスクトップなど) の
+        // 「入力欄ではない」で決めると、移った先の入力欄で打った先頭のキーがローマ字のまま入っていた。
+        // 待ち切れなかったら、同じフォーカスの間は次から待たない (調べるのが遅いアプリで、キーを押すたびに止まらないように)。
+        var sequence = Interlocked.Read(ref _focusSequence);
+        var moved = Interlocked.Read(ref _resolvedSequence) != sequence && Interlocked.Read(ref _gaveUpSequence) != sequence &&
+            Environment.TickCount64 - Interlocked.Read(ref _foregroundChangedAt) < 500;
+        if (!moved && (!last.IsTextInput || last.IsPassword || Native.GetForegroundWindow() != _inspectedForeground)) waitMs = 0;
         var deadline = Environment.TickCount64 + waitMs;
         while (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) && Environment.TickCount64 < deadline) Thread.Sleep(5);
+        if (moved && Interlocked.Read(ref _resolvedSequence) != sequence) Interlocked.Exchange(ref _gaveUpSequence, sequence);
         // 調べ終わらなかったときに直前の結果を使うのは、前面のウィンドウが同じときだけ (別のアプリのパスワード欄などに移った直後は使わない)。
         if (Interlocked.Read(ref _resolvedSequence) != Interlocked.Read(ref _focusSequence) && Native.GetForegroundWindow() != _inspectedForeground) return false;
         return AllowsCapture(_state);

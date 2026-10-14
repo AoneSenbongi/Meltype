@@ -39,19 +39,22 @@ constexpr float kMaxWidth = 520;
 constexpr float kMeaningMaxWidth = 320;
 
 // 1 つのアプリの中で、いくつもの UI スレッドが候補の一覧を出すことがある (エクスプローラーなど)。
-// ファクトリーはマルチスレッド用を 1 回だけ作る
+// ファクトリーはマルチスレッド用を 1 つだけ作り、DLL を外してよくなったら (DllCanUnloadNow) 解放する
 ID2D1Factory* g_d2d = nullptr;
 IDWriteFactory* g_dwrite = nullptr;
-std::once_flag g_factoryOnce;
+std::mutex g_factoryMutex;
 std::once_flag g_classOnce;
 bool g_registered = false;
 
 bool EnsureFactories() {
-    std::call_once(g_factoryOnce, [] {
+    std::lock_guard<std::mutex> lock(g_factoryMutex);
+    if (g_d2d == nullptr) {
         D2D1_FACTORY_OPTIONS options = {};
         D2D1CreateFactory(D2D1_FACTORY_TYPE_MULTI_THREADED, __uuidof(ID2D1Factory), &options, reinterpret_cast<void**>(&g_d2d));
+    }
+    if (g_dwrite == nullptr) {
         DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&g_dwrite));
-    });
+    }
     return g_d2d != nullptr && g_dwrite != nullptr;
 }
 
@@ -508,6 +511,15 @@ void CandidateWindow::UnregisterClasses() {
     g_registered = false;
 }
 
+void CandidateWindow::ReleaseFactories() {
+    // 候補の一覧が 1 つも無いとき (TextService が残っていないとき) だけ呼ぶ
+    std::lock_guard<std::mutex> lock(g_factoryMutex);
+    if (g_dwrite) g_dwrite->Release();
+    if (g_d2d) g_d2d->Release();
+    g_dwrite = nullptr;
+    g_d2d = nullptr;
+}
+
 static bool EnsureClasses() {
     std::call_once(g_classOnce, [] {
     WNDCLASSEXW wc = {sizeof(wc)};
@@ -547,29 +559,37 @@ void CandidateWindow::Show(const CandidateView& view, const RECT& anchor) {
         if (d.hwnd == nullptr) return;
         PrepareWindow(d.hwnd, CurrentPalette().border);
     }
+    float scale = GetDpiForWindow(d.hwnd) / 96.0f;
+    if (scale <= 0) scale = 1;
+    // DPI が変わったときも、描画 (render target) と当たり判定の scale がずれないように置き直す
     bool samePlace = Visible() && EqualRect(&d.anchor, &anchor) && d.view.candidates == view.candidates && d.view.suggestion == view.suggestion &&
-                     d.view.prediction == view.prediction;
+                     d.view.prediction == view.prediction && scale == d.scale;
     d.view = view;
     d.anchor = anchor;
     d.first = std::max(0, view.selected) / kPageSize * kPageSize;
-    d.scale = GetDpiForWindow(d.hwnd) / 96.0f;
-    if (d.scale <= 0) d.scale = 1;
+    d.scale = scale;
 
     if (!samePlace) {
         d.width = d.Measure();
-        int width = static_cast<int>(d.width * d.scale + 0.5f);
-        int height = static_cast<int>(d.Height() * d.scale + 0.5f);
-        // 候補の文字の左端を、選んでいる文節の左端にそろえる
-        // 「もしかして」だけのときは、その文字の左端をそろえる
-        float inset = view.candidates.empty() ? kPadding + 12 : kPadding + kTextInset + kNumberWidth;
-        int x = anchor.left - static_cast<int>(inset * d.scale);
-        int y = anchor.bottom + static_cast<int>(4 * d.scale);
-        PlaceWithin(x, y, width, height, anchor);
         if (d.target != nullptr) {
             d.target->Release();
             d.target = nullptr;
         }
-        SetWindowPos(d.hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        // DPI の違うモニターへ移すと、ウィンドウの DPI も変わる。変わったら、その DPI で大きさを決め直す
+        for (int i = 0; i < 2; i++) {
+            int width = static_cast<int>(d.width * d.scale + 0.5f);
+            int height = static_cast<int>(d.Height() * d.scale + 0.5f);
+            // 候補の文字の左端を、選んでいる文節の左端にそろえる
+            // 「もしかして」だけのときは、その文字の左端をそろえる
+            float inset = view.candidates.empty() ? kPadding + 12 : kPadding + kTextInset + kNumberWidth;
+            int x = anchor.left - static_cast<int>(inset * d.scale);
+            int y = anchor.bottom + static_cast<int>(4 * d.scale);
+            PlaceWithin(x, y, width, height, anchor);
+            SetWindowPos(d.hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            float moved = GetDpiForWindow(d.hwnd) / 96.0f;
+            if (moved <= 0 || moved == d.scale) break;
+            d.scale = moved;
+        }
     }
     InvalidateRect(d.hwnd, nullptr, FALSE);
     d.ScheduleMeaning();

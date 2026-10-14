@@ -187,12 +187,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         if (_engine.Settings.TsfIntroduced || !Tip.TipServer.IsRegistered || !Tip.TipServer.IsInUserLanguageList ||
             RuntimeInformation.OSArchitecture == Architecture.Arm64) return;
+        var wasTsf = _engine.Settings.Mode == InputMode.Tsf;
         var next = _engine.Settings.Clone();
         next.TsfIntroduced = true;
         next.Mode = InputMode.Tsf;
         _engine.ApplySettings(next);
+        // ほかのモードからなら ApplySettings が切り替える。もう Meltype IME のモードだったときも、入力方式を Meltype IME にする
+        if (wasTsf) Tip.TipServer.ActivateForSession();
         Diagnostics.Log.Info("Meltype IME が入っているので、動作モードを Meltype IME にしました。");
-        Tip.TipServer.ActivateForSession();
     }
 
     /// <summary>
@@ -277,14 +279,29 @@ internal sealed class TrayApplicationContext : ApplicationContext
             if (!_engine.Settings.ShowNotifications) return;
             _tray.BalloonTipClicked -= OnUpdateBalloonClicked;
             _tray.BalloonTipClicked += OnUpdateBalloonClicked;
-            _tray.ShowBalloonTip(5000, "Meltype の更新", $"Meltype {version} を準備しました。次に Windows にサインインしたときに更新します。ここをクリックすると今すぐ更新します。", ToolTipIcon.Info);
+            _tray.ShowBalloonTip(5000, "Meltype の更新", UpdateReadyMessage(version, _engine.Settings.AutoUpdate), ToolTipIcon.Info);
         });
     }
+
+    /// <summary>自動更新が OFF なら、次のサインインでは更新しない (Updater.ApplyStagedAtStartup)。トレイのメニューから更新できると案内する。</summary>
+    internal static string UpdateReadyMessage(string version, bool autoUpdate) => autoUpdate
+        ? $"Meltype {version} を準備しました。次に Windows にサインインしたときに更新します。ここをクリックすると今すぐ更新します。"
+        : $"Meltype {version} を準備しました。トレイの「更新」→「Meltype {version} に更新して再起動」で更新できます。ここをクリックすると今すぐ更新します。";
 
     private void OnUpdateBalloonClicked(object? sender, EventArgs e)
     {
         _tray.BalloonTipClicked -= OnUpdateBalloonClicked;
         ApplyUpdate();
+    }
+
+    /// <summary>
+    /// 更新以外の通知を出す。BalloonTipClicked はどの通知のクリックでも起きるので、更新の通知のクリック待ちは外す
+    /// (外さないと、この通知をクリックしたときに更新が始まる)。
+    /// </summary>
+    private void ShowBalloonTip(int timeout, string title, string text)
+    {
+        _tray.BalloonTipClicked -= OnUpdateBalloonClicked;
+        _tray.ShowBalloonTip(timeout, title, text, ToolTipIcon.Info);
     }
 
     private void ShowUpdateItem()
@@ -294,12 +311,30 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _updateItem.Visible = true;
     }
 
-    private void ApplyUpdate()
+    private bool _applyingUpdate;
+
+    private async void ApplyUpdate()
     {
-        // 更新の前に、あなたの打ち方で変わる語があれば見せる (issue #285)
-        if (Updater.Staged() is { } staged && !UpdateChangesDialog.Confirm(_composition.Languages, staged.Version, _engine.Settings)) return;
-        // install.ps1 が Meltype を終了させてから入れ替え、新しい版を起動する。
-        if (!Updater.Apply()) MessageBox.Show("更新を始められませんでした。ログを確認してください。", "Meltype", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        // 新しい版の判定を待っている間に、メニューや通知からもう一度押されても始めない
+        if (_applyingUpdate) return;
+        _applyingUpdate = true;
+        try
+        {
+            // 更新の前に、あなたの打ち方で変わる語があれば見せる (issue #285)。
+            // 判定は新しい版の Meltype.exe を起動して待つので、UI スレッドの外で行う (待つ間も Meltype IME に応答するため)
+            if (Updater.Staged() is { } staged)
+            {
+                var words = _composition.Languages.Entries().Select(e => e.Word).ToList();
+                var preview = await Task.Run(() => Updater.PreviewChanges(words));
+                if (!UpdateChangesDialog.Confirm(_composition.Languages, staged.Version, _engine.Settings, preview)) return;
+            }
+            // install.ps1 が Meltype を終了させてから入れ替え、新しい版を起動する。
+            if (!Updater.Apply()) MessageBox.Show("更新を始められませんでした。ログを確認してください。", "Meltype", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        finally
+        {
+            _applyingUpdate = false;
+        }
     }
 
     private async void CheckForUpdate()
@@ -331,7 +366,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             if (now - _lastSuggestion < 30000) return;
             _lastSuggestion = now;
             if (!_engine.Settings.ShowNotifications) return;
-            _tray.ShowBalloonTip(2000, "Meltype (手動)", "日本語を打っているようです。半角/全角 で日本語入力にできます。", ToolTipIcon.Info);
+            ShowBalloonTip(2000, "Meltype (手動)", "日本語を打っているようです。半角/全角 で日本語入力にできます。");
         });
     }
 
@@ -344,7 +379,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _engine.Enabled = !_engine.Enabled;
         // 設定で通知を OFF にしていれば出さない (Windows の通知は音も鳴る)。
-        if (_engine.Settings.ShowNotifications) _tray.ShowBalloonTip(1500, "Meltype", _engine.Enabled ? "Meltype を有効にしました" : "Meltype を一時停止しました", ToolTipIcon.Info);
+        if (_engine.Settings.ShowNotifications) ShowBalloonTip(1500, "Meltype", _engine.Enabled ? "Meltype を有効にしました" : "Meltype を一時停止しました");
     }
 
     private static string LevelName(DetectionLevel level) => level switch
@@ -366,9 +401,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
             _reportDialog.Activate();
             return;
         }
-        _reportDialog = new ReportDialog(_engine.Settings);
-        _reportDialog.FormClosed += (_, _) => _reportDialog = null;
-        _reportDialog.ShowDialog();
+        using var dialog = new ReportDialog(_engine.Settings);
+        _reportDialog = dialog;
+        dialog.FormClosed += (_, _) => _reportDialog = null;
+        dialog.ShowDialog();
     }
 
     private static void ToggleStartup()
@@ -408,7 +444,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         if (name == _engine.Settings.ActiveProfile) return;
         _engine.ApplySettings(_engine.Settings.SwitchProfile(name));
         UpdateStatus();
-        if (_engine.Settings.ShowNotifications) _tray.ShowBalloonTip(1500, "Meltype", $"プロファイルを「{name}」にしました", ToolTipIcon.Info);
+        if (_engine.Settings.ShowNotifications) ShowBalloonTip(1500, "Meltype", $"プロファイルを「{name}」にしました");
     }
 
     private void SetLevel(DetectionLevel level)
@@ -421,12 +457,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void SetMode(InputMode mode)
     {
+        var wasTsf = _engine.Settings.Mode == InputMode.Tsf;
         var next = _engine.Settings.Clone();
         next.Mode = mode;
         next.Enabled = true;
         _engine.ApplySettings(next);
-        // Meltype IME のモードにしたら、いま使う入力方式も Meltype IME にする (Win + Space で選び直さなくてよいように)
-        if (_engine.Settings.Mode == InputMode.Tsf) Tip.TipServer.ActivateForSession();
+        // ほかのモードからなら ApplySettings が切り替える。もう Meltype IME のモードで選び直したとき (Win + Space でほかの IME にしていた) も、入力方式を Meltype IME に戻す
+        if (wasTsf && mode == InputMode.Tsf) Tip.TipServer.ActivateForSession();
     }
 
     private void UpdateStatus()
@@ -526,10 +563,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private async void RegisterSelectedWord()
     {
         string? word = null;
-        IDataObject? saved = null;
+        DataObject? saved = null;
         try
         {
-            saved = Clipboard.GetDataObject();
+            saved = Composition.CompositionService.CopyClipboard();
             Clipboard.Clear();
             Input.KeyInjector.SendShortcut(0x11, 0x43); // Ctrl+C
             for (var i = 0; i < 10 && !Clipboard.ContainsText(); i++) await Task.Delay(30);

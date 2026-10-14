@@ -3,8 +3,9 @@
 #
 # setup.exe から、元のユーザーの権限で実行する。
 # IME の登録に失敗しても、本体はキーボード方式で使える。
+# -Uninstall: アンインストーラーから、インストール先を消す前に実行する (IME の登録を外す)。
 
-param([switch]$Ask)
+param([switch]$Ask, [switch]$Uninstall)
 
 $ErrorActionPreference = 'Stop'
 $log = Join-Path $env:TEMP 'Meltype-setup-ime.log'
@@ -12,8 +13,11 @@ $log = Join-Path $env:TEMP 'Meltype-setup-ime.log'
 try {
     & {
         . (Join-Path $PSScriptRoot 'meltype-ime.ps1')
+        if ($Uninstall) {
+            if (-not (Uninstall-MeltypeIme)) { Write-Host 'Meltype IME の登録を外せませんでした。' }
+        }
         # チェックが OFF でも、登録済みの DLL は本体と一緒に更新する。
-        if ($Ask -or (Test-MeltypeImeRegistered)) {
+        elseif ($Ask -or (Test-MeltypeImeRegistered)) {
             if (-not (Install-MeltypeIme -Source (Join-Path $PSScriptRoot 'tip') -Ask:$Ask)) {
                 Write-Host 'Meltype IME を登録できませんでした。Meltype キーボード方式は引き続き使えます。'
             }

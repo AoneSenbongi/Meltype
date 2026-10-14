@@ -28,6 +28,7 @@ public sealed class SnippetStore
         }
         catch (Exception ex)
         {
+            try { File.Copy(path, path + ".broken", overwrite: true); } catch { }
             Diagnostics.Log.Warn($"定型文を読めませんでした: {ex.Message}");
         }
     }

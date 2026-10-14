@@ -48,6 +48,25 @@ function Set-MeltypeImeDeclined { Set-Content -LiteralPath (Join-Path $PSScriptR
         Remove-Item -LiteralPath $declined -ErrorAction SilentlyContinue
         Write-Host "PASS: Ask=$($case.Ask), Registered=$($case.Registered), Result=$($case.Result)"
     }
+    foreach ($result in '$true', '$false') {
+        $stub = @'
+function Test-MeltypeImeRegistered { return $true }
+function Install-MeltypeIme { throw 'Install-MeltypeIme called during uninstall' }
+function Set-MeltypeImeDeclined { throw 'Set-MeltypeImeDeclined called during uninstall' }
+function Uninstall-MeltypeIme {
+    Set-Content -LiteralPath (Join-Path $PSScriptRoot 'uninstalled') -Value 'uninstalled'
+    return RESULT
+}
+'@
+        Set-Content -LiteralPath $helper -Value $stub.Replace('RESULT', $result) -Encoding UTF8
+        & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $fixture 'setup-ime.ps1') -Uninstall
+        if ($LASTEXITCODE -ne 0) { throw 'Unregistration interrupted uninstall' }
+        $uninstalled = Join-Path $fixture 'uninstalled'
+        if (-not (Test-Path -LiteralPath $uninstalled)) { throw 'Unregistration was not attempted' }
+        Remove-Item -LiteralPath $uninstalled
+        if ($result -eq '$false' -and (Get-Content -LiteralPath $log -Raw) -notmatch '登録を外せませんでした') { throw 'Missing unregistration failure message' }
+        Write-Host "PASS: Uninstall, Result=$result"
+    }
     Set-Content -LiteralPath $helper -Value "throw 'Registration fixture failure'" -Encoding UTF8
     & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $fixture 'setup-ime.ps1')
     if ($LASTEXITCODE -ne 1 -or (Get-Content -LiteralPath $log -Raw) -notmatch 'Registration fixture failure') {

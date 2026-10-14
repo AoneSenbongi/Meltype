@@ -29,6 +29,8 @@ internal static class TestHost
 {
     public static int Run(IEnumerable<Assembly> assemblies, string? filter)
     {
+        // MozcConverterTests が、この実行ファイルを偽の Mozc の変換ヘルパーとして起動したとき
+        if (filter is not null && Path.GetFileName(filter) == MozcConverterTests.FakeHelperProfile) return MozcConverterTests.RunFakeHelper();
         var tests = assemblies.SelectMany(a => a.GetTypes())
             .SelectMany(t => t.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
             .Where(m => m.GetCustomAttribute<TestAttribute>() is not null)

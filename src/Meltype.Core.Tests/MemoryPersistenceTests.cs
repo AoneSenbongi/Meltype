@@ -55,6 +55,40 @@ internal static class MemoryPersistenceTests
     }
 
     [Test]
+    public static void BrokenMemoryFiles_AreCopiedToBroken_AndKeptAfterSaving()
+    {
+        // 読めないファイルは .broken に残す。読めないまま空で動き、次の保存で上書きしても元の中身は .broken に残る。
+        var directory = Path.Combine(Path.GetTempPath(), "meltype-memory-broken-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            const string broken = "{\"sig\":\"--\\n雪代\",";
+            var snippetsPath = Path.Combine(directory, "snippets.json");
+            var languagesPath = Path.Combine(directory, "languages.json");
+            var conversionsPath = Path.Combine(directory, "conversions.json");
+            var translationsPath = Path.Combine(directory, "translations.json");
+            foreach (var path in new[] { snippetsPath, languagesPath, conversionsPath, translationsPath }) File.WriteAllText(path, broken);
+
+            var snippets = new SnippetStore(snippetsPath);
+            var languages = new LanguageMemory(languagesPath);
+            var conversions = new ConversionHistory(conversionsPath);
+            var translations = new TranslationHistory(translationsPath);
+            snippets.Set("ty", "ありがとうございます。");
+            languages.Remember("cafe", english: false, explicitChoice: true);
+            conversions.Remember("くらいど", "クラウド");
+            translations.Remember("すし", "sushi");
+
+            foreach (var path in new[] { snippetsPath, languagesPath, conversionsPath, translationsPath })
+            {
+                Assert.True(File.Exists(path + ".broken"), $"{Path.GetFileName(path)} を .broken に残す");
+                Assert.Equal(broken, File.ReadAllText(path + ".broken"));
+            }
+            Assert.Equal("ありがとうございます。", new SnippetStore(snippetsPath).Get("ty"));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Test]
     public static void ForgetSince_RemovesOnlyRecentEntries_AndTheyStayGoneAfterReload()
     {
         // #277: 最近覚えたものだけを忘れる。忘れたものは読み込み直しても戻らない (再利用されない)

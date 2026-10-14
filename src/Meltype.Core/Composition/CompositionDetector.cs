@@ -213,7 +213,12 @@ public sealed partial class CompositionDetector
                 var analysis = _romaji.AnalyzeFragment(rest);
                 if (analysis.IsValid && IsSuruForm(analysis.Kana) && word.All(char.IsAsciiLetter) &&
                     !_romaji.AnalyzeFragment(word.ToLowerInvariant()).IsValid && IsKnownEnglishWord(word))
-                    return [new CompositionSegment(true, "", word), new CompositionSegment(false, analysis.Kana + analysis.Partial, raw[end..])];
+                {
+                    // 入力途中の子音 (pending) は表示・変換のときに後ろに足すので、読みに含めない (googleしまss になっていた)。
+                    // 読めない英字の単位として残った子音 (shimaSS の S) は pending ではないので、そのまま読みに含める。
+                    var partial = analysis.Partial.EndsWith(pending, StringComparison.OrdinalIgnoreCase) ? analysis.Partial[..^pending.Length] : analysis.Partial;
+                    return [new CompositionSegment(true, "", word), new CompositionSegment(false, analysis.Kana + partial, raw[end..])];
+                }
             }
         }
         var segments = ScoredSegmentation && !kanaInput
@@ -237,6 +242,10 @@ public sealed partial class CompositionDetector
                 return [new CompositionSegment(true, "", whole)];
             }
         }
+        // 辞書の短い英語 (pro) だけが先頭で英語になり、残りの英字がかな化される (procrasticle: issue #537)。
+        if (level != DetectionLevel.Manual && whole.All(char.IsAsciiLetter) && Memory?.Get(whole.ToLowerInvariant()) != false &&
+            !IsKnownEnglishWord(whole.ToLowerInvariant()) && HasListedEnglishPrefixSplit(whole, segments))
+            return [new CompositionSegment(true, "", whole)];
         return segments;
     }
 
@@ -275,6 +284,23 @@ public sealed partial class CompositionDetector
             }
         }
         return -1;
+    }
+
+    /// <summary>先頭が辞書の短い英語 (pro) で、残りがまだ英字なのに日本語区間になっている (procrasticle)。</summary>
+    private bool HasListedEnglishPrefixSplit(string whole, List<CompositionSegment> segments)
+    {
+        if (segments.Count < 2 || !segments[0].IsEnglish || segments[1].IsEnglish) return false;
+        var head = segments[0].Raw;
+        var lowerHead = head.ToLowerInvariant();
+        // 長い辞書語 (google) + 助詞、短い語 + する (push|shita) は今までどおり分ける。
+        if (!IsListedEnglishWord(lowerHead) || head.Length >= whole.Length || head.Length > 3) return false;
+        if (!segments[1].Raw.All(char.IsAsciiLetter)) return false;
+        var restLower = segments[1].Raw.ToLowerInvariant();
+        if (Detection.DictionaryDetector.StartsWithParticle(restLower) is not null) return false;
+        var lowerWhole = whole.ToLowerInvariant();
+        for (var len = head.Length + 1; len <= lowerWhole.Length; len++)
+            if (IsKnownEnglishWord(lowerWhole[..len])) return false;
+        return segments.Skip(1).All(s => !s.IsEnglish && s.Raw.All(char.IsAsciiLetter));
     }
 
     private List<CompositionSegment>? UnknownWordThenJapanese(IReadOnlyList<CompositionUnit> units, string pending, List<CompositionSegment> segments, DetectionLevel level, string whole)
@@ -914,7 +940,7 @@ public sealed partial class CompositionDetector
     private static readonly HashSet<string> HyphenPrefixes = ["e", "x", "re", "co", "ex", "non", "anti", "semi", "multi", "pre", "sub", "post", "mid", "self", "well"];
 
     // 接頭辞の規則では拾えない、- の入ったよく使う英単語 (後ろが 2 文字以下など)
-    private static readonly HashSet<string> HyphenatedWords = ["co-op", "re-do", "x-ray", "t-shirt", "wi-fi", "hi-fi", "lo-fi", "sci-fi", "e-book", "e-sports", "k-pop", "j-pop", "j-rock", "j-core", "p-hub", "talk-admin", "r-18", "sub-6", "gpt-6.7", "a-z", "u-turn", "check-in", "log-in", "sign-in", "add-on", "plug-in", "built-in", "follow-up", "set-up", "pop-up", "drop-down", "blu-ray"];
+    private static readonly HashSet<string> HyphenatedWords = ["bio-break", "co-op", "re-do", "x-ray", "t-shirt", "wi-fi", "hi-fi", "lo-fi", "sci-fi", "e-book", "e-sports", "k-pop", "j-pop", "j-rock", "j-core", "p-hub", "talk-admin", "r-18", "sub-6", "gpt-6.7", "a-z", "u-turn", "check-in", "log-in", "sign-in", "add-on", "plug-in", "built-in", "follow-up", "set-up", "pop-up", "drop-down", "blu-ray"];
     // 日本語のローマ字の途中を英語の接頭辞と誤認しないよう、日本語に続けて拾うのは明示した英数字表記だけ。
     private static readonly HashSet<string> NumericHyphenatedWords = ["r-18", "sub-6", "gpt-6.7"];
 

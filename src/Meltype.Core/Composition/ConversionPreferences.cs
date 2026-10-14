@@ -101,6 +101,7 @@ public sealed class ConversionHistory
         }
         catch (Exception ex)
         {
+            try { File.Copy(path, path + ".broken", overwrite: true); } catch { }
             Diagnostics.Log.Warn($"変換の学習データを読めませんでした: {ex.Message}");
         }
     }

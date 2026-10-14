@@ -98,8 +98,8 @@ private:
     std::string PendingPassed();
     // 応答の code / english を入力モードの表示に反映する
     void ApplyMode(const JsonValue& reply);
-    // 要求を送って応答を読む。失敗したら false
-    bool Request(const std::string& json, JsonValue& reply, DWORD timeoutMs = 800);
+    // 要求を送って応答を読む。失敗したら false (optional は PipeClient::Transact と同じ)
+    bool Request(const std::string& json, JsonValue& reply, DWORD timeoutMs = 800, bool optional = false);
     // 応答を入力欄に反映する (編集セッションの中で呼ぶ)
     void Apply(TfEditCookie ec, ITfContext* context, const JsonValue& reply);
     // range の前の count 文字が expect (前に確定した文字) なら、range をそこまで広げる。違えば false

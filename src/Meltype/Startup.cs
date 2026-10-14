@@ -23,7 +23,12 @@ internal static class Startup
 
     private static string Shortcut => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "Meltype.lnk");
 
-    public static bool IsEnabled => TaskExists() || HasLegacyEntry();
+    /// <summary>
+    /// 登録してあるか。調べるには schtasks.exe を起動して待つので、トレイのメニューを開くたびには調べない。
+    /// 起動したときに <see cref="MigrateToTask"/> で調べた値を覚えておき、<see cref="Set"/> で変える。
+    /// </summary>
+    public static bool IsEnabled => _enabled;
+    private static volatile bool _enabled;
 
     /// <summary>スタートアップのフォルダー・Run に登録してあるか (遅れて起動する、前の登録の仕方)。</summary>
     private static bool HasLegacyEntry()
@@ -52,21 +57,24 @@ internal static class Startup
             DeleteTask();
             RemoveLegacyEntries();
         }
+        _enabled = enabled;
         Diagnostics.Log.Info(enabled ? "Windows の起動時に Meltype を起動します。" : "Windows の起動時に Meltype を起動しません。");
     }
 
     /// <summary>
     /// スタートアップのフォルダー・Run に登録してあれば、すぐ起動するタスクに移す (起動したときに裏で行う)。
-    /// タスクを作れなければ、今の登録のまま。
+    /// タスクを作れなければ、今の登録のまま。終わったら、登録してあるかを <see cref="IsEnabled"/> に覚えておく。
     /// </summary>
     public static void MigrateToTask()
     {
         try
         {
-            if (!HasLegacyEntry() || TaskExists()) return;
-            if (!CreateTask(Application.ExecutablePath)) return;
-            RemoveLegacyEntries();
-            Diagnostics.Log.Info("Windows の起動時の起動を、サインインしたらすぐ起動するタスクに移しました。");
+            if (HasLegacyEntry() && !TaskExists() && CreateTask(Application.ExecutablePath))
+            {
+                RemoveLegacyEntries();
+                Diagnostics.Log.Info("Windows の起動時の起動を、サインインしたらすぐ起動するタスクに移しました。");
+            }
+            _enabled = HasLegacyEntry() || TaskExists();
         }
         catch (Exception ex)
         {
@@ -142,8 +150,9 @@ internal static class Startup
         };
         foreach (var arg in args) start.ArgumentList.Add(arg);
         using var process = Process.Start(start)!;
-        process.StandardOutput.ReadToEnd();
-        process.StandardError.ReadToEnd();
+        // 先に ReadToEnd で待つと、schtasks.exe が終わらないときに下のタイムアウトまで進まないので、読み捨ては裏で行う
+        _ = process.StandardOutput.ReadToEndAsync();
+        _ = process.StandardError.ReadToEndAsync();
         if (!process.WaitForExit(10_000))
         {
             process.Kill();

@@ -217,6 +217,11 @@ internal static class Henkan
             : null);
     private static readonly Lazy<Composition.TranslationDictionary> Translations = new(Composition.TranslationDictionary.Load);
 
+    /// <summary>MELTYPE_MOZC の Mozc (無ければ null)。性能の計測 (--perf) が控えの使い回しの回数を読むのに使う。</summary>
+    public static Composition.MozcConverter? Engine => Mozc.Value;
+
+    public static Composition.TranslationDictionary TranslationDictionary => Translations.Value;
+
     /// <summary>Windows のテストランナーが Microsoft IME を変換エンジンにするとき (Mozc が無いとき) に入れる。</summary>
     public static Composition.IKanjiConverter? FallbackConverter { get; set; }
 

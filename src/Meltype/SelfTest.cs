@@ -95,7 +95,8 @@ internal static class SelfTest
         Check("タスクトレイ", () =>
         {
             // トレイのアイコン・メニュー・ホットキーを作ってすぐ閉じる (キーボードフックは掛けない)。
-            using var engine = new MeltypeEngine(new Config.Settings(), null, null, null);
+            // TsfIntroduced にしておく (作る人の PC に Meltype IME があると、入力方式が Meltype IME に切り替わってしまう)。
+            using var engine = new MeltypeEngine(new Config.Settings { TsfIntroduced = true }, null, null, null);
             var tray = new UI.TrayApplicationContext(engine);
             tray.ExitThread();
             return "OK";

@@ -8,9 +8,12 @@ namespace Meltype.Input;
 /// <summary>
 /// キー入力監視 (設計書 §11)。WH_KEYBOARD_LL / WH_MOUSE_LL / WinEvent を専用スレッドで受ける。
 ///
-/// フックの呼び出しは一定時間内に返らないと Windows に飛ばされ、打鍵が保留を追い越してしまう。
+/// フックの呼び出しは一定時間 (レジストリの LowLevelHooksTimeout) 内に返らないと Windows に飛ばされ、打鍵が保留を追い越してしまう。
+/// Windows 7 以降は、そのままフックも通知なしに外される。
 /// そのためこのスレッドは自前のメッセージループだけを回し、IME 操作や SendInput など
-/// 待ちが発生しうる処理は決して行わない (それらは再入力ワーカーの仕事)。
+/// 待ちが発生しうる処理は行わない (それらは再入力ワーカーの仕事)。
+/// 例外は打ち始めの判定で、フォーカスを調べ終わるのを合わせて 150ms ほどまで待つ (FocusInspector.CanCaptureWaiting・RecheckStale)。
+/// LowLevelHooksTimeout の値が無いときは 300ms ほどとされ (Microsoft のドキュメントには書かれていない)、これより短い。
 /// </summary>
 internal sealed class KeyboardMonitor : IDisposable
 {

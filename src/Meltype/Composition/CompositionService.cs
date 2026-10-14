@@ -357,8 +357,10 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         Native.SendAll(array, "確定文字列の入力");
     }
 
-    private IDataObject? _savedClipboard;
+    private DataObject? _savedClipboard;
     private System.Windows.Forms.Timer? _restoreClipboard;
+    /// <summary>貼る文字を入れた直後のクリップボードの番号。戻すときに変わっていたら、ほかのアプリかユーザーが入れたものなので戻さない</summary>
+    private uint _pastedSequence;
 
     /// <summary>Windows のクリップボード履歴に保持しない</summary>
     private static readonly string[] ClipboardHistoryExclusions =
@@ -373,9 +375,11 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         if (text.Length == 0) return true;
         try
         {
-            if (_restoreClipboard is null) _savedClipboard = Clipboard.GetDataObject();
-            else _restoreClipboard.Stop();
+            // 前の貼り付けのあとにユーザーがコピーしていたら、戻す中身をそれに取り直す
+            if (_restoreClipboard is null || Native.GetClipboardSequenceNumber() != _pastedSequence) _savedClipboard = CopyClipboard();
+            _restoreClipboard?.Stop();
             Clipboard.SetDataObject(PasteData(text), copy: true);
+            _pastedSequence = Native.GetClipboardSequenceNumber();
             KeyInjector.SendShortcut(VirtualKeys.Control, 0x56); // Ctrl+V
             _restoreClipboard ??= new System.Windows.Forms.Timer { Interval = 500 };
             _restoreClipboard.Tick -= RestoreClipboard;
@@ -386,11 +390,13 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         catch (Exception ex) when (ex is ExternalException or System.Threading.ThreadStateException)
         {
             Diagnostics.Log.Warn($"クリップボードを使えないので、1 文字ずつ送ります: {ex.Message}");
+            // 前の貼り付けで止めた復元を動かし直す (止めたままだと元の中身に戻らない)
+            _restoreClipboard?.Start();
             return false;
         }
     }
 
-    private static DataObject PasteData(string text)
+    internal static DataObject PasteData(string text)
     {
         var data = new DataObject();
         data.SetText(text);
@@ -401,6 +407,24 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         return data;
     }
 
+    /// <summary>
+    /// 今のクリップボードの中身を、形式ごとに取り出して写す (戻すときに使う)。
+    /// Clipboard.GetDataObject() は中身のコピーではなく、そのときのクリップボードを読みに行くものを返すので、
+    /// 別の中身を入れたあとにそれで戻しても元に戻らない。取り出せない形式は戻さない。中身が無ければ null。
+    /// </summary>
+    internal static DataObject? CopyClipboard()
+    {
+        if (Clipboard.GetDataObject() is not { } current) return null;
+        var copy = new DataObject();
+        foreach (var format in current.GetFormats(autoConvert: false))
+        {
+            // 画像 (Bitmap) は autoConvert: false だと取り出せない
+            try { if ((current.GetData(format, autoConvert: false) ?? current.GetData(format, autoConvert: true)) is { } data) copy.SetData(format, autoConvert: false, data); }
+            catch { }
+        }
+        return copy.GetFormats(autoConvert: false).Length > 0 ? copy : null;
+    }
+
     private void RestoreClipboard(object? sender, EventArgs e)
     {
         var timer = _restoreClipboard;
@@ -408,7 +432,8 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         timer?.Dispose();
         try
         {
-            if (_savedClipboard is { } saved) Clipboard.SetDataObject(saved, copy: true);
+            if (Native.GetClipboardSequenceNumber() != _pastedSequence) Diagnostics.Log.Info("貼り付けのあとにクリップボードが変わったので、元の中身に戻しません。");
+            else if (_savedClipboard is { } saved) Clipboard.SetDataObject(saved, copy: true);
             else Clipboard.Clear();
         }
         catch (ExternalException ex)
@@ -673,7 +698,7 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             _window.ShowView(view, new Point(line.Left, line.Top - 4), above: true, belowY: FindAnchor(caret).Y);
             return;
         }
-        _window.ShowView(view, FindAnchor(caret));
+        _window.ShowView(view, FindAnchor(caret, caretSearched: true));
     }
 
     public void Hide()
@@ -766,15 +791,24 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         return Focus.CaretBounds() is { Width: > 0, Height: > 0 and < 200 } bounds && (bounds.X != 0 || bounds.Y != 0) ? bounds : null;
     }
 
-    /// <summary>変換ボックスを入力位置の下に出すときの位置。キャレット → 入力欄の左下 → マウスカーソルの順に試す。</summary>
-    private Point FindAnchor(Rectangle? caret = null)
+    /// <summary>
+    /// 変換ボックスを入力位置の下に出すときの位置。キャレット → 入力欄の左下 → マウスカーソルの順に試す。
+    /// caretSearched なら、キャレットは探し済み (caret が null なら取れなかった) として探し直さない (FindCaret は最大 60ms 待つ)。
+    /// </summary>
+    private Point FindAnchor(Rectangle? caret = null, bool caretSearched = false)
     {
-        if ((caret ?? FindCaret()) is { } found) return new Point(found.Left, found.Bottom + 4);
+        if ((caretSearched ? caret : caret ?? FindCaret()) is { } found) return new Point(found.Left, found.Bottom + 4);
         // 入力欄の四角形が潰れている・画面の外にある (Google ドキュメントの、文字を受け取るための見えない欄など) ときは、
         // その左下に出すと画面の端や関係ない所に出てしまう (issue #128)。マウスカーソルの近くに出す。
         if (Focus.Current.Bounds is { } bounds && bounds.Height is > 2 and < 120 && bounds.Width > 2 && IsOnScreen(bounds))
         {
             return new Point(bounds.Left, bounds.Bottom + 2);
+        }
+        // 複数行の欄 (Chrome の textarea など) は、空のときに入力位置が取れない。空の欄で打ち始めるのは左上なので、そこに出す
+        // (マウスカーソルの近くに出すと、欄の右下や別のモニターなど、打っている所から離れた所に出ていた)。
+        if (Focus.Current.Bounds is { } field && field.Height >= 120 && field.Width > 2 && IsOnScreen(field))
+        {
+            return new Point(field.Left, Math.Max(field.Top, Screen.FromRectangle(field).WorkingArea.Top) + 2);
         }
         Native.GetCursorPos(out var cursor);
         return new Point(cursor.X + 12, cursor.Y + 20);

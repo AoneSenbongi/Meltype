@@ -25,8 +25,21 @@ class NativeBoundaryTests(unittest.TestCase):
         cls.addClassCleanup(cls.data.cleanup)
         # 起動時の旧データ移行も避けるため、既に存在する空のディレクトリを渡す。
         os.environ["MELTYPE_DATA_DIR"] = cls.data.name
-        (Path(cls.data.name) / "config.json").write_text(
+        data = Path(cls.data.name)
+        (data / "config.json").write_text(
             json.dumps({"SpaceAroundEnglish": True}), encoding="utf-8")
+        # 学習データはプロセスで初回だけ読む（#558）。meltype_create より前に置く。
+        (data / "languages.json").write_text(
+            json.dumps({
+                "sushi": {
+                    "English": True,
+                    "Count": 2,
+                    "Explicit": True,
+                    "Used": "2026-10-07T00:00:00Z",
+                }
+            }),
+            encoding="utf-8",
+        )
         cls.lib = ctypes.CDLL(str(cls.library_path))
         cls.lib.meltype_init.argtypes = [ctypes.c_void_p] * 3
         cls.lib.meltype_init.restype = ctypes.c_int
@@ -187,28 +200,19 @@ class NativeBoundaryTests(unittest.TestCase):
         self.type_text("kyouha「@onegaishimsu」ashita")
         self.assertEqual("きょうは「@onegaishimsu」あした", self.key(0, vk=0x0D)["commits"][0]["text"])
 
-    def test_saved_language_choice_is_loaded_by_new_session(self):
-        path = Path(self.data.name) / "languages.json"
-        previous = path.read_bytes() if path.exists() else None
+    def test_language_choice_is_shared_across_sessions(self):
+        # #558 以降、学習はプロセスで共有される。setUpClass で置いた languages.json が
+        # 別セッションでも効くことを確かめる（作成後の再読込はしない）。
+        restored = self.lib.meltype_create()
+        self.assertTrue(restored)
+        original = self.session
+        self.session = restored
         try:
-            # 2 回の明示的な選択を記録した、公開形式の合成データ。
-            path.write_text(json.dumps({"sushi": {"English": True, "Count": 2, "Explicit": True,
-                                                   "Used": "2026-10-07T00:00:00Z"}}), encoding="utf-8")
-            restored = self.lib.meltype_create()
-            self.assertTrue(restored)
-            original = self.session
-            self.session = restored
-            try:
-                self.type_text("sushi")
-                self.assertEqual("sushi", self.key(0, vk=0x0D)["commits"][0]["text"])
-            finally:
-                self.session = original
-                self.lib.meltype_destroy(restored)
+            self.type_text("sushi")
+            self.assertEqual("sushi", self.key(0, vk=0x0D)["commits"][0]["text"])
         finally:
-            if previous is None:
-                path.unlink(missing_ok=True)
-            else:
-                path.write_bytes(previous)
+            self.session = original
+            self.lib.meltype_destroy(restored)
 
 
 if __name__ == "__main__":

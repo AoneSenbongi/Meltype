@@ -985,7 +985,7 @@ void TextService::QueryMode(TfEditCookie ec, ITfContext* context, bool selection
                           ",\"before\":" + JsonString(before) + "}";
     JsonValue reply;
     // キャレットを動かすたびに呼ぶので、応答が遅ければ待たない (表示が次のキーまで古いだけ)
-    if (Request(request, reply, 100)) {
+    if (Request(request, reply, 100, true)) {
         ApplyMode(reply);
     }
 }
@@ -1065,7 +1065,7 @@ void TextService::Reinject(UINT vk) {
     }
 }
 
-bool TextService::Request(const std::string& json, JsonValue& reply, DWORD timeoutMs) {
+bool TextService::Request(const std::string& json, JsonValue& reply, DWORD timeoutMs, bool optional) {
     if (deactivated_) return false;
     std::string response;
     // Meltype.exe 自身の中: どのスレッドからの要求かを付ける (画面のスレッドからなら、Meltype.exe はそのスレッドを待たずに処理する。
@@ -1075,7 +1075,7 @@ bool TextService::Request(const std::string& json, JsonValue& reply, DWORD timeo
         request.insert(request.size() - 1, ",\"tid\":" + std::to_string(GetCurrentThreadId()));
     }
     // 初めての変換は Mozc の起動などで時間がかかることがあるので、少し長めに待つ
-    if (!pipe_.Transact(request, response, timeoutMs)) return false;
+    if (!pipe_.Transact(request, response, timeoutMs, optional)) return false;
     if (!ParseJson(response, reply)) {
         TipLog(L"応答を読めません");
         return false;

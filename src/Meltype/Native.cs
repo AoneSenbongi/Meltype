@@ -96,6 +96,9 @@ internal static class Native
     [DllImport("user32.dll")] public static extern IntPtr DispatchMessage(ref MSG msg);
     [DllImport("user32.dll", SetLastError = true)] public static extern bool PostThreadMessage(uint threadId, uint msg, IntPtr wParam, IntPtr lParam);
 
+    /// <summary>クリップボードの中身が変わるたびに増える番号 (読むだけでは変わらない)。</summary>
+    [DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
+
     [DllImport("user32.dll", SetLastError = true)] public static extern uint SendInput(uint count, INPUT[] inputs, int size);
 
     /// <summary>

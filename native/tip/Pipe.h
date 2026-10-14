@@ -19,7 +19,8 @@ public:
     PipeClient& operator=(const PipeClient&) = delete;
 
     // 要求を送って応答を待つ。つながらない・時間切れなら false (次の呼び出しでつなぎ直す)。
-    bool Transact(const std::string& request, std::string& response, DWORD timeoutMs);
+    // optional: 失敗しても入力に困らない問い合わせ。時間切れでも、しばらくつながないようにはしない
+    bool Transact(const std::string& request, std::string& response, DWORD timeoutMs, bool optional = false);
     void Close();
 
 private:

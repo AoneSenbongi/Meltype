@@ -101,6 +101,8 @@ internal sealed class Updater : IDisposable
         catch (Exception ex)
         {
             Log.Warn($"更新を始められませんでした: {ex.Message}");
+            // 始められなかったので、次の起動で「更新に失敗した」と扱わないよう消しておく
+            try { File.Delete(ApplyingFile); } catch { }
             return false;
         }
     }
@@ -182,13 +184,17 @@ internal sealed class Updater : IDisposable
                 start.ArgumentList.Add(arg);
             }
             using var process = Process.Start(start)!;
-            var output = process.StandardOutput.ReadToEnd().Trim();
-            if (!process.WaitForExit(15 * 60 * 1000)) process.Kill();
+            var output = ReadOutput(process, 15 * 60 * 1000)?.Trim();
+            if (output is null)
+            {
+                Log.Warn("更新の確認が時間内に終わりませんでした。");
+                return null;
+            }
             var line = output.Split('\n').LastOrDefault()?.Trim() ?? "";
             if (line.StartsWith("ready ", StringComparison.Ordinal))
             {
                 var version = line[6..];
-                Log.Info($"Meltype {version} をダウンロードしました。次の起動時に更新します。");
+                Log.Info(_enabled() ? $"Meltype {version} をダウンロードしました。次の起動時に更新します。" : $"Meltype {version} をダウンロードしました。トレイの「更新」→「Meltype {version} に更新して再起動」で更新できます。");
                 Ready?.Invoke(version);
                 return $"Meltype {version} をダウンロードしました。";
             }
@@ -205,6 +211,19 @@ internal sealed class Updater : IDisposable
         {
             Volatile.Write(ref _running, 0);
         }
+    }
+
+    /// <summary>標準出力を読みながら終わるのを待つ。時間内に終わらなければ子プロセスごと終了させて null。</summary>
+    internal static string? ReadOutput(Process process, int timeout)
+    {
+        // 先に ReadToEnd すると、PowerShell が止まったときに戻らず、時間で区切れない
+        var output = process.StandardOutput.ReadToEndAsync();
+        if (!process.WaitForExit(timeout))
+        {
+            process.Kill(entireProcessTree: true);
+            return null;
+        }
+        return output.Result;
     }
 
     private static bool IsNewer(string version) =>

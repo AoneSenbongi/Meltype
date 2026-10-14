@@ -59,6 +59,7 @@ public sealed class LanguageMemory
         }
         catch (Exception ex)
         {
+            try { File.Copy(path, path + ".broken", overwrite: true); } catch { }
             Diagnostics.Log.Warn($"英語 / 日本語の学習データを読めませんでした: {ex.Message}");
         }
     }

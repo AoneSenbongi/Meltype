@@ -26,4 +26,8 @@ Windows 64ビット向けです。Google日本語入力が必要です。管理�
 
 実アプリでの手入力、複数モニター、テーマ切替、32ビットアプリは未確認です。Microsoft辞書への学習書き込み、本家TIPの直接モード判定・選択範囲再変換・Tab文節変換の独自TSF移植は未対応です。本家native/tipは別実装として更新しましたが、配布EXEが使用するのは独自native/tsfです。Google版へMozcヘルパーを同梱していません。
 
-配布EXEはdistributions/Meltype-Native-Google-1.1.2-rc.1-Setup.exeと同名.sha256を作成します。対応ソースは同梱SOURCE_VERSION.txt、EXEのSHA256と構築情報はexperimental-build/installer-build.jsonで確認します。配布物作成・PC適用の最終結果はdocs/CURRENT_STATE.mdで管理します。
+配布EXEはdistributions/Meltype-Native-Google-1.1.2-rc.1-Setup.exeと同名.sha256を作成・検証済みです。対応ソースはd0803f552970855c023d7ec0f94102eea3fc0347、EXEのSHA256は185E8BF3A03337BAB98BA130CBA94D00377B4B03E4E33C808B2D0C826165746F。EXEの製品番号は1.1.2-rc.1、ファイル番号は1.1.2.0です。管理対象6ファイルと同梱主要ソースを照合しました。証跡はexperimental-build/installer-build.jsonとupstream-9a25e7c-verified.jsonです。
+
+2026年10月14日のPC適用は管理者確認が取り消されたため未完了です。既存の復旧手順で旧1.1.1-rc.2へ戻し、旧packageの6/6ハッシュ、brokerの起動・接続準備、導入済みDLLの入力モード試験を確認しました。入力設定は不変、データ11ファイル中8ファイルは一致、使用中のGoogle DB3ファイルは照合不可です。バックアップ11/11ファイルのハッシュを確認しました。
+
+この候補はローカルのビルド・配布物検証まで完了しています。PC適用成功条件を満たしていないため、公開候補の完了扱いにはしません。再適用は利用者の指示を待ちます。外部公開は未実施です。詳しい適用結果はdocs/CURRENT_STATE.mdに記録しています。

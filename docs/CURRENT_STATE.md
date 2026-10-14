@@ -20,7 +20,11 @@
 
 2026年10月14日に稼働登録を確認した。NativeVersionは1.1.1-rc.2、BaseVersionは1.2.1、登録パッケージはC:/Program Files/MeltypeNativeGoogle/package-358a25b2469c409ea1f7c124667b3274。稼働管理先はC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-status。
 
-候補1.1.2-rc.1のパッケージは構築済み。対応ソース固定、配布EXE作成、通常更新手順によるPC適用と適用後確認は未完了。公開済み1.1.1の配布物・タグ・Releaseは変更していない。
+候補1.1.2-rc.1の配布EXEを作成・検証した。対応ソースはd0803f552970855c023d7ec0f94102eea3fc0347。EXEはdistributions/Meltype-Native-Google-1.1.2-rc.1-Setup.exe、SHA256は185E8BF3A03337BAB98BA130CBA94D00377B4B03E4E33C808B2D0C826165746F。EXEの製品/ファイル番号、管理対象6ファイル、同梱主要ソース、ハッシュを照合した。証跡はexperimental-build/upstream-9a25e7c-verified.json。公開済み1.1.1の配布物・タグ・Releaseは変更していない。
+
+2026年10月14日09:10JSTにUpdate-NativeIme.ps1を起動した。辞書・履歴のバックアップはbackups/20261014-091004、入力設定の追加退避はbackups/upstream-9a25e7c-input-preferences。管理者確認が取り消され、適用は未完了。既存の復旧手順で1.1.1-rc.2の登録とbroker起動へ戻した。旧packageの6/6ファイルと導入済みmanifestの一致、brokerプロセスと接続準備、導入済みDLLの入力モード試験を確認した。入力設定は不変、データ11ファイル中8ファイルのハッシュは一致し、boundary.db・cform.db・segment.dbは使用中で照合不可。バックアップ11/11ファイルのハッシュは一致。証跡はexperimental-build/upstream-9a25e7c-apply.log、applied.json、restored.json、restored-mode.log。自動再試行は行わない。
+
+候補はローカルのビルド・配布物検証まで完了したが、PC適用成功条件を満たしていないため公開候補の完了扱いにしない。再適用は利用者の指示を待つ。
 
 ## 既知の制限と残作業
 

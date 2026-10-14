@@ -34,6 +34,8 @@
 
 2026年10月14日、3機能の独自TSF移植と管理画面の2設定を実装した。仕様はdocs/NATIVE_UPSTREAM_FEATURES.md。旧brokerの直接入力打鍵の不具合を隔離試験で再現し、実装後は直接入力の即時表示・キャレット移動・アプリの変換拒否時の文字保持・日本語復帰・英語維持・タスクバー同期、かな／漢字／ローマ字の再変換・Enter確定・Esc復元、Tab変換開始・候補切替・無効設定・空入力での通過・保護欄を実TSF文書で検証した。
 
-通常apphostの共通・Windows489/489、品質1337/1337、Native18/18、Google13/13、Microsoft2/2が通過した。Google/Microsoftの変換、予測16更新、定型文各11更新、入力モード、候補配置、設定保持、管理画面描画とインストーラー隔離試験も通過。dotnetからDLLを直接実行する形式ではMozc自己起動試験1件が失敗し、通常apphostで全件を再検証した。試験がEnvironment.ProcessPathをヘルパーとして起動するためで、製品変更は不要。通常ビルドの既存nullable警告は3件。証跡はexperimental-build/native-upstream-package.log、apphost-tests.log、quality.log、features.log、panel.png。配布パッケージ作成済みで、セットアップEXEの作成が残る。PC適用と外部公開は未実施。
+通常apphostの共通・Windows489/489、品質1337/1337、Native18/18、Google13/13、Microsoft2/2が通過した。Google/Microsoftの変換、予測16更新、定型文各11更新、入力モード、候補配置、設定保持、管理画面描画とインストーラー隔離試験も通過。dotnetからDLLを直接実行する形式ではMozc自己起動試験1件が失敗し、通常apphostで全件を再検証した。試験がEnvironment.ProcessPathをヘルパーとして起動するためで、製品変更は不要。通常ビルドの既存nullable警告は3件。証跡はexperimental-build/native-upstream-package.log、native-upstream-apphost-tests.log、native-upstream-quality.log、native-upstream-features.log、native-upstream-panel.png。
+
+セットアップEXEを作成済み。distributions/Meltype-Native-Google-1.1.2-rc.2-Setup.exe、SHA256は447EF10B129E1CB2DFCE1C7693C9A9675C36A787D634F7F734C0917B21ECD089。対応ソースは019f81f7ec1cdf02b92447ce55444a5b0c5b2262。製品番号1.1.2-rc.2・ファイル番号1.1.2.0、同梱主要ソース12ファイル、管理対象6ファイル、manifestとSHA256を照合した。証跡はexperimental-build/native-upstream-verified.json。PCの登録が1.1.2-rc.1のままであることを確認した。PC適用と外部公開は未実施。
 
 実アプリでの手入力、複数モニター、テーマ切替、32ビットアプリは未確認。Microsoft辞書への学習書き込みは未対応。直接入力の自動復帰にはTSFから文字位置を取得できる入力欄が必要で、取得できない場合は直接入力を維持する。漢字再変換にはMicrosoft IMEの逆変換を使い、読みを取得できない場合は文字を変更しない。配布物にはMozcヘルパーを含めない。PC適用時は辞書・設定をバックアップし、登録、配置manifest、broker接続準備、辞書・設定の保持を確認する。管理者確認の取消・適用失敗・検証失敗を適用済みと扱わない。

@@ -15,3 +15,5 @@ Tabで変換を開始し、続けてTabで次の候補、Shift+Tabで前の候�
 Windows x64向け。直接入力の自動復帰はTSFの文字位置を取得できる入力欄に対応する。実アプリでの手入力、複数モニター、テーマ切替、32ビットアプリは未確認。Microsoft辞書への学習書き込みは未対応。PC適用とGitHubへの公開は未実施。
 
 公開する場合の予定先はAoneSenbongi/Meltype、google-native-ime。候補タグはnative-google-1.1.2-rc.2、タイトルは「Meltype Native 1.1.2-rc.2 本家の入力機能に対応」。公開には今回の具体的な内容への利用者確認が必要。
+
+配布候補はdistributions/Meltype-Native-Google-1.1.2-rc.2-Setup.exeと同名.sha256。EXEのSHA256は447EF10B129E1CB2DFCE1C7693C9A9675C36A787D634F7F734C0917B21ECD089。対応ソースは019f81f7ec1cdf02b92447ce55444a5b0c5b2262。製品番号、管理対象6ファイルとmanifest、同梱主要ソースを照合済み。experimental-build/native-upstream-verified.jsonへ記録した。

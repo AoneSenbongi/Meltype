@@ -31,13 +31,17 @@ internal static class InputPreferenceTests
         {
             var store = new InputPreferenceStore(path);
             Assert.Equal("，", store.Current.Comma);
-            store.Save(new InputPreferences { Comma = "、", Period = ".", LearningEnabled = false });
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(path, "{\"LearningEnabled\":false,\"ConversionEngine\":\"Microsoft\"}");
+            Assert.True(store.Current.DirectModeAutoDetect && store.Current.TabConversion, "旧設定では本家と同じ初期値を使う");
+            store.Save(new InputPreferences { Comma = "、", Period = ".", LearningEnabled = false, DirectModeAutoDetect = false, TabConversion = false });
             var other = new InputPreferenceStore(path);
             Assert.Equal("、", other.Current.Comma);
             Assert.Equal(".", other.Current.Period);
             Assert.Equal(false, other.Current.LearningEnabled);
             store.Save(other.Current with { LearningEnabled = true });
             Assert.Equal(true, other.Current.LearningEnabled);
+            Assert.True(!other.Current.DirectModeAutoDetect && !other.Current.TabConversion, "学習設定の変更は入力機能の選択を保持する");
             File.WriteAllText(path, "{broken");
             Assert.Equal(false, new InputPreferenceStore(path).Current.LearningEnabled);
         }

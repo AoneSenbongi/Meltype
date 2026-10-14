@@ -32,14 +32,16 @@ $script:fixtureInstalled=$true
 $script:toggleCalls=[Collections.Generic.List[string]]::new()
 function Start-Action([string]$Action){$script:toggleCalls.Add($Action)}
 $changed=$ast.FindAll({param($n) $n -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'Add_CheckedChanged'},$true)
-if($changed.Count -ne 1){throw 'Only auto-start must be a setting toggle'}
+if($changed.Count -ne 3){throw 'Auto-start and two input features must be setting toggles'}
+$autoChanged=@($changed|Where-Object {$_.Expression.VariablePath.UserPath -eq 'autoToggle'})
+if($autoChanged.Count -ne 1){throw 'Auto-start handler is missing'}
 foreach($checked in @($true,$false)){
  $autoToggle.Checked=$checked
- & $changed[0].Arguments[0].ScriptBlock.GetScriptBlock()
+ & $autoChanged[0].Arguments[0].ScriptBlock.GetScriptBlock()
 }
 if($script:toggleCalls -join ',' -ne 'Enable,Disable'){throw 'Toggle actions are routed incorrectly'}
 $script:toggleCalls.Clear();$script:refreshingAutoStart=$true
-foreach($event in $changed){& $event.Arguments[0].ScriptBlock.GetScriptBlock()}
+foreach($event in $autoChanged){& $event.Arguments[0].ScriptBlock.GetScriptBlock()}
 if($script:toggleCalls.Count){throw 'Refreshing state triggered a setting change'}
 $script:refreshingAutoStart=$false
 $errorText="Protected package operation did not return a result.`n発生場所 C:\fixture.ps1:44`n+ throw failure`nFullyQualifiedErrorId: failure"

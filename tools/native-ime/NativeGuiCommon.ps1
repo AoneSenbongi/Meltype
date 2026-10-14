@@ -38,23 +38,25 @@ function Get-NativeInputPreferencesPath {
 }
 function Get-NativeInputPreferences {
     $path = Get-NativeInputPreferencesPath
-    $result = [pscustomobject]@{ Comma='，'; Period='．'; LearningEnabled=$true; ConversionEngine='Google' }
+    $result = [pscustomobject]@{ Comma='，'; Period='．'; LearningEnabled=$true; ConversionEngine='Google'; DirectModeAutoDetect=$true; TabConversion=$true }
     if (-not [IO.File]::Exists($path)) { return $result }
     try {
         $value = [IO.File]::ReadAllText($path) | ConvertFrom-Json
         if ($value.Comma -in @('、','，',',')) { $result.Comma = $value.Comma }
         if ($value.Period -in @('。','．','.')) { $result.Period = $value.Period }
         if ($value.ConversionEngine -in @('Google','Microsoft')) { $result.ConversionEngine = $value.ConversionEngine }
+        if ($value.DirectModeAutoDetect -is [bool]) { $result.DirectModeAutoDetect = $value.DirectModeAutoDetect }
+        if ($value.TabConversion -is [bool]) { $result.TabConversion = $value.TabConversion }
         $result.LearningEnabled = $value.LearningEnabled -is [bool] -and $value.LearningEnabled
     } catch { $result.LearningEnabled = $false }
     return $result
 }
-function Save-NativeInputPreferences([ValidateSet('、','，',',')][string]$Comma, [ValidateSet('。','．','.')][string]$Period, [bool]$LearningEnabled, [ValidateSet('Google','Microsoft')][string]$ConversionEngine = (Get-NativeInputPreferences).ConversionEngine) {
+function Save-NativeInputPreferences([ValidateSet('、','，',',')][string]$Comma, [ValidateSet('。','．','.')][string]$Period, [bool]$LearningEnabled, [ValidateSet('Google','Microsoft')][string]$ConversionEngine = (Get-NativeInputPreferences).ConversionEngine, [bool]$DirectModeAutoDetect = (Get-NativeInputPreferences).DirectModeAutoDetect, [bool]$TabConversion = (Get-NativeInputPreferences).TabConversion) {
     $path = Get-NativeInputPreferencesPath
     [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
     $temp = $path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
     try {
-        [IO.File]::WriteAllText($temp, (@{Comma=$Comma;Period=$Period;LearningEnabled=$LearningEnabled;ConversionEngine=$ConversionEngine} | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText($temp, (@{Comma=$Comma;Period=$Period;LearningEnabled=$LearningEnabled;ConversionEngine=$ConversionEngine;DirectModeAutoDetect=$DirectModeAutoDetect;TabConversion=$TabConversion} | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
         if ([IO.File]::Exists($path)) { [IO.File]::Replace($temp,$path,[Management.Automation.Language.NullString]::Value) }
         else { [IO.File]::Move($temp,$path) }
     } finally { if ([IO.File]::Exists($temp)) { [IO.File]::Delete($temp) } }

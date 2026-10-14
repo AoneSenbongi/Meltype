@@ -5,6 +5,11 @@ $fixtureRoot = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)
 $script:fixturePath = Join-Path $fixtureRoot 'input-preferences.json'
 function Get-NativeInputPreferencesPath { return $script:fixturePath }
 try {
+    Save-NativeInputPreferences '，' '．' $true -DirectModeAutoDetect $false -TabConversion $false
+    Save-NativeInputPreferences '、' '。' $false -ConversionEngine Microsoft
+    if ((Get-NativeInputPreferences).DirectModeAutoDetect -or (Get-NativeInputPreferences).TabConversion) { throw 'Other preferences saves lost feature switches.' }
+    Save-NativeInputPreferences '，' '．' $false -DirectModeAutoDetect $true -TabConversion $true
+    if (-not (Get-NativeInputPreferences).DirectModeAutoDetect -or -not (Get-NativeInputPreferences).TabConversion) { throw 'Feature switches did not round-trip.' }
     foreach ($engine in @('Google','Microsoft')) {
         Save-NativeInputPreferences '，' '．' $true -ConversionEngine $engine
         if ((Get-NativeInputPreferences).ConversionEngine -ne $engine) { throw 'Engine selection did not round-trip.' }

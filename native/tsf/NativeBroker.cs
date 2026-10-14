@@ -14,6 +14,10 @@ using System.ComponentModel;
 using Microsoft.Win32.SafeHandles;
 using Meltype.Composition;
 using Meltype.Input;
+using Meltype.Config;
+using Meltype.Detection;
+using Meltype.Learning;
+using System.Linq;
 
 public static class MeltypeNativeBroker
 {
@@ -141,15 +145,32 @@ public static class MeltypeNativeBroker
         public CompositionView View;
         public char Character;
         public bool Shift, ReplayCurrent;
+        public bool Direct, DirectEnglishWord, SwitchedToJapanese;
+        public string Before, ProcessName;
+        public ReconversionSelection Selection;
+        public readonly StringBuilder DirectReplay = new();
         public void CommitText(string text) => Actions.Add((1, text));
         public void Show(CompositionView view) { View = view; Actions.Add((0, view.Text)); }
         public void Hide() { View = null; Actions.Add((2, "")); }
-        public void DeleteBackward(int count) => Actions.Add((3, count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        public void Replay(KeyEvent e) { ReplayCurrent = true; }
+        public void DeleteBackward(int count) {
+            // The current key has not reached the application yet.
+            if (ReplayCurrent) count--;
+            ReplayCurrent = false;
+            if (count < 0 || count > DirectReplay.Length) throw new InvalidDataException("Direct replay count");
+            if (count > 0) Actions.Add((3, DirectReplay.ToString(0, count)));
+            DirectReplay.Clear();
+        }
+        public void RecordDirectReplay(char c) => DirectReplay.Append(c);
+        public void Replay(KeyEvent e) { if (!e.IsUp && e.Vk is not (0x10 or 0x11 or 0x12 or >= 0xa0 and <= 0xa5)) ReplayCurrent = true; }
         public void Replay(MouseButtonEvent e) => throw new InvalidOperationException("Mouse replay is not used by TSF");
         public char? CharFromKey(KeyEvent e, bool shift) => Character == 0 ? null : Character;
         public bool IsShiftDown() => Shift;
-        public void RequestSurroundingText(Action<string, string> callback) => callback(null, null);
+        public void RequestSurroundingText(Action<string, string> callback) => callback(Before, null);
+        public ReconversionSelection GetReconversionSelection() => Selection;
+        public bool TryReplaceSelection(ReconversionSelection selection, string text) {
+            if (!ReferenceEquals(selection, Selection)) return false;
+            Selection = null; CommitText(text); return true;
+        }
     }
     internal static async Task Serve(NamedPipeServerStream pipe, bool learning, CancellationToken stop, string packageSid)
     {
@@ -161,6 +182,17 @@ public static class MeltypeNativeBroker
             var preferences = new Meltype.Config.InputPreferenceStore(Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MeltypeNativeGoogle", "input-preferences.json"));
             var engine = preferences.Current.ConversionEngine;
+            var settings = Settings.Load(Path.Combine(DataDirectory, "config.json"));
+            var score = ScoreEngine.CreateDefault(new UserModel(Path.Combine(DataDirectory, "model.json")), () => settings,
+                Path.Combine(DataDirectory, "dictionaries"));
+            bool DirectDetection() => preferences.Current.DirectModeAutoDetect && settings.ForApp(host.ProcessName).DetectionLevel != DetectionLevel.Manual;
+            Verdict ClassifyDirect(string letters, bool final) {
+                var options = settings.Clone(); options.InputStyle = InputStyle.Romaji;
+                var verdict = score.Evaluate(new DetectionInput(letters, letters.Select(c => (int)char.ToUpperInvariant(c)).ToArray(), final), options).Verdict;
+                if (verdict == Verdict.Japanese && letters.Length >= 4 && WindowsSpellChecker.Shared.IsWord(letters.ToLowerInvariant()))
+                    return final ? Verdict.English : Verdict.Undecided;
+                return verdict;
+            }
             using var converter = new NativeEngineConverter(engine, learning, () => preferences.Current.LearningEnabled);
             var userDictionary = new UserDictionary(Path.Combine(DataDirectory, "userdict.txt"));
             var history = new ConversionHistory(Path.Combine(DataDirectory, "conversions.json"));
@@ -170,7 +202,10 @@ public static class MeltypeNativeBroker
                     Period = () => preferences.Current.Period[0], LearningEnabled = () => learning && preferences.Current.LearningEnabled,
                     LiveConversion = () => true, MoreCandidates = converter.Candidates, AutoCorrect = () => false,
                     Predictor = new Predictor(Phrases.Value, userDictionary, history),
-                    Predictions = () => true });
+                    Predictions = () => true, TabConversion = () => preferences.Current.TabConversion,
+                    DirectMode = () => host.Direct, ClassifyDirect = ClassifyDirect,
+                    DirectDecided = japanese => { host.Direct = !japanese; host.DirectEnglishWord = !japanese; host.SwitchedToJapanese |= japanese; },
+                    DirectHoldCleared = () => host.DirectReplay.Clear() });
             var request = new byte[32];
             try
             {
@@ -188,24 +223,59 @@ public static class MeltypeNativeBroker
                     host.Shift = (flags & 2) != 0;
                     host.Actions.Clear();
                     host.ReplayCurrent = false;
+                    host.SwitchedToJapanese = false;
                     if (operation == 0)
                     {
+                        var wasDirect = host.Direct;
+                        host.Direct = (flags & 8) != 0;
+                        if (wasDirect && !host.Direct) { controller.AbandonDirectHold(); host.DirectEnglishWord = false; }
+                        if (host.Direct && host.DirectEnglishWord && host.Character != 0 && !char.IsAsciiLetterOrDigit(host.Character) && host.Character is not ('@' or '_'))
+                            host.DirectEnglishWord = false;
                         var hadSnippet = snippets.Active;
-                        if ((!snippets.Active && host.View != null) || !snippets.Handle(vk, host.Character, (flags & 1) != 0, (flags & 4) != 0))
+                        if (host.Direct && (!DirectDetection() || host.DirectEnglishWord)) host.ReplayCurrent = true;
+                        else if (host.Direct || (!snippets.Active && host.View != null) || !snippets.Handle(vk, host.Character, (flags & 1) != 0, (flags & 4) != 0))
                         {
                             if (hadSnippet && (vk == 0x20 || vk == 0x09) || !hadSnippet && host.View == null && host.Character == ';') host.ReplayCurrent = true;
                             else {
                                 gate.OnKey(new KeyEvent(vk, scan, false, (flags & 1) != 0, false, time), e => !e.IsUp);
                                 controller.Pump();
+                                if (host.Direct && host.ReplayCurrent && (flags & 1) == 0) {
+                                    gate.OnKey(new KeyEvent(vk, scan, false, true, false, time), e => !e.IsUp); controller.Pump();
+                                    host.ReplayCurrent = true;
+                                }
                             }
                         }
                     }
                     else if (operation == 1) { snippets.Commit(); controller.CommitPending(); }
+                    else if (operation is 2 or 3 or 4) {
+                        int length = host.Character;
+                        if (length > 4096) throw new InvalidDataException("Context too large");
+                        var textBytes = new byte[length * 2]; await pipe.ReadExactlyAsync(textBytes, stop);
+                        var text = Encoding.Unicode.GetString(textBytes);
+                        if (operation == 2) { host.ProcessName = text; settings = Settings.Load(Path.Combine(DataDirectory, "config.json")); }
+                        else if (operation == 4) {
+                            if ((flags & 16) != 0 || host.DirectReplay.Length > 0 && !text.EndsWith(host.DirectReplay.ToString(), StringComparison.Ordinal)) {
+                                controller.AbandonDirectHold(); controller.ResetContext(); host.DirectEnglishWord = false;
+                            }
+                            host.Before = text;
+                        }
+                        else if (!controller.IsComposing && !snippets.Active && !string.IsNullOrWhiteSpace(text)) {
+                            string reading;
+                            try { reading = text.All(c => c is >= ' ' and <= '~') ? text : converter.Reading(text); }
+                            catch { reading = null; }
+                            if (string.IsNullOrWhiteSpace(reading)) host.ReplayCurrent = true;
+                            else {
+                                host.Selection = new ReconversionSelection(text, reading); host.Character = '\0'; host.Direct = false;
+                                gate.OnKey(new KeyEvent(0x1c, 0, false, false, false, time), e => !e.IsUp); controller.Pump();
+                                gate.OnKey(new KeyEvent(0x1c, 0, false, true, false, time), e => !e.IsUp); controller.Pump();
+                            }
+                        } else host.ReplayCurrent = true;
+                    }
                     else throw new InvalidDataException("Operation");
                     using var buffer = new MemoryStream();
                     using (var output = new BinaryWriter(buffer, Encoding.Unicode, leaveOpen: true))
                     {
-                        output.Write(host.ReplayCurrent ? 1 : 0);
+                        output.Write((host.ReplayCurrent ? 1 : 0) | (host.SwitchedToJapanese ? 2 : 0) | (operation == 2 && DirectDetection() ? 4 : 0));
                         output.Write(host.Actions.Count);
                         foreach (var action in host.Actions)
                         {

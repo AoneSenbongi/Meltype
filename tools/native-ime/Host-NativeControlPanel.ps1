@@ -21,9 +21,9 @@ $mutex = [Threading.Mutex]::new($false, ('Local\Meltype.NativePanel.' + $sid), [
 $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\Meltype.NativePanel.Show.' + $sid))
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Meltype 1.1.2-rc.1 · Windows IME'
-$form.ClientSize = [Drawing.Size]::new(600, 646)
-$form.MinimumSize = [Drawing.Size]::new(616, 685)
+$form.Text = 'Meltype 1.1.2-rc.2 · Windows IME'
+$form.ClientSize = [Drawing.Size]::new(600, 690)
+$form.MinimumSize = [Drawing.Size]::new(616, 729)
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = [Drawing.Color]::White
 $form.Font = [Drawing.Font]::new('Yu Gothic UI', 10)
@@ -35,7 +35,7 @@ try { $form.Icon = [Drawing.Icon]::FromHandle($largeIcon).Clone() }
 finally { [NativeBrandIcon]::DestroyIcon($largeIcon) | Out-Null; [NativeBrandIcon]::DestroyIcon($smallIcon) | Out-Null }
 $layout = [Windows.Forms.TableLayoutPanel]::new()
 $layout.Dock = 'Fill'; $layout.Padding = [Windows.Forms.Padding]::new(24)
-$layout.ColumnCount = 2; $layout.RowCount = 12
+$layout.ColumnCount = 2; $layout.RowCount = 13
 foreach ($n in 0..1) { $layout.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,50)) | Out-Null }
 $form.Controls.Add($layout)
 function Add-Label([string]$Text, [int]$Row, [int]$Height = 34) {
@@ -144,7 +144,7 @@ function Open-NativeSnippets {
 }
 $snippetsButton=[Windows.Forms.Button]::new();$snippetsButton.Text='定型文を登録・管理';$snippetsButton.AutoSize=$true
 $snippetsButton.Add_Click({Open-NativeSnippets});$footer.Controls.Add($snippetsButton)
-$layout.Controls.Add($footer,0,10); $layout.SetColumnSpan($footer,2)
+$layout.Controls.Add($footer,0,11); $layout.SetColumnSpan($footer,2)
 $layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,42)) | Out-Null
 foreach ($item in @(@('Googleの設定','Settings'),@('バックアップ','Backup'))) {
     $button = [Windows.Forms.Button]::new(); $button.Text = $item[0]; $button.AutoSize = $true; $operation = $item[1]
@@ -199,7 +199,22 @@ function Refresh-NativeLearningState {
     $learningButton.Text=if($current.LearningEnabled){'学習を停止'}else{'学習を再開'}
 }
 Refresh-NativeLearningState
-$message = Add-Label '画面を閉じると、タスクトレイに格納します。' 11 52
+$features=[Windows.Forms.FlowLayoutPanel]::new();$features.Dock='Fill'
+$layout.Controls.Add($features,0,10);$layout.SetColumnSpan($features,2)
+$layout.RowStyles.Insert(10,[Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,44))
+$directToggle=[Windows.Forms.CheckBox]::new();$directToggle.Text='英語モードでもローマ字を検知';$directToggle.AutoSize=$true;$directToggle.Margin=[Windows.Forms.Padding]::new(8,10,12,4)
+$tabToggle=[Windows.Forms.CheckBox]::new();$tabToggle.Text='Tabで変換';$tabToggle.AutoSize=$true;$tabToggle.Margin=[Windows.Forms.Padding]::new(8,10,4,4)
+$directToggle.Checked=$preferences.DirectModeAutoDetect;$tabToggle.Checked=$preferences.TabConversion
+$saveFeatures={
+    try {
+        $current=Get-NativeInputPreferences
+        Save-NativeInputPreferences $current.Comma $current.Period $current.LearningEnabled -DirectModeAutoDetect $directToggle.Checked -TabConversion $tabToggle.Checked
+        $message.Text='入力設定を保存しました。次の入力から反映します。'
+    } catch { Show-NativeGuiError ($_ | Out-String) }
+}
+$directToggle.Add_CheckedChanged($saveFeatures);$tabToggle.Add_CheckedChanged($saveFeatures)
+$features.Controls.Add($directToggle);$features.Controls.Add($tabToggle)
+$message = Add-Label '画面を閉じると、タスクトレイに格納します。' 12 52
 $message.ForeColor = [Drawing.Color]::DimGray
 $icon = [Windows.Forms.NotifyIcon]::new(); $icon.Icon = $form.Icon; $icon.Text = 'Meltype'; $icon.Visible = -not [bool]$RenderTo
 $menu = [Windows.Forms.ContextMenuStrip]::new()

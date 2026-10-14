@@ -306,6 +306,12 @@ int main(int argc, char** argv) {
       Expect(registerMachine()==E_ACCESSDENIED && unregisterMachine()==E_ACCESSDENIED, "non-protected DLL cannot change machine registration");
       ITfTextInputProcessor* service = nullptr;
       Check(create(&service), "create native service");
+      const bool features = argc > 4 && std::string(argv[3]) == "--features";
+      if (features) {
+        auto setPipe = Export<void (WINAPI*)(ITfTextInputProcessor*, const WCHAR*)>(library, "MeltypeSetPipeForTest");
+        Expect(setPipe != nullptr, "isolated feature pipe export");
+        std::string name(argv[4]); std::wstring pipe(name.begin(), name.end()); setPipe(service, pipe.c_str());
+      }
       auto protectedScope = Export<BOOL (WINAPI*)(InputScope)>(library, "MeltypeProtectedInputScopeForTest");
       Expect(protectedScope != nullptr, "protected input scope export exists");
       for (auto scope : {IS_PASSWORD, IS_NUMERIC_PASSWORD, IS_NUMERIC_PIN, IS_ALPHANUMERIC_PIN, IS_ALPHANUMERIC_PIN_SET, IS_PRIVATE}) {
@@ -337,6 +343,87 @@ int main(int argc, char** argv) {
       extended->Release();
       ITfKeyEventSink* keys = nullptr;
       Check(service->QueryInterface(IID_ITfKeyEventSink, reinterpret_cast<void**>(&keys)), "native key sink");
+      if (features) {
+        {
+        Fixture f(thread, client); Check(thread->SetFocus(f.manager), "feature focus");
+        auto preferences = [&](bool direct, bool tab) {
+          Expect(argc>5,"feature fixture directory");
+          std::ofstream file(std::string(argv[5])+"/input-preferences.json");
+          file << "{\"LearningEnabled\":false,\"DirectModeAutoDetect\":" << (direct?"true":"false") << ",\"TabConversion\":" << (tab?"true":"false") << "}";
+        };
+        auto select = [&](LONG start, LONG end) { f.document->start=start;f.document->end=end;Check(f.document->sink->OnSelectionChange(), "application selection notification"); };
+        auto reset = [&](std::wstring text, LONG start, LONG end) {
+          LONG old=static_cast<LONG>(f.document->text.size());f.document->text=std::move(text);
+          TS_TEXTCHANGE change{0,old,static_cast<LONG>(f.document->text.size())};Check(f.document->sink->OnTextChange(0,&change),"application text notification");select(start,end);
+        };
+        auto key = [&](int vk, bool mayReplay = false) {
+          BOOL eaten = FALSE; Check(keys->OnTestKeyDown(f.context, vk, 0, &eaten), "feature test key");
+          if (!eaten) std::fprintf(stderr, "feature ineligible vk=0x%02x textLength=%zu caret=%ld/%ld\n", vk, f.document->text.size(), f.document->start, f.document->end);
+          Expect(eaten, "feature key eligible"); Check(keys->OnKeyDown(f.context, vk, 0, &eaten), "feature key down");
+          if (!eaten) {
+            Expect(mayReplay, "feature key consumed");
+            WCHAR c = vk >= 'A' && vk <= 'Z' ? static_cast<WCHAR>(vk - 'A' + 'a') : vk == VK_SPACE ? L' ' : 0;
+            if (c) {
+              // A passed key is edited by the application itself, without a TIP composition.
+              LONG start=f.document->start,end=f.document->end;
+              f.document->text.replace(start,end-start,1,c);f.document->start=f.document->end=start+1;
+              TS_TEXTCHANGE change{start,end,start+1};Check(f.document->sink->OnTextChange(0,&change),"application replay text");Check(f.document->sink->OnSelectionChange(),"application replay selection");
+            }
+          } else Check(keys->OnKeyUp(f.context, vk, 0, &eaten), "feature key up");
+        };
+        key(VK_KANJI);
+        preferences(false,true);BOOL detection=TRUE;Check(keys->OnTestKeyDown(f.context,'K',0,&detection),"disabled direct detection");Expect(!detection,"direct switch off passes letters without broker conversion");preferences(true,true);
+        key('K', true); Expect(f.document->text == L"prefix ksuffix", "undecided direct letter displays immediately");
+        // Moving the caret must discard held letters, even if the old letters remain in the document.
+        select(0,0);
+        key('X', true); Expect(f.document->text==L"xprefix ksuffix", "caret movement keeps previously passed letters"); key(VK_IME_ON);
+        reset(L"prefix suffix",7,7);
+        key(VK_IME_OFF);f.document->accept=false;
+        for(char c:std::string("nihongo"))key(c-'a'+'A',true);
+        Expect(f.document->text==L"prefix nihongosuffix","application rejection preserves all direct letters");
+        f.document->accept=true;key(VK_IME_ON);reset(L"prefix suffix",7,7);
+        key(VK_IME_OFF);
+        for (char c : std::string("nihongo")) key(c-'a'+'A', true);
+        key(VK_RETURN);
+        Expect(f.document->text == L"prefix 日本語suffix", "direct romaji becomes Japanese without duplicated or deleted surrounding text");
+        Expect(f.document->starts==f.document->finishes, "direct conversion completes composition");
+        ITfLangBarItemButton* mode=nullptr; Check(service->QueryInterface(IID_ITfLangBarItemButton,reinterpret_cast<void**>(&mode)), "feature mode");
+        BSTR label=nullptr; Check(mode->GetText(&label), "detected mode label"); Expect(std::wstring(label)==L"自動", "detection updates mode"); SysFreeString(label); mode->Release();
+        key(VK_IME_OFF); for(char c:std::string("hello")) key(c-'a'+'A',true); key(VK_SPACE,true);
+        Expect(f.document->text == L"prefix 日本語hello suffix", "English remains direct"); key(VK_IME_ON);
+        std::puts("PASS: direct replay, caret movement, romaji detection, English retention and taskbar mode");
+        reset(L"prefix にほんごsuffix",7,11);
+        key(VK_CONVERT);
+        if (f.document->text!=L"prefix 日本語suffix") { std::fprintf(stderr,"reconverted:");for(auto c:f.document->text)std::fprintf(stderr," %04x",static_cast<unsigned>(c));std::fprintf(stderr,"\n"); }
+        Expect(f.document->text==L"prefix 日本語suffix", "kana selection reconverts in place");
+        key(VK_ESCAPE);
+        Expect(f.document->text==L"prefix にほんごsuffix", "reconversion cancellation restores selected text");
+        select(7,11);
+        key(VK_CONVERT); key(VK_RETURN); Expect(f.document->text==L"prefix 日本語suffix", "reconversion commit stays within selection");
+        select(7,10);
+        key(VK_CONVERT); key(VK_RETURN); Expect(f.document->text==L"prefix 日本語suffix", "kanji selection gets Microsoft reverse reading");
+        reset(L"prefix nihongosuffix",7,14);
+        key(VK_CONVERT); key(VK_RETURN); Expect(f.document->text==L"prefix 日本語suffix", "romaji selection uses shared conversion");
+        std::puts("PASS: kana, kanji and romaji reconversion; Enter and Escape preserve surrounding text");
+        select(10,10);
+        BOOL eligible=TRUE; Check(keys->OnTestKeyDown(f.context,VK_TAB,0,&eligible),"idle Tab"); Expect(!eligible,"idle Tab passes to application");
+        for(char c:std::string("kyouhaiitenki")) key(c-'a'+'A');
+        auto finishedBeforeTab=f.document->finishes;
+        key(VK_TAB);auto firstCandidate=f.document->text;
+        Expect(firstCandidate.find(L"今日")!=std::wstring::npos&&firstCandidate.find(L"天気")!=std::wstring::npos,"Tab starts Japanese conversion");
+        key(VK_TAB);auto nextCandidate=f.document->text;Expect(nextCandidate!=firstCandidate,"second Tab cycles conversion candidates");
+        key(VK_RETURN);Expect(f.document->text==nextCandidate,"Enter commits the candidate selected by Tab");
+        Expect(f.document->finishes==finishedBeforeTab+1,"Tab keeps conversion active; only Enter commits");
+        Expect(f.document->text.find(L'\t')==std::wstring::npos,"no literal Tab in converted document");
+        preferences(true,false);for(char c:std::string("kyouhaiitenki")) key(c-'a'+'A');key(VK_TAB,true);
+        Expect(f.document->starts==f.document->finishes,"disabled Tab conversion commits preedit and passes Tab to application");preferences(true,true);
+        f.document->readOnly=true; Check(keys->OnTestKeyDown(f.context,VK_CONVERT,0,&eligible),"protected reconversion"); Expect(!eligible,"read-only selection never reconverts");
+        f.document->readOnly=false;
+        std::puts("PASS: Tab conversion/candidate cycling, disabled Tab/direct settings, idle Tab pass-through and read-only protection");
+        }
+        Check(service->Deactivate(), "feature deactivate"); keys->Release(); service->Release(); thread->Deactivate();thread->Release();thread=nullptr;
+        Expect(canUnload()==S_OK,"feature COM references released");FreeLibrary(library);CoUninitialize();return 0;
+      }
       {
         Fixture f(thread, client);
         Check(thread->SetFocus(f.manager), "focus editable mode test context");

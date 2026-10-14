@@ -7,8 +7,8 @@ namespace Meltype.Composition;
 public sealed class NativeEngineConverter : IKanjiConverter, ILearningConverter, IDisposable
 {
     private readonly GoogleImeConverter? _google;
-    private readonly BlockingCollection<Action>? _work;
-    private readonly Thread? _thread;
+    private BlockingCollection<Action>? _work;
+    private Thread? _thread;
     private MsImeKanjiConverter? _microsoft;
     private WinRtCandidates? _candidates;
 
@@ -19,6 +19,11 @@ public sealed class NativeEngineConverter : IKanjiConverter, ILearningConverter,
             _google = new GoogleImeConverter(learning) { LearningEnabled = learningEnabled };
             return;
         }
+        EnsureMicrosoft();
+    }
+    private void EnsureMicrosoft()
+    {
+        if (_work is not null) return;
         _work = new BlockingCollection<Action>();
         _thread = new Thread(() =>
         {
@@ -46,6 +51,13 @@ public sealed class NativeEngineConverter : IKanjiConverter, ILearningConverter,
         ? _google.ConvertClauses(reading, context) : OnMicrosoft(() => _microsoft!.ConvertClauses(reading, context));
     public IReadOnlyList<string> Candidates(string reading) => _google is not null
         ? _google.Candidates(reading) : OnMicrosoft(() => _candidates!.Get(reading));
+    public string? Reading(string text)
+    {
+        if (text.All(c => c is >= 'ぁ' and <= 'ゖ' or >= 'ァ' and <= 'ヶ' or 'ー'))
+            return new string(text.Select(c => c is >= 'ァ' and <= 'ヶ' ? (char)(c - 0x60) : c).ToArray());
+        EnsureMicrosoft();
+        return OnMicrosoft(() => _microsoft!.Reading(text));
+    }
     public void Learn(string? context, IReadOnlyList<ConversionClause> clauses) => _google?.Learn(context, clauses);
     public void Dispose()
     {

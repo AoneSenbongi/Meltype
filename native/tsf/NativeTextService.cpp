@@ -170,6 +170,7 @@ bool Transfer(HANDLE pipe, void* data, DWORD size, bool write) {
 struct Action { int kind; std::wstring text; };
 struct Reply {
   bool replay = false, converting = false;
+  bool switchToJapanese = false, directDetection = false;
   int selected = -1;
   std::vector<Action> actions;
   std::vector<std::wstring> candidates;
@@ -181,6 +182,7 @@ class Channel {
   HANDLE pipe = INVALID_HANDLE_VALUE;
   ~Channel() { Close(); }
   void Close() { if (pipe != INVALID_HANDLE_VALUE) { CloseHandle(pipe); pipe = INVALID_HANDLE_VALUE; } }
+  void SetTestPipe(std::wstring name) { Close(); testPipe_ = std::move(name); }
   bool Connect() {
     if (pipe != INVALID_HANDLE_VALUE) return true;
     auto name = testPipe_.empty() ? PipeName() : testPipe_;
@@ -191,15 +193,17 @@ class Channel {
     if (!TrustedServer(pipe)) { Close(); return false; }
     return true;
   }
-  bool Call(int operation, int vk, int scan, WCHAR character, int flags, Reply& reply) {
+  bool Call(int operation, int vk, int scan, WCHAR character, int flags, Reply& reply, const std::wstring& extra = {}) {
     if (!Connect()) return false;
     std::array<BYTE, 32> request{};
     int fields[]{1, operation, vk, scan, static_cast<int>(character), flags};
+    if (operation >= 2) { if (extra.size() > 4096) return false; fields[4] = static_cast<int>(extra.size()); }
     std::memcpy(request.data(), fields, sizeof(fields));
     auto time = GetTickCount64();
     std::memcpy(request.data() + 24, &time, sizeof(time));
     int size = 0;
     if (!Transfer(pipe, request.data(), static_cast<DWORD>(request.size()), true) ||
+        (operation >= 2 && !extra.empty() && !Transfer(pipe, const_cast<WCHAR*>(extra.data()), static_cast<DWORD>(extra.size() * 2), true)) ||
         !Transfer(pipe, &size, sizeof(size), false) || size < 20 || size > 1048576) { Close(); return false; }
     std::vector<BYTE> bytes(size);
     if (!Transfer(pipe, bytes.data(), size, false)) { Close(); return false; }
@@ -219,13 +223,14 @@ class Channel {
     if (!integer(replay) || !integer(count) || count < 0 || count > 256) { Close(); return false; }
     for (int i = 0; i < count; ++i) {
       Action action;
-      if (!integer(action.kind) || !text(action.text) || action.kind < 0 || action.kind > 2) { Close(); return false; }
+      if (!integer(action.kind) || !text(action.text) || action.kind < 0 || action.kind > 3) { Close(); return false; }
       reply.actions.push_back(std::move(action));
     }
     if (!integer(converting) || !integer(reply.selected) || !integer(count) || count < 0 || count > 256) { Close(); return false; }
     for (int i = 0; i < count; ++i) { std::wstring value; if (!text(value)) { Close(); return false; } reply.candidates.push_back(std::move(value)); }
     if (offset != bytes.size()) { Close(); return false; }
-    reply.replay = replay != 0; reply.converting = converting != 0;
+    reply.replay = (replay & 1) != 0; reply.switchToJapanese = (replay & 2) != 0;
+    reply.directDetection = (replay & 4) != 0; reply.converting = converting != 0;
     return true;
   }
  private:
@@ -251,6 +256,7 @@ class Edit final : public ITfEditSession {
 
 class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEventSink, public ITfThreadMgrEventSink, public ITfLangBarItemButton, public ITfSource, public ITfCompartmentEventSink, public ITfTextEditSink {
  public:
+  void SetTestPipe(const WCHAR* name) { if (testing_ && name) channel_.SetTestPipe(name); }
   explicit TextService(bool testing = false) : testing_(testing) { InterlockedIncrement(&liveObjects); }
   ~TextService() { Deactivate(); composition_->Release(); InterlockedDecrement(&liveObjects); }
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** value) override {
@@ -489,6 +495,8 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   TfClientId client_ = 0;
   DWORD focusCookie_ = TF_INVALID_COOKIE;
   Ptr<ITfCompartment> openClose_;
+  LONG directCaret_ = -1;
+  LONG directReadPosition_ = -1;
   DWORD openCookie_ = TF_INVALID_COOKIE;
   meltype::NativeComposition* composition_ = new meltype::NativeComposition;
   Channel channel_;
@@ -571,9 +579,16 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     }
     if (!ContextAllowsInput(context, true)) return false;
     if (Toggle(vk)) return true;
-    if (!japanese_) return false;
+    if (!japanese_) {
+      if (!testing_ && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0 || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0)) return false;
+      Reply status; WCHAR path[MAX_PATH]{}; GetModuleFileNameW(nullptr, path, MAX_PATH);
+      std::wstring process(path); auto split = process.find_last_of(L"\\/"); if (split != std::wstring::npos) process.erase(0, split + 1);
+      return channel_.Call(2, 0, 0, 0, 0, status, process) && status.directDetection &&
+          ((vk >= 'A' && vk <= 'Z') || vk == VK_SPACE || vk == VK_OEM_MINUS || vk == VK_OEM_PERIOD || vk == VK_OEM_COMMA);
+    }
     if (composition_->Active()) return true;
     if (!testing_ && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0 || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0)) return false;
+    if (vk == VK_CONVERT) return true;
     return (vk >= 'A' && vk <= 'Z') ||
       vk == VK_OEM_1 || vk == VK_OEM_PLUS ||
       ((vk == VK_OEM_4 || vk == VK_OEM_6) && (testing_ || GetKeyState(VK_SHIFT) >= 0)) ||
@@ -657,8 +672,41 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     int scan = static_cast<int>((lparam >> 16) & 0xff);
     int count = up ? 0 : ToUnicodeEx(static_cast<UINT>(vk), scan, keyboard, translated, 8, 4, GetKeyboardLayout(0));
     WCHAR character = count == 1 ? translated[0] : 0;
+    std::wstring selectionText, beforeText; LONG position = -1;
+    bool reconvert = !up && vk == VK_CONVERT && !composition_->Active();
+    if (!up && (!japanese_ || reconvert)) {
+      auto* reader = new Edit([&](TfEditCookie cookie) {
+        TF_SELECTION selection{}; ULONG fetched = 0;
+        HRESULT hr = context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &fetched);
+        Ptr<ITfRange> range; range.p = selection.range;
+        if (FAILED(hr) || fetched != 1 || !range.p) return E_FAIL;
+        BOOL empty = FALSE; if (FAILED(range->IsEmpty(cookie, &empty))) return E_FAIL;
+        if (reconvert) {
+          WCHAR buffer[4097]{}; ULONG read = 0;
+          if (empty || FAILED(range->GetText(cookie, 0, buffer, 4097, &read)) || read > 4096) return E_FAIL;
+          selectionText.assign(buffer, read);
+        } else {
+          if (!empty) return E_FAIL; // never delete across a selected range
+          Ptr<ITfRangeACP> acp; LONG length = 0;
+          if (FAILED(range->QueryInterface(IID_ITfRangeACP, reinterpret_cast<void**>(&acp.p))) || FAILED(acp->GetExtent(&position, &length))) return E_FAIL;
+          LONG shifted = 0; if (FAILED(range->ShiftStart(cookie, -256, &shifted, nullptr))) return E_FAIL;
+          WCHAR buffer[256]{}; ULONG read = 0;
+          if (FAILED(range->GetText(cookie, 0, buffer, 256, &read))) return E_FAIL;
+          beforeText.assign(buffer, read);
+        }
+        return S_OK;
+      });
+      HRESULT result = E_FAIL; HRESULT hr = context->RequestEditSession(client_, reader, TF_ES_SYNC | TF_ES_READ, &result); reader->Release();
+      if (FAILED(hr) || FAILED(result)) { channel_.Close(); directCaret_ = -1; return S_OK; }
+      if (!reconvert) {
+        directReadPosition_ = position;
+        Reply status;
+        bool moved = directCaret_ >= 0 && position != directCaret_;
+        if (!channel_.Call(4, 0, 0, 0, moved ? 16 : 0, status, beforeText)) return S_OK;
+      }
+    }
     Reply reply;
-    if (!channel_.Call(0, static_cast<int>(vk), scan, character, (up ? 1 : 0) | (keyboard[VK_SHIFT] & 0x80 ? 2 : 0) | (snippetBoundary_ ? 4 : 0), reply)) {
+    if (!channel_.Call(reconvert ? 3 : 0, static_cast<int>(vk), scan, character, (up ? 1 : 0) | (keyboard[VK_SHIFT] & 0x80 ? 2 : 0) | (snippetBoundary_ ? 4 : 0) | (!japanese_ ? 8 : 0), reply, selectionText)) {
       FinishCurrent(); captured_.fill(false); return S_OK;
     }
     auto* edit = new Edit([&, reply](TfEditCookie cookie) { return Apply(context, cookie, reply); });
@@ -666,21 +714,55 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     HRESULT hr = context->RequestEditSession(client_, edit, TF_ES_SYNC | TF_ES_READWRITE, &status);
     edit->Release();
     if (FAILED(hr) || FAILED(status)) { channel_.Close(); FinishCurrent(); captured_.fill(false); return S_OK; }
+    if (reply.switchToJapanese) { SetInputModeAfterDetection(); directCaret_ = -1; }
+    else if (!up && !japanese_) directCaret_ = position >= 0 && reply.replay && character >= L' ' ? position + 1 : -1;
     *eaten = !reply.replay;
     captured_[vk] = !up && *eaten;
     return S_OK;
   }
   HRESULT Apply(ITfContext* context, TfEditCookie cookie, const Reply& reply) {
-    for (const auto& action : reply.actions) {
+    for (size_t index = 0; index < reply.actions.size(); ++index) {
+      const auto& action = reply.actions[index];
       HRESULT hr = E_INVALIDARG;
       if (action.kind == 0) { hr = composition_->Update(context, cookie, action.text); preedit_ = action.text; }
       else if (action.kind == 1) { hr = composition_->Commit(context, cookie, action.text); preedit_.clear(); }
       else if (action.kind == 2) { hr = composition_->Cancel(context, cookie); preedit_.clear(); }
+      else if (action.kind == 3) {
+        size_t replacement=index+1;
+        while(replacement<reply.actions.size()&&reply.actions[replacement].kind==2)++replacement;
+        if (composition_->Active() || action.text.empty() || action.text.size() > 256 || replacement >= reply.actions.size() || reply.actions[replacement].kind != 0) return E_ABORT;
+        TF_SELECTION selection{}; ULONG fetched = 0;
+        hr = context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &fetched);
+        Ptr<ITfRange> range; range.p = selection.range; BOOL empty = FALSE;
+        if (FAILED(hr) || fetched != 1 || !range.p || FAILED(range->IsEmpty(cookie, &empty)) || !empty) return E_ABORT;
+        Ptr<ITfRangeACP> acp;LONG start=0,length=0;
+        if (FAILED(range->QueryInterface(IID_ITfRangeACP,reinterpret_cast<void**>(&acp.p))) || FAILED(acp->GetExtent(&start,&length)) || start!=directReadPosition_) return E_ABORT;
+        Ptr<ITfRange> originalCaret;hr=range->Clone(&originalCaret.p);if(FAILED(hr))return hr;
+        LONG shifted = 0; hr = range->ShiftStart(cookie, -static_cast<LONG>(action.text.size()), &shifted, nullptr);
+        if (FAILED(hr) || shifted != -static_cast<LONG>(action.text.size())) return E_ABORT;
+        WCHAR buffer[256]{}; ULONG read = 0; hr = range->GetText(cookie, 0, buffer, 256, &read);
+        if (FAILED(hr) || std::wstring(buffer, read) != action.text) return E_ABORT;
+        // Replace as a composition only after the application accepts it. Deleting
+        // the old letters first would lose them when StartComposition is rejected.
+        TF_SELECTION replace{range.p,{TF_AE_NONE,FALSE}};hr=context->SetSelection(cookie,1,&replace);
+        if (SUCCEEDED(hr)) hr=composition_->Update(context,cookie,reply.actions[replacement].text);
+        if (FAILED(hr)) {
+          if(composition_->Active())composition_->Cancel(context,cookie);
+          TF_SELECTION restore{originalCaret.p,{TF_AE_NONE,FALSE}};context->SetSelection(cookie,1,&restore);return hr;
+        }
+        preedit_=reply.actions[replacement].text;index=replacement;
+      }
       if (FAILED(hr)) return hr;
     }
     visible_ = reply;
     UpdatePopup(context, cookie);
     return S_OK;
+  }
+  void SetInputModeAfterDetection() {
+    // Keep the connection and the composition just created by the broker.
+    japanese_ = true;
+    if (openClose_.p) { VARIANT value; VariantInit(&value); value.vt = VT_I4; value.lVal = 1; openClose_->SetValue(client_, &value); }
+    NotifyInputMode();
   }
   void FinishCurrent() {
     if (popup_) ShowWindow(popup_, SW_HIDE);
@@ -776,6 +858,9 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) { if (r
 extern "C" __declspec(dllexport) HRESULT WINAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void** value) { if (clsid != CLSID_MeltypeNative) return CLASS_E_CLASSNOTAVAILABLE; auto* factory = new(std::nothrow) Factory; if (!factory) return E_OUTOFMEMORY; auto hr = factory->QueryInterface(iid, value); factory->Release(); return hr; }
 extern "C" __declspec(dllexport) HRESULT WINAPI DllCanUnloadNow() { return liveObjects == 0 ? S_OK : S_FALSE; }
 extern "C" __declspec(dllexport) HRESULT WINAPI CreateMeltypeNativeForTest(ITfTextInputProcessor** service) { if (!service) return E_POINTER; *service = new(std::nothrow) TextService(true); return *service ? S_OK : E_OUTOFMEMORY; }
+extern "C" __declspec(dllexport) void WINAPI MeltypeSetPipeForTest(ITfTextInputProcessor* service, const WCHAR* name) {
+  if (service) static_cast<TextService*>(service)->SetTestPipe(name);
+}
 extern "C" __declspec(dllexport) BOOL WINAPI MeltypeProtectedInputScopeForTest(InputScope scope) { return ProtectedInputScope(scope); }
 extern "C" __declspec(dllexport) BOOL WINAPI MeltypeTrustedServerForTest(HANDLE pipe) { return TrustedServer(pipe); }
 extern "C" __declspec(dllexport) BOOL WINAPI MeltypeSearchConversionForTest(const WCHAR* pipeName) {

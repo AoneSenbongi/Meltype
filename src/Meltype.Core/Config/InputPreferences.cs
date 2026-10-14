@@ -9,6 +9,8 @@ public sealed record InputPreferences
     public string Period { get; init; } = "．";
     public bool LearningEnabled { get; init; } = true;
     public string ConversionEngine { get; init; } = "Google";
+    public bool DirectModeAutoDetect { get; init; } = true;
+    public bool TabConversion { get; init; } = true;
     public InputPreferences Validate() => this with
     {
         Comma = Comma is "、" or "，" or "," ? Comma : "，",

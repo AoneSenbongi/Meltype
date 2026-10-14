@@ -18,13 +18,17 @@
 
 ## PC適用と配布物
 
-2026年10月14日に稼働登録を確認した。NativeVersionは1.1.1-rc.2、BaseVersionは1.2.1、登録パッケージはC:/Program Files/MeltypeNativeGoogle/package-358a25b2469c409ea1f7c124667b3274。稼働管理先はC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-status。
+2026年10月14日に稼働登録を確認した。利用者の再適用指示と通常の管理者確認後、NativeVersionは1.1.2-rc.1、BaseVersionは1.2.1、登録パッケージはC:/Program Files/MeltypeNativeGoogle/package-226335951b214906becfbfa57598476a。稼働管理先はC:/Users/AoneSenbongi/Documents/Codex/2026-10-06/https-x-com-yksr-melt-status。
 
 候補1.1.2-rc.1の配布EXEを作成・検証した。対応ソースはd0803f552970855c023d7ec0f94102eea3fc0347。EXEはdistributions/Meltype-Native-Google-1.1.2-rc.1-Setup.exe、SHA256は185E8BF3A03337BAB98BA130CBA94D00377B4B03E4E33C808B2D0C826165746F。EXEの製品/ファイル番号、管理対象6ファイル、同梱主要ソース、ハッシュを照合した。証跡はexperimental-build/upstream-9a25e7c-verified.json。公開済み1.1.1の配布物・タグ・Releaseは変更していない。
 
-2026年10月14日09:10JSTにUpdate-NativeIme.ps1を起動した。辞書・履歴のバックアップはbackups/20261014-091004、入力設定の追加退避はbackups/upstream-9a25e7c-input-preferences。管理者確認が取り消され、適用は未完了。既存の復旧手順で1.1.1-rc.2の登録とbroker起動へ戻した。旧packageの6/6ファイルと導入済みmanifestの一致、brokerプロセスと接続準備、導入済みDLLの入力モード試験を確認した。入力設定は不変、データ11ファイル中8ファイルのハッシュは一致し、boundary.db・cform.db・segment.dbは使用中で照合不可。バックアップ11/11ファイルのハッシュは一致。証跡はexperimental-build/upstream-9a25e7c-apply.log、applied.json、restored.json、restored-mode.log。自動再試行は行わない。
+2026年10月14日の初回適用は管理者確認の取消で旧版へ復旧した。利用者の明示的な再適用指示を受け、15:36JSTにUpdate-NativeIme.ps1を一度再実行し、通常の管理者確認後に適用が完了した。管理者確認の回避は行っていない。
 
-候補はローカルのビルド・配布物検証まで完了したが、PC適用成功条件を満たしていないため公開候補の完了扱いにしない。再適用は利用者の指示を待つ。
+再適用前バックアップはbackups/20261014-153655、入力設定の追加退避はbackups/upstream-9a25e7c-retry-input-preferences。登録版1.1.2-rc.1、配置6/6ファイルとmanifest、管理スクリプト5/5の一致を確認した。新packageを指定したbrokerプロセスと接続準備、導入済みDLLの入力モード試験を確認し、TSFのGetActiveProfileでNativeの日本語プロファイルが有効なことも確認した。
+
+入力設定は不変。データ11ファイル中7ファイルのハッシュは一致し、phrases.txtは976行から977行へ1行追加、既存行の削除は0。boundary.db・cform.db・segment.dbは使用中で照合不可。バックアップ11/11ファイルのハッシュは一致した。証跡はexperimental-build/upstream-9a25e7c-retry-apply.log、retry-applied.json、retry-check.log、retry-active-profile.log、retry-phrases.json。
+
+候補はローカルのビルド、配布物検証、PC適用と適用後確認まで完了した。外部公開は今回の具体的な内容への確認待ち。入力アプリは新しいDLLを読むため開き直す必要がある。
 
 ## 既知の制限と残作業
 

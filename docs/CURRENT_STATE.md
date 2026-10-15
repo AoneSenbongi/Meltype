@@ -2,13 +2,15 @@
 
 ## 目的と作業場所
 
-現在は本家mainの9a25e7cから45e14f8までの26コミットをWindows Native版へ取り込んでいる。候補は1.1.2-rc.3。本家ReleaseとBaseVersionは1.2.1。取り込み仕様と進行状況はdocs/UPSTREAM_45E14F8.md。外部公開は今回の内容への確認待ち。
+本家mainの9a25e7cから45e14f8までの26コミットをWindows Native版へ取り込み、候補1.1.2-rc.3の検証と配布物構築を完了した。PC適用はWindowsの管理者確認待ち。本家ReleaseとBaseVersionは1.2.1。取り込み仕様と進行状況はdocs/UPSTREAM_45E14F8.md。外部公開は今回の内容への確認待ち。
 
 直前の候補1.1.2-rc.2は、利用者が依頼した直接入力のローマ字判定・選択範囲再変換・Tab変換を実装し、2026年10月15日の利用者の指示によりPCへ適用済み。この3機能と辞書・設定を保持する。Androidは対象外。
 
 2026年10月15日、45e14f8までの取り込みを実装し、共通・Windows494/494、品質1337/1337、Native18/18、Google13/13、Microsoft2/2が通過した。独自TSFのprivate欄の入力と学習抑止、通常欄の学習再開、password/PIN保護、打鍵ローマ字の候補上部表示を追加した。直接入力判定・再変換・Tab変換、候補配置、予測・定型文、検索AppContainer入力、通信32枠、設定、管理画面、更新失敗時の復旧とインストーラー試験も通過した。
 
-対応ソースadf81c7ce23ca4bbb92042f2fa60d3967f0dfefeからセットアップEXEと.sha256を構築・照合した。EXEはdistributions/Meltype-Native-Google-1.1.2-rc.3-Setup.exe、SHA256は6F09BA2522C5C4B262C63C4254E0AC2E0B65CA7A277C05A051CED802BED5AFDC。製品・ファイル番号、配置対象6ファイルとmanifest、同梱主要ソース18点を確認した。ソースは改行コードを正規化して比較した。今回候補のPC適用は未完了。証跡はexperimental-build/upstream-45e14f8-*。
+対応ソースadf81c7ce23ca4bbb92042f2fa60d3967f0dfefeからセットアップEXEと.sha256を構築・照合した。EXEはdistributions/Meltype-Native-Google-1.1.2-rc.3-Setup.exe、SHA256は6F09BA2522C5C4B262C63C4254E0AC2E0B65CA7A277C05A051CED802BED5AFDC。製品・ファイル番号、配置対象6ファイルとmanifest、同梱主要ソース18点を確認した。ソースは改行コードを正規化して比較した。証跡はexperimental-build/upstream-45e14f8-*。
+
+2026年10月15日09:18JST、標準Update-NativeIme.ps1を1回実行した。辞書・設定11ファイルをbackups/20261015-091837へ退避し、退避ハッシュ11/11一致を確認した。入力設定はbackups/upstream-45e14f8-preferences-20261015-091835に追加退避し、退避・現在値のハッシュ一致を確認した。09:19JST時点でconsent.exeのPID70440が通常の管理者確認待ち。更新コマンドの実行セッションは66649。管理者確認を回避せず、プロセスを停止・取消していない。登録版は1.1.2-rc.2、旧package-69e97bf1f2f540a5a662ac944ca585a1のまま。アップデータがNative brokerを停止しGoogleプロファイルへ戻した状態で、Native brokerは接続準備なし。PC適用、配置・登録・起動・辞書の適用後確認は未完了。証跡はexperimental-build/upstream-45e14f8-apply.log、apply-status.json。承認後はこの実行の結果を確認してから適用後検証を行い、二重実行しない。
 
 専用ソース作業場所はE:/prog/Meltype/Tools/1.1.1-source、開始コミットは正式1.1.1の86a8ff96b0ce5103f7be8b59fa866d66f488b958。E:/prog/Meltype/Windowsの未コミット作業を編集・取り込んでいない。Android、Mac、Linuxの製品実装は変更していない。別作業の青丸入力モード素材は未取り込み。
 

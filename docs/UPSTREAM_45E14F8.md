@@ -20,4 +20,6 @@ PC適用は標準アップデータとバックアップを使い、通常の管
 
 対応ソースをadf81c7ce23ca4bbb92042f2fa60d3967f0dfefeに固定し、distributions/Meltype-Native-Google-1.1.2-rc.3-Setup.exeと.sha256を構築した。EXEのSHA256は6F09BA2522C5C4B262C63C4254E0AC2E0B65CA7A277C05A051CED802BED5AFDC。製品番号1.1.2-rc.3、ファイル番号1.1.2.0、配置対象6ファイルとmanifest、同梱主要ソース18点、対応ソース番号、SHA256を照合した。同梱ソースはGitの改行変換があるため、UTF-8テキストとしてCRLF/LFを正規化して比較した。バイナリとEXEは生のSHA256で比較した。証跡はexperimental-build/upstream-45e14f8-verified.json。
 
-PC適用は未完了。外部公開は未実施。実アプリの手入力、複数モニター、テーマ切替、32ビットアプリは未確認。Microsoft辞書への学習書き込みは未対応。
+2026年10月15日09:18JST、標準アップデータを1回実行し、通常の管理者確認待ちとなった。データのバックアップはbackups/20261015-091837、11/11ファイルの退避ハッシュが一致した。入力設定の追加退避はbackups/upstream-45e14f8-preferences-20261015-091835で、退避と現在のハッシュが一致した。実行セッション66649、09:19JSTにconsent.exeのPID70440を確認した。管理者確認を回避せず、プロセスを停止・取消していない。登録は旧1.1.2-rc.2、旧package-69e97bf1f2f540a5a662ac944ca585a1のまま。アップデータがNative brokerを停止しGoogleプロファイルへ戻して待機している。証跡はexperimental-build/upstream-45e14f8-apply.log、apply-status.json。
+
+PC適用、配置ファイル・登録・broker起動・辞書と設定の適用後検証は未完了。通常の管理者確認が終わった後、この実行の結果を確認し、成功時のみ検証する。再実行して二重に更新しない。外部公開は未実施。実アプリの手入力、複数モニター、テーマ切替、32ビットアプリは未確認。Microsoft辞書への学習書き込みは未対応。

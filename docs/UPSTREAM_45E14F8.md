@@ -18,4 +18,6 @@ PC適用は標準アップデータとバックアップを使い、通常の管
 
 試験の三者統合時にCompositionTestsの同位置への追加が1件競合した。既存の学習停止・並行フレーズ更新の試験を保持し、本家の感嘆符試験を追加して解消した。製品実装の競合はない。通常.NETビルドの既存nullable警告は3件。SDKは既存のAndroid/dotnetを読み取り利用し、Androidソースを編集していない。
 
-配布物の構築とPC適用は未完了。外部公開は未実施。実アプリの手入力、複数モニター、テーマ切替、32ビットアプリは未確認。Microsoft辞書への学習書き込みは未対応。
+対応ソースをadf81c7ce23ca4bbb92042f2fa60d3967f0dfefeに固定し、distributions/Meltype-Native-Google-1.1.2-rc.3-Setup.exeと.sha256を構築した。EXEのSHA256は6F09BA2522C5C4B262C63C4254E0AC2E0B65CA7A277C05A051CED802BED5AFDC。製品番号1.1.2-rc.3、ファイル番号1.1.2.0、配置対象6ファイルとmanifest、同梱主要ソース18点、対応ソース番号、SHA256を照合した。同梱ソースはGitの改行変換があるため、UTF-8テキストとしてCRLF/LFを正規化して比較した。バイナリとEXEは生のSHA256で比較した。証跡はexperimental-build/upstream-45e14f8-verified.json。
+
+PC適用は未完了。外部公開は未実施。実アプリの手入力、複数モニター、テーマ切替、32ビットアプリは未確認。Microsoft辞書への学習書き込みは未対応。

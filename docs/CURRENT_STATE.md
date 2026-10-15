@@ -6,7 +6,9 @@
 
 直前の候補1.1.2-rc.2は、利用者が依頼した直接入力のローマ字判定・選択範囲再変換・Tab変換を実装し、2026年10月15日の利用者の指示によりPCへ適用済み。この3機能と辞書・設定を保持する。Androidは対象外。
 
-2026年10月15日、45e14f8までの取り込みを実装し、共通・Windows494/494、品質1337/1337、Native18/18、Google13/13、Microsoft2/2が通過した。独自TSFのprivate欄の入力と学習抑止、通常欄の学習再開、password/PIN保護、打鍵ローマ字の候補上部表示を追加した。直接入力判定・再変換・Tab変換、候補配置、予測・定型文、検索AppContainer入力、通信32枠、設定、管理画面、更新失敗時の復旧とインストーラー試験も通過した。配布物の構築と今回候補のPC適用は未完了。証跡はexperimental-build/upstream-45e14f8-*。
+2026年10月15日、45e14f8までの取り込みを実装し、共通・Windows494/494、品質1337/1337、Native18/18、Google13/13、Microsoft2/2が通過した。独自TSFのprivate欄の入力と学習抑止、通常欄の学習再開、password/PIN保護、打鍵ローマ字の候補上部表示を追加した。直接入力判定・再変換・Tab変換、候補配置、予測・定型文、検索AppContainer入力、通信32枠、設定、管理画面、更新失敗時の復旧とインストーラー試験も通過した。
+
+対応ソースadf81c7ce23ca4bbb92042f2fa60d3967f0dfefeからセットアップEXEと.sha256を構築・照合した。EXEはdistributions/Meltype-Native-Google-1.1.2-rc.3-Setup.exe、SHA256は6F09BA2522C5C4B262C63C4254E0AC2E0B65CA7A277C05A051CED802BED5AFDC。製品・ファイル番号、配置対象6ファイルとmanifest、同梱主要ソース18点を確認した。ソースは改行コードを正規化して比較した。今回候補のPC適用は未完了。証跡はexperimental-build/upstream-45e14f8-*。
 
 専用ソース作業場所はE:/prog/Meltype/Tools/1.1.1-source、開始コミットは正式1.1.1の86a8ff96b0ce5103f7be8b59fa866d66f488b958。E:/prog/Meltype/Windowsの未コミット作業を編集・取り込んでいない。Android、Mac、Linuxの製品実装は変更していない。別作業の青丸入力モード素材は未取り込み。
 

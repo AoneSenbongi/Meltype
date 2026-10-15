@@ -6,7 +6,7 @@ $build=Join-Path $root 'experimental-build'
 [Reflection.Assembly]::LoadFrom((Join-Path $build 'Meltype.dll'))|Out-Null
 $fixture=Join-Path $build ('feature-fixture-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $fixture|Out-Null
-# All settings and histories used by this broker are isolated; learning is disabled.
+# Settings/histories are isolated. Learning stays off until the Microsoft-only privacy test.
 [IO.File]::WriteAllText((Join-Path $fixture 'config.json'),'{"directModeAutoDetect":true,"tabConversion":true}')
 $source=[IO.File]::ReadAllText((Join-Path $root 'native/tsf/NativeBroker.cs'))
 $original='private static readonly string DataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Meltype");'

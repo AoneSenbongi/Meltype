@@ -25,6 +25,7 @@ namespace Meltype.Tip;
 ///   {"op":"mode","sid":"…","process":"…","before":"…","passed":37,"ctrl":true} (キャレットが動いた・文字が変わった。入力モードの表示を合わせる)
 /// select の prediction は、予測変換の候補を選んだこと (付けなければ変換の候補)。
 /// key の code は、DLL が toggle・mode を送ること (付けない古い DLL では、コードの入力欄として扱わない)。
+/// key の private は、入力を覚えないように求める入力欄 (InputScope が IS_PRIVATE) であること。次の key まで学習しない。
 /// passed は、DLL がアプリに通したキー (0 はキーなしでキャレットが動いた、-1 は文字が変わっただけ)。key・toggle にも、まだ伝えていなければ付ける。
 /// 応答: {"active":true, "consumed":…, "commits":[…], "view":{…}, "code":…, "english":…} (active が false なら DLL は何もせずにキーを通す)
 /// code はコードの入力欄か、english は次に打つキーがコードの行なので英数のまま通るか (DLL はタスクバーに「A」を出す)。
@@ -516,6 +517,8 @@ internal sealed class TipServer : IDisposable
             case "key":
             {
                 if (root.TryGetProperty("direct", out var direct)) session.Direct = direct.ValueKind == JsonValueKind.True;
+                // 入力を覚えないように求める入力欄 (ブラウザーのシークレット / InPrivate ウィンドウ) では学習しない
+                session.Private = IsTrue(root, "private");
                 var wasDirect = session.Direct;
                 // 前に確定してから、キャレットが動いた (DLL がアプリに通したキー・クリック・別の入力欄): 前の語を確定し直さない
                 if (IsTrue(root, "moved"))

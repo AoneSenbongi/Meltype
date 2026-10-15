@@ -184,7 +184,8 @@ public sealed class UserModel
         }
         catch (Exception ex)
         {
-            try { File.Copy(_path, _path + ".broken", overwrite: true); } catch { }
+            try { File.Copy(_path, _path + ".broken", overwrite: true); }
+            catch (Exception copyEx) { Diagnostics.Log.Warn($"{Path.GetFileName(_path)} を .broken に残せませんでした: {copyEx.Message}"); }
             Diagnostics.Log.Warn($"model.json を読み込めなかったため学習データなしで開始します: {ex.Message}");
         }
     }

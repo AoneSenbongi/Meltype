@@ -42,6 +42,29 @@ struct ModeObserver final : ITfLangBarItemSink {
   }
 };
 
+class Scope final : public ITfInputScope {
+ public:
+  explicit Scope(InputScope scope) : scope_(scope) {}
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** value) override {
+    if (!value) return E_POINTER; *value = nullptr;
+    if (iid != IID_IUnknown && iid != IID_ITfInputScope) return E_NOINTERFACE;
+    *value = static_cast<ITfInputScope*>(this); AddRef(); return S_OK;
+  }
+  ULONG STDMETHODCALLTYPE AddRef() override { return ++refs_; }
+  ULONG STDMETHODCALLTYPE Release() override { ULONG count=--refs_; if (!count) delete this; return count; }
+  HRESULT STDMETHODCALLTYPE GetInputScopes(InputScope** scopes, UINT* count) override {
+    *scopes=static_cast<InputScope*>(CoTaskMemAlloc(sizeof(InputScope))); if (!*scopes) return E_OUTOFMEMORY;
+    **scopes=scope_; *count=1; return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE GetPhrase(BSTR**, UINT*) override { return E_NOTIMPL; }
+  HRESULT STDMETHODCALLTYPE GetRegularExpression(BSTR*) override { return E_NOTIMPL; }
+  HRESULT STDMETHODCALLTYPE GetSRGS(BSTR*) override { return E_NOTIMPL; }
+  HRESULT STDMETHODCALLTYPE GetXML(BSTR*) override { return E_NOTIMPL; }
+ private:
+  ULONG refs_=1;
+  InputScope scope_;
+};
+
 class Document final : public ITextStoreACP, public ITfContextOwnerCompositionSink {
  public:
   std::wstring text;
@@ -52,6 +75,8 @@ class Document final : public ITextStoreACP, public ITfContextOwnerCompositionSi
   unsigned starts = 0, finishes = 0;
   bool accept = true;
   bool readOnly = false;
+  InputScope inputScope = IS_DEFAULT;
+  bool scopeRequested = false;
   explicit Document(std::wstring initial, LONG position) : text(std::move(initial)), start(position), end(position) {}
   ~Document() { if (sink) sink->Release(); }
   HRESULT STDMETHODCALLTYPE QueryInterface(REFIID iid, void** result) override {
@@ -131,11 +156,17 @@ class Document final : public ITextStoreACP, public ITfContextOwnerCompositionSi
     if (a) *a = left; if (b) *b = right; return S_OK;
   }
   HRESULT STDMETHODCALLTYPE InsertEmbeddedAtSelection(DWORD, IDataObject*, LONG*, LONG*, TS_TEXTCHANGE*) override { return E_NOTIMPL; }
-  HRESULT STDMETHODCALLTYPE RequestSupportedAttrs(DWORD, ULONG, const TS_ATTRID*) override { return S_OK; }
-  HRESULT STDMETHODCALLTYPE RequestAttrsAtPosition(LONG, ULONG, const TS_ATTRID*, DWORD) override { return S_OK; }
+  HRESULT STDMETHODCALLTYPE RequestSupportedAttrs(DWORD, ULONG count, const TS_ATTRID* attrs) override {
+    scopeRequested=false; for(ULONG i=0;i<count;i++) if(attrs[i]==GUID_PROP_INPUTSCOPE) scopeRequested=true; return S_OK;
+  }
+  HRESULT STDMETHODCALLTYPE RequestAttrsAtPosition(LONG, ULONG count, const TS_ATTRID* attrs, DWORD flags) override { return RequestSupportedAttrs(flags,count,attrs); }
   HRESULT STDMETHODCALLTYPE RequestAttrsTransitioningAtPosition(LONG, ULONG, const TS_ATTRID*, DWORD) override { return S_OK; }
   HRESULT STDMETHODCALLTYPE FindNextAttrTransition(LONG, LONG halt, ULONG, const TS_ATTRID*, DWORD, LONG* next, BOOL* found, LONG* offset) override { *next = halt; *found = FALSE; *offset = 0; return S_OK; }
-  HRESULT STDMETHODCALLTYPE RetrieveRequestedAttrs(ULONG, TS_ATTRVAL*, ULONG* count) override { *count = 0; return S_OK; }
+  HRESULT STDMETHODCALLTYPE RetrieveRequestedAttrs(ULONG capacity, TS_ATTRVAL* values, ULONG* count) override {
+    *count=0; if(scopeRequested && capacity) { values[0].idAttr=GUID_PROP_INPUTSCOPE; values[0].dwOverlapId=0;
+      VariantInit(&values[0].varValue); values[0].varValue.vt=VT_UNKNOWN; values[0].varValue.punkVal=new Scope(inputScope); *count=1; }
+    scopeRequested=false; return S_OK;
+  }
   HRESULT STDMETHODCALLTYPE GetEndACP(LONG* result) override { *result = static_cast<LONG>(text.size()); return S_OK; }
   HRESULT STDMETHODCALLTYPE GetActiveView(TsViewCookie* view) override { *view = 1; return S_OK; }
   HRESULT STDMETHODCALLTYPE GetACPFromPoint(TsViewCookie, const POINT*, DWORD, LONG*) override { return E_NOTIMPL; }
@@ -184,6 +215,10 @@ struct Fixture {
     HRESULT hr = context->RequestEditSession(client, edit, TF_ES_SYNC | TF_ES_READWRITE, &status);
     edit->Release();
     return FAILED(hr) ? hr : status;
+  }
+  void SetScope(InputScope scope) {
+    document->inputScope=scope;
+    Check(document->sink->OnAttrsChange(0,static_cast<LONG>(document->text.size()),1,&GUID_PROP_INPUTSCOPE),"notify input scope change");
   }
 };
 
@@ -314,11 +349,11 @@ int main(int argc, char** argv) {
       }
       auto protectedScope = Export<BOOL (WINAPI*)(InputScope)>(library, "MeltypeProtectedInputScopeForTest");
       Expect(protectedScope != nullptr, "protected input scope export exists");
-      for (auto scope : {IS_PASSWORD, IS_NUMERIC_PASSWORD, IS_NUMERIC_PIN, IS_ALPHANUMERIC_PIN, IS_ALPHANUMERIC_PIN_SET, IS_PRIVATE}) {
-        Expect(protectedScope(scope), "password, PIN and private scopes are protected");
+      for (auto scope : {IS_PASSWORD, IS_NUMERIC_PASSWORD, IS_NUMERIC_PIN, IS_ALPHANUMERIC_PIN, IS_ALPHANUMERIC_PIN_SET}) {
+        Expect(protectedScope(scope), "password and PIN scopes are protected");
       }
-      for (auto scope : {IS_DEFAULT, IS_SEARCH, IS_EMAIL_SMTPEMAILADDRESS, IS_URL}) {
-        Expect(!protectedScope(scope), "ordinary search, email and URL scopes remain eligible");
+      for (auto scope : {IS_DEFAULT, IS_SEARCH, IS_EMAIL_SMTPEMAILADDRESS, IS_URL, IS_PRIVATE}) {
+        Expect(!protectedScope(scope), "private, search, email and URL scopes remain eligible");
       }
       auto trustedServer = Export<BOOL (WINAPI*)(HANDLE)>(library, "MeltypeTrustedServerForTest");
       Expect(trustedServer != nullptr, "trusted server export exists");
@@ -420,6 +455,21 @@ int main(int argc, char** argv) {
         f.document->readOnly=true; Check(keys->OnTestKeyDown(f.context,VK_CONVERT,0,&eligible),"protected reconversion"); Expect(!eligible,"read-only selection never reconverts");
         f.document->readOnly=false;
         std::puts("PASS: Tab conversion/candidate cycling, disabled Tab/direct settings, idle Tab pass-through and read-only protection");
+        key(VK_IME_OFF); // close the Google connection before enabling fixture learning
+        {
+          std::ofstream file(std::string(argv[5])+"/input-preferences.json");
+          file << "{\"ConversionEngine\":\"Microsoft\",\"LearningEnabled\":true}";
+        }
+        key(VK_IME_ON); reset(L"prefix suffix",7,7); f.SetScope(IS_PRIVATE);
+        for(char c:std::string("nihongo")) key(c-'a'+'A'); key(VK_RETURN);
+        Expect(f.document->text==L"prefix 日本語suffix", "private document accepts native conversion");
+        Expect(!std::ifstream(std::string(argv[5])+"/phrases.txt").good(), "actual private TSF input never writes phrase learning");
+        f.SetScope(IS_PASSWORD); Check(keys->OnTestKeyDown(f.context,'A',0,&eligible),"password scope"); Expect(!eligible,"password document remains protected");
+        f.SetScope(IS_NUMERIC_PIN); Check(keys->OnTestKeyDown(f.context,'A',0,&eligible),"PIN scope"); Expect(!eligible,"PIN document remains protected");
+        f.SetScope(IS_DEFAULT); Check(keys->OnTestKeyDown(f.context,'A',0,&eligible),"normal scope restored"); Expect(eligible,"ordinary document becomes eligible again");
+        for(char c:std::string("nihongo")) key(c-'a'+'A'); key(VK_RETURN);
+        Expect(std::ifstream(std::string(argv[5])+"/phrases.txt").good(), "ordinary TSF input resumes fixture phrase learning");
+        std::puts("PASS: actual TSF private conversion/learning suppression; password/PIN protected; normal learning resumes");
         }
         Check(service->Deactivate(), "feature deactivate"); keys->Release(); service->Release(); thread->Deactivate();thread->Release();thread=nullptr;
         Expect(canUnload()==S_OK,"feature COM references released");FreeLibrary(library);CoUninitialize();return 0;

@@ -628,6 +628,14 @@ internal static class CompositionTests
     }
 
     [Test]
+    public static void Issue545_ExclamationOffersBangBangEmoji()
+    {
+        var k = new Keyboard();
+        k.Type("! ");
+        Assert.True(k.Host.View!.Candidates.Contains("‼️"), string.Join(" ", k.Host.View.Candidates));
+    }
+
+    [Test]
     public static void Emoji_AreLastAndReachedByUp()
     {
         // #133: 絵文字・顔文字は候補の最後に逆順でまとめる。変換してすぐ ↑ で、いちばんよく使う絵文字 (えがお → 😊) になる
@@ -684,6 +692,19 @@ internal static class CompositionTests
             k.Type(keys);
             var candidates = k.Host.View!.Candidates;
             Assert.True(candidates.Any(c => c.StartsWith("GitHub")), keys + ": " + string.Join(" ", candidates));
+        }
+    }
+
+    [Test]
+    public static void Issue231_ImeOffersIme()
+    {
+        // #231: いめ を変換すると IME が候補に出る。後ろの助詞はかなのまま。
+        foreach (var (keys, expected) in new[] { ("ime ", "IME"), ("imede ", "IMEで") })
+        {
+            var k = new Keyboard();
+            k.Type(keys);
+            var candidates = k.Host.View!.Candidates;
+            Assert.True(candidates.Contains(expected), keys + ": " + string.Join(" ", candidates));
         }
     }
 
@@ -1789,6 +1810,22 @@ internal static class CompositionTests
         var shift = k.Host.Events.IndexOf("down:A0");
         Assert.True(shift >= 0 && shift < k.Host.Events.IndexOf("passed:30"), $"Shift を 0 より先にアプリへ送る ({string.Join(",", k.Host.Events)})");
         Assert.True(!k.Gate.IsCaptured, "判定をやめたら横取りもやめる");
+    }
+
+    [Test]
+    public static void ShiftRepeatWhileComposing_ReleaseReachesApp()
+    {
+        // キーボードが 2 台だと、文字を打っても Shift のリピートが止まらず、離しても Shift が押されたままになっていた (issue #617)。
+        var k = new Keyboard();
+        k.Host.PhysicalShift = true; // Shift の押下は、変換ボックスが開く前にアプリへ届いている
+        k.Press(0x41);
+        Assert.True(k.Gate.IsCaptured, "A で変換ボックスが開く");
+        k.Key(VirtualKeys.RShift); // リピート
+        k.Press(0x41);
+        k.Key(VirtualKeys.RShift);
+        k.Host.Events.Clear();
+        k.Key(VirtualKeys.RShift, up: true);
+        Assert.True(k.Host.Events.Contains("up:A1"), $"Shift を離したことをアプリに伝える ({string.Join(",", k.Host.Events)})");
     }
 
     [Test]

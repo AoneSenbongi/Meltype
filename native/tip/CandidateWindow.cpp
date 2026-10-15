@@ -4,7 +4,7 @@
 // 候補の一覧。Windows 11 の Microsoft IME に寄せた見た目:
 //   角丸 (DWM)、ライト / ダークは Windows の設定に合わせる、縦 1 列で番号 + 候補、
 //   選んでいる行は背景を薄く塗って左端にアクセントの縦線、9 個ずつのページ。
-// 「もしかして」は一覧の上に、候補の意味は少し止まったら一覧の右に出す。
+// 打ったキーと「もしかして」は一覧の上に、候補の意味は少し止まったら一覧の右に出す。
 
 #include "CandidateWindow.h"
 
@@ -32,6 +32,7 @@ constexpr float kNumberWidth = 26;   // 番号の列
 constexpr float kTextInset = 10;     // 行の左端から番号まで
 constexpr float kNoteGap = 16;       // 候補と注釈の間
 constexpr float kFooterHeight = 24;  // 「3 / 27」の行
+constexpr float kTypedHeight = 22;   // 打ったキーの行
 constexpr float kCandidateFontSize = 15;
 constexpr float kSmallFontSize = 12;
 constexpr float kMinWidth = 168;
@@ -201,11 +202,13 @@ struct CandidateWindow::Impl {
     std::wstring meaningKey;
 
     float SuggestionHeight() const { return view.suggestion.empty() ? 0 : kRowHeight + (view.candidates.empty() ? 0 : 5); }
+    // 候補の行より上 (打ったキー・もしかして) の高さ
+    float HeaderHeight() const { return (view.typed.empty() ? 0 : kTypedHeight) + SuggestionHeight(); }
     int Rows() const { return std::min(static_cast<int>(view.candidates.size()) - first, kPageSize); }
     bool Paged() const { return view.candidates.size() > kPageSize; }
 
     float Height() const {
-        float height = kPadding * 2 + SuggestionHeight();
+        float height = kPadding * 2 + HeaderHeight();
         // ページを送っても大きさが変わらないように、2 ページ以上あるときは 9 行分
         int rows = Paged() ? kPageSize : static_cast<int>(view.candidates.size());
         height += rows * kRowHeight;
@@ -224,6 +227,7 @@ struct CandidateWindow::Impl {
         }
         float result = kPadding * 2 + kTextInset + kNumberWidth + widest + 16;
         if (!view.suggestion.empty()) result = std::max(result, kPadding * 2 + 12 + TextWidth(candidate, view.suggestion) + 16);
+        if (!view.typed.empty()) result = std::max(result, kPadding * 2 + 12 + TextWidth(note, view.typed) + 16);
         if (candidate) candidate->Release();
         if (note) note->Release();
         return std::clamp(result, kMinWidth, kMaxWidth);
@@ -231,7 +235,7 @@ struct CandidateWindow::Impl {
 
     // DIP の y から、候補の番号 (無ければ -1)
     int HitTest(float y) const {
-        float top = kPadding + SuggestionHeight();
+        float top = kPadding + HeaderHeight();
         if (y < top) return -1;
         int row = static_cast<int>((y - top) / kRowHeight);
         if (row < 0 || row >= Rows()) return -1;
@@ -254,6 +258,11 @@ struct CandidateWindow::Impl {
         target->Clear(p.background);
 
         float y = kPadding;
+        if (!view.typed.empty()) {
+            // 打ったキー (設定「打ったキーを表示」): 打ち間違いに気づけるように、小さく出す
+            DrawText(target, note, view.typed, D2D1::RectF(kPadding + 12, y, width - kPadding - 8, y + kTypedHeight), p.secondary);
+            y += kTypedHeight;
+        }
         if (!view.suggestion.empty()) {
             // もしかして: アクセントの色で薄く塗った行
             D2D1_RECT_F row = D2D1::RectF(kPadding, y, width - kPadding, y + kRowHeight);
@@ -302,7 +311,7 @@ struct CandidateWindow::Impl {
         }
 
         if (Paged()) {
-            y = kPadding + SuggestionHeight() + kPageSize * kRowHeight;
+            y = kPadding + HeaderHeight() + kPageSize * kRowHeight;
             wchar_t page[32];
             swprintf_s(page, L"%d / %d", std::max(0, view.selected) + 1, static_cast<int>(view.candidates.size()));
             float pageWidth = TextWidth(note, page);
@@ -375,7 +384,7 @@ struct CandidateWindow::Impl {
         GetWindowRect(hwnd, &own);
         int row = std::max(0, view.selected - first);
         int x = own.right + static_cast<int>(4 * scale);
-        int y = own.top + static_cast<int>((kPadding + SuggestionHeight() + row * kRowHeight) * scale);
+        int y = own.top + static_cast<int>((kPadding + HeaderHeight() + row * kRowHeight) * scale);
         HMONITOR monitor = MonitorFromRect(&own, MONITOR_DEFAULTTONEAREST);
         MONITORINFO info = {sizeof(info)};
         GetMonitorInfoW(monitor, &info);
@@ -563,7 +572,7 @@ void CandidateWindow::Show(const CandidateView& view, const RECT& anchor) {
     if (scale <= 0) scale = 1;
     // DPI が変わったときも、描画 (render target) と当たり判定の scale がずれないように置き直す
     bool samePlace = Visible() && EqualRect(&d.anchor, &anchor) && d.view.candidates == view.candidates && d.view.suggestion == view.suggestion &&
-                     d.view.prediction == view.prediction && scale == d.scale;
+                     d.view.prediction == view.prediction && d.view.typed == view.typed && scale == d.scale;
     d.view = view;
     d.anchor = anchor;
     d.first = std::max(0, view.selected) / kPageSize * kPageSize;
@@ -580,7 +589,7 @@ void CandidateWindow::Show(const CandidateView& view, const RECT& anchor) {
             int width = static_cast<int>(d.width * d.scale + 0.5f);
             int height = static_cast<int>(d.Height() * d.scale + 0.5f);
             // 候補の文字の左端を、選んでいる文節の左端にそろえる
-            // 「もしかして」だけのときは、その文字の左端をそろえる
+            // 「もしかして」・打ったキーだけのときは、その文字の左端をそろえる
             float inset = view.candidates.empty() ? kPadding + 12 : kPadding + kTextInset + kNumberWidth;
             int x = anchor.left - static_cast<int>(inset * d.scale);
             int y = anchor.bottom + static_cast<int>(4 * d.scale);

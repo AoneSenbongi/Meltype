@@ -546,7 +546,8 @@ public sealed class CompositionController
             if (replayed || !capturedHere) _host.Replay(e);
             return;
         }
-        _capturedDown.Add(vk);
+        // 押したままの Shift のリピートは数えない。最初の押下はアプリに届いているので、離したことも伝える (issue #617)。
+        if (!IsShift(vk) || !_host.IsShiftDown()) _capturedDown.Add(vk);
 
         if (_heldLetters.Length > 0)
         {

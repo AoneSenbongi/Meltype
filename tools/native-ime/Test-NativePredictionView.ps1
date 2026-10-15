@@ -14,10 +14,13 @@ public static class NativePredictionViewTest {
         Check(new Meltype.Composition.CompositionView("橋", new[] {"橋", "箸"}, 0, true, "", Predictions: new[] {"今日は"}, SelectedPrediction: 0), true, 0, new[] {"橋", "箸"});
         Check(new Meltype.Composition.CompositionView("きょ", System.Array.Empty<string>(), -1, false, ""), false, -1, System.Array.Empty<string>());
         Check(null, false, -1, System.Array.Empty<string>());
+        Check(new Meltype.Composition.CompositionView("今日", System.Array.Empty<string>(), -1, false, "", Typed: "kyou"), true, -1, System.Array.Empty<string>(), "kyou");
+        Check(new Meltype.Composition.CompositionView("hello", System.Array.Empty<string>(), -1, false, "", Typed: "hello"), false, -1, System.Array.Empty<string>(), "");
+        Check(new Meltype.Composition.CompositionView("今日", System.Array.Empty<string>(), -1, false, ""), false, -1, System.Array.Empty<string>(), "");
     }
-    static void Check(Meltype.Composition.CompositionView view, bool visible, int selected, string[] expected) {
+    static void Check(Meltype.Composition.CompositionView view, bool visible, int selected, string[] expected, string typed = null) {
         using var stream = new System.IO.MemoryStream();
-        using (var writer = new System.IO.BinaryWriter(stream, System.Text.Encoding.Unicode, true)) MeltypeNativeBroker.WriteCandidateView(writer, view);
+        using (var writer = new System.IO.BinaryWriter(stream, System.Text.Encoding.Unicode, true)) MeltypeNativeBroker.WriteCandidateView(writer, view, typed != null);
         stream.Position = 0;
         using var reader = new System.IO.BinaryReader(stream, System.Text.Encoding.Unicode);
         if (reader.ReadInt32() != (visible ? 1 : 0) || reader.ReadInt32() != selected || reader.ReadInt32() != expected.Length) throw new System.Exception("Candidate view state mismatch");
@@ -25,6 +28,7 @@ public static class NativePredictionViewTest {
             var actual = System.Text.Encoding.Unicode.GetString(reader.ReadBytes(reader.ReadInt32()));
             if (actual != text) throw new System.Exception("Candidate text mismatch");
         }
+        if (typed != null && System.Text.Encoding.Unicode.GetString(reader.ReadBytes(reader.ReadInt32())) != typed) throw new System.Exception("Typed header mismatch");
         if (stream.Position != stream.Length) throw new System.Exception("Trailing protocol bytes");
     }
 }

@@ -39,7 +39,7 @@ public static class NativeFeatureTransportTest
                 var server = MeltypeNativeBroker.CreateListener(name, false);
                 try {
                     await server.WaitForConnectionAsync(stop.Token);
-                    connections.Add(Task.Run(() => MeltypeNativeBroker.Serve(server, false, stop.Token, MeltypeNativeBroker.SearchPackageSid)));
+                    connections.Add(Task.Run(() => MeltypeNativeBroker.Serve(server, true, stop.Token, MeltypeNativeBroker.SearchPackageSid)));
                 } catch (OperationCanceledException) { server.Dispose(); break; }
             }
         }

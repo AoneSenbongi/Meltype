@@ -470,8 +470,16 @@ internal static class SessionFacadeTests
     public static void Json_IsEscaped()
     {
         var result = new SessionResult(true, [new TextEdit(2, "a\"b\\c\n")], new CompositionView("x", ["y"], 0, true, "h", ["x"], 0));
-        const string expected = """{"consumed":true,"commits":[{"deleteBefore":2,"text":"a\"b\\c\n"}],"view":{"text":"x","converting":true,"selectedIndex":0,"selectedClause":0,"hint":"h","candidates":["y"],"clauses":["x"],"suggestion":null,"meaning":null,"notes":[null],"predictions":[],"selectedPrediction":-1}}""";
+        const string expected = """{"consumed":true,"commits":[{"deleteBefore":2,"text":"a\"b\\c\n"}],"view":{"text":"x","converting":true,"selectedIndex":0,"selectedClause":0,"hint":"h","candidates":["y"],"clauses":["x"],"suggestion":null,"meaning":null,"notes":[null],"predictions":[],"selectedPrediction":-1,"typed":null}}""";
         Assert.Equal(expected, result.ToJson());
+    }
+
+    [Test]
+    public static void Json_HasTypedKeys_WhenSettingIsOn()
+    {
+        var session = new MeltypeSession(CompositionTests.Detector, new CompositionTests.FakeConverter(), new CompositionOptions { ShowTypedKeys = () => true }, () => new Settings());
+        var json = Type(session, "kyou")[^1].ToJson();
+        Assert.True(json.Contains("\"typed\":\"kyou\""), json);
     }
 
     [Test]
@@ -713,6 +721,32 @@ internal static class SessionFacadeTests
         Assert.True(Type(session, "@", before: "")[0].Consumed, "taro と打った後の @ は変換ボックスへ");
     }
 
+    [Test]
+    public static void PrivateField_RemembersNothing()
+    {
+        // #511: 入力を覚えないように求める入力欄 (ブラウザーのシークレット / InPrivate ウィンドウ) では、選び直した変換を覚えない
+        var history = new ConversionHistory(null);
+        MeltypeSession Session() => new(CompositionTests.Detector, new CompositionTests.FakeConverter(),
+            new CompositionOptions { History = history, Candidates = CandidateDictionary.Load(null) }, () => new Settings { LiveConversion = false });
+        void ChooseHashi(MeltypeSession session)
+        {
+            var view = Type(session, "hashiwo ")[^1].View!;
+            var index = view.Candidates.ToList().IndexOf("箸を");
+            Assert.True(index > 0, string.Join(",", view.Candidates));
+            for (var i = 0; i < index; i++) Type(session, " ");
+            Assert.Equal("箸を", Type(session, "\n")[^1].Commits.Single().Text);
+        }
+
+        var session = Session();
+        session.Private = true;
+        ChooseHashi(session);
+        Assert.True(history.Get("はしを") is null, "プライベートの入力欄では覚えない");
+
+        // ふつうの入力欄に戻れば覚える
+        session.Private = false;
+        ChooseHashi(session);
+        Assert.Equal("箸を", history.Get("はしを"));
+      }
     [Test]
     public static void CreateDefault_SessionsShareLearning()
     {

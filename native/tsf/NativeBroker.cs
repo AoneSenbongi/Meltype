@@ -144,7 +144,7 @@ public static class MeltypeNativeBroker
         public readonly List<(int Kind, string Text)> Actions = new();
         public CompositionView View;
         public char Character;
-        public bool Shift, ReplayCurrent;
+        public bool Shift, ReplayCurrent, Private;
         public bool Direct, DirectEnglishWord, SwitchedToJapanese;
         public string Before, ProcessName;
         public ReconversionSelection Selection;
@@ -193,13 +193,14 @@ public static class MeltypeNativeBroker
                     return final ? Verdict.English : Verdict.Undecided;
                 return verdict;
             }
-            using var converter = new NativeEngineConverter(engine, learning, () => preferences.Current.LearningEnabled);
+            using var converter = new NativeEngineConverter(engine, learning, () => !host.Private && preferences.Current.LearningEnabled);
             var userDictionary = new UserDictionary(Path.Combine(DataDirectory, "userdict.txt"));
             var history = new ConversionHistory(Path.Combine(DataDirectory, "conversions.json"));
             var snippets = new NativeSnippetSession(() => new SnippetStore(Path.Combine(DataDirectory, "snippets.json")), host);
             var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: engine == "Google"), converter, host,
                 new CompositionOptions { FullWidthCommaPeriod = true, Comma = () => preferences.Current.Comma[0],
                     Period = () => preferences.Current.Period[0], LearningEnabled = () => learning && preferences.Current.LearningEnabled,
+                    Learning = () => !host.Private, ShowTypedKeys = () => settings.ShowTypedKeys,
                     LiveConversion = () => true, MoreCandidates = converter.Candidates, AutoCorrect = () => false,
                     Predictor = new Predictor(Phrases.Value, userDictionary, history),
                     Predictions = () => true, TabConversion = () => preferences.Current.TabConversion,
@@ -219,6 +220,7 @@ public static class MeltypeNativeBroker
                     var scan = input.ReadInt32();
                     host.Character = (char)input.ReadInt32();
                     var flags = input.ReadInt32();
+                    host.Private = (flags & 64) != 0;
                     var time = input.ReadInt64();
                     host.Shift = (flags & 2) != 0;
                     host.Actions.Clear();
@@ -282,7 +284,7 @@ public static class MeltypeNativeBroker
                             output.Write(action.Kind);
                             WriteText(output, action.Text);
                         }
-                        WriteCandidateView(output, host.View);
+                        WriteCandidateView(output, host.View, (flags & 32) != 0);
                     }
                     if (buffer.Length > 1048576) throw new InvalidDataException("Response too large");
                     var payload = buffer.ToArray();
@@ -297,15 +299,17 @@ public static class MeltypeNativeBroker
         }
     }
     // Keep protocol v1: TSF draws either Google conversion candidates or typing predictions.
-    public static void WriteCandidateView(BinaryWriter output, CompositionView view)
+    public static void WriteCandidateView(BinaryWriter output, CompositionView view, bool includeTyped = false)
     {
         var predicting = view?.Converting != true && view?.Predictions?.Count > 0;
-        var candidates = predicting ? view.Predictions : view?.Candidates;
+        var candidates = predicting ? view.Predictions : view?.Converting == true ? view.Candidates : null;
         var count = Math.Min(candidates?.Count ?? 0, 256);
-        output.Write((view?.Converting == true || predicting) && count > 0 ? 1 : 0);
+        var typed = includeTyped && view?.Typed is { } raw && raw != view.Text ? raw : "";
+        output.Write(((view?.Converting == true || predicting) && count > 0) || typed.Length > 0 ? 1 : 0);
         output.Write(predicting ? view.SelectedPrediction : view?.SelectedIndex ?? -1);
         output.Write(count);
         for (var i = 0; i < count; i++) WriteText(output, candidates[i]);
+        if (includeTyped) WriteText(output, typed);
     }
     private static void WriteText(BinaryWriter writer, string value)
     {

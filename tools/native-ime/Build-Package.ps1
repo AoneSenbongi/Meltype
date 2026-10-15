@@ -20,6 +20,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Microsoft/Google conversion verification faile
 & (Join-Path $PSScriptRoot 'Test-NativeOpeningBracket.ps1')
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativeUpstreamFeatures.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Direct detection, selection reconversion and Tab TSF verification failed' }
+& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePrivacy.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Private field learning and typed header verification failed' }
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePredictionTrace.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Google prediction -> TSF document verification failed' }
 & $Runtime -NoProfile -STA -File (Join-Path $PSScriptRoot 'Test-NativeSnippets.ps1')

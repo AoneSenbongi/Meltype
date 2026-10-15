@@ -21,7 +21,7 @@ namespace {
 HINSTANCE module;
 LONG liveObjects = 0;
 // Input scope protections also used by lnkiai's Meltype IME (GPL-3.0-or-later).
-// Keep PIN and private fields out of conversion and Google learning.
+// Keep password/PIN fields out of conversion; private fields disable learning.
 // Copyright (C) 2026 lnkiai, GPL-3.0-or-later (mode icon rendering).
 bool TaskbarIsDark() {
     DWORD value = 0, size = sizeof(value);
@@ -95,7 +95,7 @@ HICON CreateModeIcon(const wchar_t* text) {
 bool ProtectedInputScope(InputScope scope) {
   switch (scope) {
     case IS_PASSWORD: case IS_NUMERIC_PASSWORD: case IS_NUMERIC_PIN:
-    case IS_ALPHANUMERIC_PIN: case IS_ALPHANUMERIC_PIN_SET: case IS_PRIVATE: return true;
+    case IS_ALPHANUMERIC_PIN: case IS_ALPHANUMERIC_PIN_SET: return true;
     default: return false;
   }
 }
@@ -174,6 +174,7 @@ struct Reply {
   int selected = -1;
   std::vector<Action> actions;
   std::vector<std::wstring> candidates;
+  std::wstring typed;
 };
 class Channel {
  public:
@@ -196,7 +197,7 @@ class Channel {
   bool Call(int operation, int vk, int scan, WCHAR character, int flags, Reply& reply, const std::wstring& extra = {}) {
     if (!Connect()) return false;
     std::array<BYTE, 32> request{};
-    int fields[]{1, operation, vk, scan, static_cast<int>(character), flags};
+    int fields[]{1, operation, vk, scan, static_cast<int>(character), flags | 32};
     if (operation >= 2) { if (extra.size() > 4096) return false; fields[4] = static_cast<int>(extra.size()); }
     std::memcpy(request.data(), fields, sizeof(fields));
     auto time = GetTickCount64();
@@ -228,6 +229,8 @@ class Channel {
     }
     if (!integer(converting) || !integer(reply.selected) || !integer(count) || count < 0 || count > 256) { Close(); return false; }
     for (int i = 0; i < count; ++i) { std::wstring value; if (!text(value)) { Close(); return false; } reply.candidates.push_back(std::move(value)); }
+    // Old brokers omit the optional header. New brokers send it only on request.
+    if (offset < bytes.size() && !text(reply.typed)) { Close(); return false; }
     if (offset != bytes.size()) { Close(); return false; }
     reply.replay = (replay & 1) != 0; reply.switchToJapanese = (replay & 2) != 0;
     reply.directDetection = (replay & 4) != 0; reply.converting = converting != 0;
@@ -485,6 +488,10 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     RECT resizing{work.left + 40, work.bottom - 110, work.left + 42, work.bottom - 86};
     bool result = show(bottom, 9, true) && show(top, 9, false) && show(right, 9, false) &&
         show(resizing, 1, false) && show(resizing, 9, true);
+    visible_.typed = L"kyouhaiitenki";
+    result = result && show(bottom, 9, true) && show(top, 9, false) && show(right, 9, false) && show(top, 0, false);
+    RECT headerOnly{};
+    result = result && GetClientRect(popup_, &headerOnly) && headerOnly.bottom >= 24;
     if (popup_) { DestroyWindow(popup_); popup_ = nullptr; }
     return result;
   }
@@ -507,6 +514,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   bool testing_ = false;
   bool japanese_ = true;
   bool snippetBoundary_ = false;
+  bool privateField_ = false;
   bool toggleRegistered_ = false;
   bool modeRegistered_ = false;
   ITfLangBarItemSink* modeSink_ = nullptr;
@@ -609,7 +617,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
         }
       }
     }
-    bool protectedInput = false;
+    bool protectedInput = false, privateInput = false;
     if (inspectBoundary) snippetBoundary_ = false;
     auto* scopeEdit = new Edit([&](TfEditCookie cookie) {
       TF_SELECTION selection{}; ULONG fetched = 0;
@@ -625,22 +633,28 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
             snippetBoundary_ = read == 0 || iswspace(character);
         }
       }
-      Ptr<ITfReadOnlyProperty> property;
-      hr = context->GetAppProperty(GUID_PROP_INPUTSCOPE, &property.p);
-      if (FAILED(hr)) return S_OK;
-      VARIANT value; VariantInit(&value);
-      hr = property->GetValue(cookie, range.p, &value);
-      if (SUCCEEDED(hr) && value.vt == VT_UNKNOWN && value.punkVal) {
-        Ptr<ITfInputScope> scope;
-        if (SUCCEEDED(value.punkVal->QueryInterface(IID_ITfInputScope, reinterpret_cast<void**>(&scope.p)))) {
-          InputScope* values = nullptr; UINT count = 0;
-          if (SUCCEEDED(scope->GetInputScopes(&values, &count))) {
-            for (UINT i = 0; i < count; ++i) if (ProtectedInputScope(values[i])) protectedInput = true;
+      auto inspectScope = [&](ITfReadOnlyProperty* property) {
+        VARIANT value; VariantInit(&value);
+        HRESULT result = property->GetValue(cookie, range.p, &value);
+        if (SUCCEEDED(result) && value.vt == VT_UNKNOWN && value.punkVal) {
+          Ptr<ITfInputScope> scope;
+          if (FAILED(value.punkVal->QueryInterface(IID_ITfInputScope, reinterpret_cast<void**>(&scope.p)))) protectedInput = true;
+          else {
+            InputScope* values = nullptr; UINT count = 0;
+            if (FAILED(scope->GetInputScopes(&values, &count)) || (count && !values)) protectedInput = true;
+            else for (UINT i = 0; i < count; ++i) {
+              if (ProtectedInputScope(values[i])) protectedInput = true;
+              if (values[i] == IS_PRIVATE) privateInput = true;
+            }
+            CoTaskMemFree(values);
           }
-          CoTaskMemFree(values);
-        }
-      }
-      VariantClear(&value);
+        } else if (SUCCEEDED(result) && value.vt != VT_EMPTY && value.vt != VT_NULL && value.vt != VT_UNKNOWN) protectedInput = true;
+        VariantClear(&value);
+      };
+      Ptr<ITfReadOnlyProperty> appScope;
+      if (SUCCEEDED(context->GetAppProperty(GUID_PROP_INPUTSCOPE, &appScope.p)) && appScope.p) inspectScope(appScope.p);
+      Ptr<ITfProperty> systemScope;
+      if (SUCCEEDED(context->GetProperty(GUID_PROP_INPUTSCOPE, &systemScope.p)) && systemScope.p) inspectScope(systemScope.p);
       return S_OK;
     });
     HRESULT scopeResult = E_FAIL;
@@ -648,6 +662,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (readCookie != TF_INVALID_COOKIE) scopeResult = scopeEdit->DoEditSession(readCookie);
     else scopeRequest = context->RequestEditSession(client_, scopeEdit, TF_ES_SYNC | TF_ES_READ, &scopeResult);
     scopeEdit->Release();
+    if (SUCCEEDED(scopeRequest) && SUCCEEDED(scopeResult)) privateField_ = privateInput;
     // The shell can request an icon while the application already owns a TSF lock.
     // Keep the last inspected state for display; key handling still requires a successful read.
     if (!inspectBoundary && (FAILED(scopeRequest) || FAILED(scopeResult))) return inputAvailable_;
@@ -706,7 +721,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       }
     }
     Reply reply;
-    if (!channel_.Call(reconvert ? 3 : 0, static_cast<int>(vk), scan, character, (up ? 1 : 0) | (keyboard[VK_SHIFT] & 0x80 ? 2 : 0) | (snippetBoundary_ ? 4 : 0) | (!japanese_ ? 8 : 0), reply, selectionText)) {
+    if (!channel_.Call(reconvert ? 3 : 0, static_cast<int>(vk), scan, character, (up ? 1 : 0) | (keyboard[VK_SHIFT] & 0x80 ? 2 : 0) | (snippetBoundary_ ? 4 : 0) | (!japanese_ ? 8 : 0) | (privateField_ ? 64 : 0), reply, selectionText)) {
       FinishCurrent(); captured_.fill(false); return S_OK;
     }
     auto* edit = new Edit([&, reply](TfEditCookie cookie) { return Apply(context, cookie, reply); });
@@ -797,8 +812,14 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       HFONT font = CreateFontW(-16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
       auto old = SelectObject(dc, font); SetBkMode(dc, TRANSPARENT); SetTextColor(dc, RGB(35, 39, 47));
       int first = std::max(0, self->visible_.selected) / 9 * 9;
+      int header = self->visible_.typed.empty() ? 0 : 24;
+      if (header) {
+        RECT row{6, 4, area.right - 6, 28}; SetTextColor(dc, RGB(95, 99, 107));
+        DrawTextW(dc, self->visible_.typed.c_str(), static_cast<int>(self->visible_.typed.size()), &row, DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+        SetTextColor(dc, RGB(35, 39, 47));
+      }
       for (int i = first; i < static_cast<int>(self->visible_.candidates.size()) && i < first + 9; ++i) {
-        RECT row{6, 4 + (i - first) * 24, area.right - 6, 28 + (i - first) * 24};
+        RECT row{6, 4 + header + (i - first) * 24, area.right - 6, 28 + header + (i - first) * 24};
         if (i == self->visible_.selected) { HBRUSH brush = CreateSolidBrush(RGB(228, 240, 255)); FillRect(dc, &row, brush); DeleteObject(brush); }
         auto value = std::to_wstring(i - first + 1) + L"  " + self->visible_.candidates[i];
         DrawTextW(dc, value.c_str(), static_cast<int>(value.size()), &row, DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
@@ -809,7 +830,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   }
   void UpdatePopup(ITfContext* context, TfEditCookie cookie) {
     if (testing_) return;
-    if (!visible_.converting || visible_.candidates.empty() || !composition_->Active()) { if (popup_) ShowWindow(popup_, SW_HIDE); return; }
+    if (!visible_.converting || (visible_.candidates.empty() && visible_.typed.empty()) || !composition_->Active()) { if (popup_) ShowWindow(popup_, SW_HIDE); return; }
     Ptr<ITfContextView> view;
     Ptr<ITfRange> range;
     RECT rect{}; BOOL clipped = FALSE;
@@ -830,7 +851,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (!GetMonitorInfoW(MonitorFromRect(&anchor, MONITOR_DEFAULTTONEAREST), &monitor)) return;
     const RECT& work = monitor.rcWork;
     int width = std::min(320, static_cast<int>(work.right - work.left));
-    int height = std::min(std::max(1, rows) * 24 + 8, static_cast<int>(work.bottom - work.top));
+    int height = std::min(std::max(0, rows) * 24 + (visible_.typed.empty() ? 0 : 24) + 8, static_cast<int>(work.bottom - work.top));
     int left = std::clamp(static_cast<int>(anchor.left), static_cast<int>(work.left), static_cast<int>(work.right) - width);
     int top = anchor.bottom + 2;
     if (top + height > work.bottom) top = anchor.top - height - 2;

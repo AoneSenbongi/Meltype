@@ -24,7 +24,13 @@ public sealed record CompositionView(
     string? Suggestion = null,
     IReadOnlyList<string>? Predictions = null,
     int SelectedPrediction = -1,
-    string? Typed = null);
+    string? Typed = null,
+    /// <summary>
+    /// この表示を確定したときに文書へ入る文字列。IBus はフォーカスが外れたとき
+    /// 「表示中の preedit」をそのまま確定するので、表示と確定が違うと文書と本体の認識がずれる
+    /// (「かn」を表示したまま確定すると、本体は「かん」で確定していて食い違う)。
+    /// </summary>
+    string? Committed = null);
 
 /// <summary>CompositionController が外界とやり取りする口。テストでは偽物に差し替える。</summary>
 public interface ICompositionHost
@@ -254,6 +260,9 @@ public sealed record CompositionOptions
 
     /// <summary>予測変換の候補を出すか (設定)。変換ボックスに候補の一覧を出せる画面 (Windows) だけ true にする。</summary>
     public Func<bool> Predictions { get; init; } = () => false;
+
+    /// <summary>予測変換の候補に、読みから英字の社名・サービス名・語も出すか (設定。しゃお → Xiaomi、issue #890)。</summary>
+    public Func<bool> EnglishNamePredictions { get; init; } = () => false;
 
     /// <summary>変換ボックスのフォント (空なら既定のフォント)。</summary>
     public Func<string> Font { get; init; } = () => "";
@@ -692,6 +701,16 @@ public sealed class CompositionController
             {
                 // Ctrl+U/I/O/P: F6/F7/F10/F9 と同じ (ATOK と同じ割り当て。続けて押すと大文字・小文字も切り替わる)。Ctrl+H は BackSpace。
                 vk = function;
+            }
+            else if (!_text.IsEmpty && vk == VirtualKeys.Return)
+            {
+                // 変換中の Ctrl+Enter (送信のショートカット) は確定だけを行う。キーはアプリへ渡さない。
+                // 渡すと、アプリが確定を反映する前に送信してしまい、確定した文字が欠けた内容が送られる
+                // (X のリプライで「田所工事」と「田所工事だよ」が二重に投稿された)。日本語 IME の通例どおり、
+                // 変換中の Enter は確定、送信は次の Enter にする。
+                CommitIfAny();
+                _swallowedControl.Clear();
+                return;
             }
             else
             {
@@ -1591,13 +1610,16 @@ public sealed class CompositionController
             _converting = true;
             return;
         }
-        // 設定「#番号で GitHub の Issue・PR のタイトルを候補に出す」: #123 の形 (issue #291)
-        if (_options.GitHubIssueCandidates() && _options.GitHubTitles() is { } titles && !_text.KanaInput && _text.Mode == DisplayMode.Auto &&
-            _text.Raw is ['#', .. { Length: > 0 } digits] && digits.All(char.IsAsciiDigit) && digits.Length <= 7 &&
-            titles.Lookup(_options.GitHubRepository(), int.Parse(digits)) is { Length: > 0 } title)
+        // #123 の形は、# と数字を別々の文節にしない (issue #865)。
+        // 設定「#番号で GitHub の Issue・PR のタイトルを候補に出す」なら、タイトルも候補に出す (issue #291)
+        if (!_text.KanaInput && _text.Mode == DisplayMode.Auto && _text.Raw is ['#', .. { Length: > 0 } digits] && digits.All(char.IsAsciiDigit) && digits.Length <= 7)
         {
-            var repository = _options.GitHubRepository();
-            _clauses = [new Clause(_text.Raw, true, Distinct([_text.Raw, $"{_text.Raw} {title}", $"{title} ({_text.Raw})", $"{repository}{_text.Raw}"])) { Raw = _text.Raw }];
+            var repository = GitHubIssueTitles.Normalize(_options.GitHubRepository());
+            var hashCandidates = new List<string> { _text.Raw };
+            if (_options.GitHubIssueCandidates() && _options.GitHubTitles() is { } titles && titles.Lookup(repository, int.Parse(digits)) is { Length: > 0 } title)
+                hashCandidates.AddRange([$"{_text.Raw} {title}", $"{title} ({_text.Raw})", $"{repository}{_text.Raw}"]);
+            hashCandidates.Add(CompositionText.ToFullWidth(_text.Raw));
+            _clauses = [new Clause(_text.Raw, true, Distinct([.. hashCandidates])) { Raw = _text.Raw }];
             _selectedClause = 0;
             _converting = true;
             return;
@@ -3054,7 +3076,8 @@ public sealed class CompositionController
                 CandidateNotes(selected),
                 _options.CandidateMeanings() ? CandidateMeaning(selected) : null,
                 MisspellingSuggestion(),
-                Typed: TypedKeys()));
+                Typed: TypedKeys(),
+                Committed: string.Concat(_clauses.Select(c => c.Text))));
         }
         else
         {
@@ -3073,7 +3096,8 @@ public sealed class CompositionController
             // 設定「入力中も変換候補をいくつか表示」: Space の前から候補を出す (issue #666)
             if (preview is null && selected is null && misspelling is null) preview = TypingCandidates();
             _host.Show(new CompositionView(display, preview ?? [], preview?.IndexOf(display) ?? -1, false, hint, Suggestion: misspelling,
-                Predictions: _predictions.Count > 0 ? _predictions : null, SelectedPrediction: _predictionIndex, Typed: TypedKeys()));
+                Predictions: _predictions.Count > 0 ? _predictions : null, SelectedPrediction: _predictionIndex, Typed: TypedKeys(),
+                Committed: selected ?? CurrentDisplay(final: true)));
         }
     }
 
@@ -3111,7 +3135,18 @@ public sealed class CompositionController
         }
         var kana = _text.AllKana(final: false);
         var predictions = new List<string>();
-        if (kana.All(KanaChars.IsHiraganaOrLongMark)) predictions.AddRange(predictor.PredictJapanese(kana));
+        if (kana.All(KanaChars.IsHiraganaOrLongMark))
+        {
+            predictions.AddRange(predictor.PredictJapanese(kana));
+            // 英字で書く社名・サービス名 (しゃお → Xiaomi)。日本語の予測の後ろに足す
+            if (_options.EnglishNamePredictions())
+            {
+                foreach (var word in predictor.PredictEnglishNames(kana))
+                {
+                    if (predictions.Count < Predictor.MaxPredictions && !predictions.Contains(word)) predictions.Add(word);
+                }
+            }
+        }
         // 長い英単語は、打ち終わるまでローマ字として見えていることがある (decis → でしs)。英字だけを 4 文字以上打っていれば英単語の続きも出す
         if (_text.Raw.Length >= 4 && _text.Raw.All(char.IsAsciiLetter))
         {

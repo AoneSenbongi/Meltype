@@ -20,6 +20,7 @@ namespace Meltype.Composition;
 ///   - 日本語の中に、ローマ字として読めずに英字のまま残る文字があれば減点
 ///   - 英単語の最後の子音と助詞の は が 1 つの単位 (sha・tha・dha) になっていても、英単語 + は に分けられる (medals|は、president|は)
 /// URL のドメイン・英文の中の記号・ユーザー名・大文字で始まる語などの、はっきりした決まりは今までどおり先に決める。
+/// 大文字に大文字が続く略語の頭 (IME の I) は、英語の区間を取れるなら日本語の区切りの候補にしない (点数では比べない)。
 /// 点の重みは環境変数 (MELTYPE_SCORED_*) で変えられる (--mixed-bench・品質テストで比べるため)。
 /// </summary>
 public sealed partial class CompositionDetector
@@ -108,11 +109,8 @@ public sealed partial class CompositionDetector
                     continue;
                 }
 
-                // 日本語として 1 単位進む
-                var unreadable = HasUnreadable(units, i, i + 1) ? UnreadablePenalty : 0;
-                Offer(i + 1, false, path with { Score = path.Score - unreadable });
-
                 // 英語の区間として i から j まで取る (IsEnglishSpan が英語と言える区間だけ)
+                var offeredEnglish = false;
                 for (var j = n; j > i; j--)
                 {
                     var symbolsAfter = i == 0 && j < n && pending.Length == 0 && Enumerable.Range(j, n - j).All(k => IsAsciiSymbol(units[k]));
@@ -122,6 +120,17 @@ public sealed partial class CompositionDetector
                     if (!IsEnglishSpan(Raw(units, i, j) + (j == n ? pending : ""), atEnd: j == n, before, after, startOfInput: i == 0, level, final, endsWord: symbolsAfter,
                             unreadable: HasUnreadable(units, i, j) || EndsWithLoneSokuon(units, j), next: j < n ? units[j].Raw + (j + 1 == n ? pending : "") : null)) continue;
                     Offer(j, true, Extend(path, i, j, units, pending));
+                    offeredEnglish = true;
+                }
+
+                // 日本語として 1 単位進む。
+                // ただし大文字に大文字が続く略語の頭 (IME の I) は、そこから英語の区間を取れるなら日本語にしない。
+                // 日本語にすると、辞書に無い略語 (IME) より、頭の 1 文字をかなにして残りを英単語にした区切り (い|ME) の点が高くなる。
+                // 小文字が続く大文字 (Ga|google の Ga、Koreha|github) は、今までどおり点数で決める
+                if (!offeredEnglish || !StartsAcronym(units, i, pending))
+                {
+                    var unreadable = HasUnreadable(units, i, i + 1) ? UnreadablePenalty : 0;
+                    Offer(i + 1, false, path with { Score = path.Score - unreadable });
                 }
 
                 // 単位の途中で区切る: 英単語の最後の子音と、続く日本語の頭が 1 つの単位になっているとき (medals + ha が medal + sha (しゃ) になる)。
@@ -169,6 +178,18 @@ public sealed partial class CompositionDetector
         }
         if (chosen.JapaneseStart < n || pending.Length > 0 || result.Count == 0) result.Add(Japanese(units, chosen.JapaneseStart, n, pending));
         return result;
+    }
+
+    /// <summary>
+    /// 単位 i が大文字で始まり、次に打った英字も大文字か (IME の I、TS の T)。
+    /// 大文字に続けて打った大文字は略語の 1 文字で、かなに読まない (CompositionText と同じ考え方)。
+    /// </summary>
+    private static bool StartsAcronym(IReadOnlyList<CompositionUnit> units, int i, string pending)
+    {
+        var raw = units[i].Raw;
+        if (raw is not [var head, ..] || !char.IsAsciiLetterUpper(head)) return false;
+        var next = raw.Length > 1 ? raw[1] : i + 1 < units.Count ? units[i + 1].Raw.FirstOrDefault() : pending.FirstOrDefault();
+        return char.IsAsciiLetterUpper(next);
     }
 
     /// <summary>単位 unit を含む、3 文字以上のよく使う日本語の読み (readings.txt) があるか。</summary>

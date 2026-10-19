@@ -19,7 +19,7 @@ Python JavaScript TypeScript Java Kotlin Swift Rust Ruby PHP Perl Haskell Scala 
 Node Deno Bun Django Flask Rails Laravel Spring Next Nuxt Vite Webpack Tailwind Bootstrap jQuery
 MySQL PostgreSQL SQLite MongoDB Redis Oracle Elasticsearch Kafka Nginx Apache Tomcat
 Steam PlayStation Xbox Switch Minecraft Fortnite Roblox Valorant Apex Overwatch Tetris
-Uber Airbnb Tesla Paypal Stripe Shopify Etsy eBay
+Uber Airbnb Tesla Paypal Stripe Shopify Etsy eBay DLsite
 Visa Mastercard JCB Amex
 
 # 企業・ブランド

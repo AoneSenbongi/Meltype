@@ -10,7 +10,10 @@ namespace Meltype.Composition;
 
 /// <summary>
 /// 入力欄への書き込み 1 回分。DeleteBefore 文字をキャレットの前から消してから Text を入れる (確定し直すとき以外は 0)。
-/// Expect は消す文字 (このセッションで確定した文字。分からなければ null)。入力欄の文字がこれと違えば、消さないほうが安全。
+/// Expect は消す文字 (このセッションで確定した文字。分からなければ null)。
+/// フロントは、キャレットの前が Expect と一致すると確認できたときだけ消す。確認できないときは消さずに Text だけを入れる
+/// (本体は Text が入った前提で状態を進めるので、Edit ごと捨てると、打った文字が消えて入力欄と本体がずれる)。
+/// DeleteBefore は本体の単位 (UTF-16) の長さなので、消す文字数は Expect から入力欄の単位で数える。
 /// </summary>
 public readonly record struct TextEdit(int DeleteBefore, string Text, string? Expect = null);
 
@@ -45,6 +48,10 @@ public sealed record SessionResult(bool Consumed, IReadOnlyList<TextEdit> Commit
         }
         builder.Append("{\"text\":");
         AppendString(builder, view.Text);
+        // この表示を確定したときに入る文字列 (IBus がフォーカスを外したときに確定するのは表示中の文字)。
+        builder.Append(",\"committed\":");
+        if (view.Committed is { } committed) AppendString(builder, committed);
+        else builder.Append("null");
         builder.Append(",\"converting\":").Append(view.Converting ? "true" : "false");
         builder.Append(",\"selectedIndex\":").Append(view.SelectedIndex);
         builder.Append(",\"selectedClause\":").Append(view.SelectedClause);

@@ -553,6 +553,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   Channel channel_;
   std::array<bool, 256> captured_{};
   std::wstring preedit_;
+  Ptr<ITfRange> bracketCaret_;
   Reply visible_;
   HWND popup_ = nullptr;
   RECT popupAnchor_{};
@@ -811,6 +812,26 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     HRESULT status = E_FAIL;
     HRESULT hr = context->RequestEditSession(client_, edit, TF_ES_SYNC | TF_ES_READWRITE, &status);
     edit->Release();
+    if (SUCCEEDED(hr) && SUCCEEDED(status) && bracketCaret_.p) {
+      // EndComposition notifies the application when the first edit session ends.
+      // Move in a separate edit session, after that notification has run.
+      auto* move = new Edit([this, context](TfEditCookie cookie) {
+        Ptr<ITfRange> caret; caret.p = bracketCaret_.p; bracketCaret_.p = nullptr;
+        HRESULT result = caret->Collapse(cookie, TF_ANCHOR_END);
+        LONG shifted = 0;
+        if (SUCCEEDED(result)) result = caret->ShiftStart(cookie, -1, &shifted, nullptr);
+        if (FAILED(result) || shifted != -1) return E_ABORT;
+        result = caret->Collapse(cookie, TF_ANCHOR_START);
+        if (SUCCEEDED(result)) { TF_SELECTION selection{caret.p,{TF_AE_NONE,FALSE}}; result = context->SetSelection(cookie,1,&selection); }
+        return result;
+      });
+      HRESULT moveStatus = E_FAIL;
+      context->RequestEditSession(client_, move, TF_ES_SYNC | TF_ES_READWRITE, &moveStatus);
+      // The text has already committed. Never replay Enter if the application
+      // rejects this follow-up selection edit.
+      move->Release();
+    }
+    if (bracketCaret_.p) { bracketCaret_.p->Release(); bracketCaret_.p = nullptr; }
     if (FAILED(hr) || FAILED(status)) { channel_.Close(); FinishCurrent(); captured_.fill(false); return S_OK; }
     if (reply.switchToJapanese) { SetInputModeAfterDetection(); directCaret_ = -1; }
     else if (!up && !japanese_) directCaret_ = position >= 0 && reply.replay && character >= L' ' ? position + 1 : -1;
@@ -823,20 +844,14 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       const auto& action = reply.actions[index];
       HRESULT hr = E_INVALIDARG;
       if (action.kind == 0) { hr = composition_->Update(context, cookie, action.text); preedit_ = action.text; }
-      else if (action.kind == 1) { hr = composition_->Commit(context, cookie, action.text); preedit_.clear(); }
-      else if (action.kind == 2) { hr = composition_->Cancel(context, cookie); preedit_.clear(); }
-      else if (action.kind == 4) {
-        if (action.text != L"left" || composition_->Active()) return E_ABORT;
-        TF_SELECTION selection{}; ULONG fetched = 0;
-        hr = context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &fetched);
-        Ptr<ITfRange> range; range.p = selection.range;
-        if (FAILED(hr) || fetched != 1 || !range.p) return E_ABORT;
-        LONG shifted = 0;
-        hr = range->ShiftStart(cookie, -1, &shifted, nullptr);
-        if (FAILED(hr) || shifted != -1) return E_ABORT;
-        hr = range->Collapse(cookie, TF_ANCHOR_START);
-        if (SUCCEEDED(hr)) { TF_SELECTION target{range.p,{TF_AE_NONE,FALSE}}; hr = context->SetSelection(cookie,1,&target); }
+      else if (action.kind == 1) {
+        bool insideBrackets = index + 1 < reply.actions.size() && reply.actions[index + 1].kind == 4 && reply.actions[index + 1].text == L"left";
+        if (insideBrackets && action.text.size() != 2) return E_INVALIDARG;
+        hr = composition_->Commit(context, cookie, action.text, insideBrackets ? &bracketCaret_.p : nullptr);
+        if (insideBrackets) ++index;
+        preedit_.clear();
       }
+      else if (action.kind == 2) { hr = composition_->Cancel(context, cookie); preedit_.clear(); }
       else if (action.kind == 3) {
         size_t replacement=index+1;
         while(replacement<reply.actions.size()&&reply.actions[replacement].kind==2)++replacement;

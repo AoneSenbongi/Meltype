@@ -94,7 +94,8 @@ public sealed class UserDictionary
         {
             if (line.StartsWith('#')) continue;
             var parts = line.TrimEnd('\r').Split('\t');
-            if (parts.Length >= 2 && parts[0].Trim().Length >= MinRegisteredReadingLength && parts[1].Trim().Length > 0)
+            // 制御文字 (ESC など) の入った語は、確定するとアプリにキー操作として届くので読まない
+            if (parts.Length >= 2 && parts[0].Trim().Length >= MinRegisteredReadingLength && parts[1].Trim().Length > 0 && !parts[0].Any(char.IsControl) && !parts[1].Any(char.IsControl))
             {
                 words.Add(new UserWord(parts[0].Trim(), parts[1].Trim()));
             }
@@ -115,7 +116,8 @@ public sealed class UserDictionary
         word = word.Trim();
         if (reading.Length < MinRegisteredReadingLength) return "読みを入力してください。";
         if (word.Length == 0) return "単語を入力してください。";
-        if (reading.Contains('\t') || word.Contains('\t')) return "タブ文字は使えません。";
+        // CR・ESC などは確定するとアプリにキー操作として届く
+        if (reading.Any(char.IsControl) || word.Any(char.IsControl)) return "タブ・改行などの制御文字は使えません。";
         if (_words.Any(w => w.Reading == reading && w.Word == word)) return null;
         _words.Add(new UserWord(reading, word));
         Changed();
@@ -128,7 +130,7 @@ public sealed class UserDictionary
         var added = 0;
         foreach (var word in words)
         {
-            if (word.Reading.Length < MinRegisteredReadingLength || word.Word.Length == 0 || word.Reading.Contains('\t') || word.Word.Contains('\t')) continue;
+            if (word.Reading.Length < MinRegisteredReadingLength || word.Word.Length == 0 || word.Reading.Any(char.IsControl) || word.Word.Any(char.IsControl)) continue;
             if (_words.Any(w => w.Reading == word.Reading && w.Word == word.Word)) continue;
             _words.Add(word);
             added++;

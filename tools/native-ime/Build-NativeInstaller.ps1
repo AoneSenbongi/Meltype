@@ -17,6 +17,7 @@ $output=Join-Path $root 'distributions'
 & $Compiler ('/DPackageRoot='+$package) ('/DOutputRoot='+$output) (Join-Path $PSScriptRoot 'MeltypeSetup.iss')
 if($LASTEXITCODE -ne 0){throw 'Installer compilation failed'}
 $exe=Join-Path $output 'Meltype-Native-Google-2.0.0-Setup.exe'
+& (Join-Path $PSScriptRoot 'Test-NativeBrandAssets.ps1') -Files @($exe)
 $hash=(Get-FileHash -LiteralPath $exe).Hash
 Set-Content ($exe+'.sha256') ($hash+'  '+(Split-Path $exe -Leaf)) -Encoding ASCII
 @{Version='2.0.0';SourceCommit=$source;Installer=$exe;SHA256=$hash;Stage=$package}|ConvertTo-Json|Set-Content (Join-Path $root 'experimental-build/installer-build.json') -Encoding UTF8

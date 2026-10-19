@@ -12,7 +12,7 @@ namespace Meltype.Composition;
 ///
 /// 日本語入力中に google と打って「ごおｇぇ」になるのを防ぐのが目的。英語かどうかは区間ごとに判定するので、
 /// 「きょうは google」なら google の部分だけが英字になる。区間の区切りはかな 1 音の境目だけ。
-/// 未確定のうちは何度でも表示を作り直せるので、ここでの判定は IME 自動切替より積極的でよいが、
+/// 未確定のうちは何度でも表示を作り直せるので、ここでの判定は積極的でよいが、
 /// 既定は日本語で、英語と判断できる根拠があるときだけ英字にする。
 /// </summary>
 public sealed partial class CompositionDetector
@@ -230,7 +230,20 @@ public sealed partial class CompositionDetector
         // ただし先頭が辞書の英単語として区切れている (github に push) ならその区切りを使う。
         // 助詞 + 既知の英単語 (ya|python) も FindSpans の区切りを優先する (やpython が yapython になるのを防ぐ)。
         var whole = Raw(units, 0, units.Count) + pending;
-        if (UnknownWordThenJapanese(units, pending, segments, level, whole) is { } split) return split;
+        if (UnknownWordThenJapanese(units, pending, segments, level, whole, precedingEnglish) is { } split) return split;
+        // 日本語の後ろの、する の活用と読める固有名詞 (ふぁいるを + dlsite) は動詞 (dlして: #886)。
+        if (level != DetectionLevel.Manual)
+        {
+            for (var k = 1; k < segments.Count; k++)
+            {
+                if (!segments[k].IsEnglish || segments[k - 1].IsEnglish || segments[k].IsProtected) continue;
+                var stem = ProperNounVerbStem(segments[k].Raw);
+                if (stem < 0) continue;
+                var tail = segments[k].Raw[stem..];
+                segments[k] = new CompositionSegment(true, "", segments[k].Raw[..stem]);
+                segments.Insert(k + 1, new CompositionSegment(false, _romaji.ConvertLenient(tail.ToLowerInvariant(), final: true), tail));
+            }
+        }
         if (level != DetectionLevel.Manual && !segments[0].IsEnglish && Memory?.Get(whole.ToLowerInvariant()) != false && IsUnknownEnglishWord(whole))
         {
             var lowerWhole = whole.ToLowerInvariant();
@@ -303,23 +316,43 @@ public sealed partial class CompositionDetector
         return segments.Skip(1).All(s => !s.IsEnglish && s.Raw.All(char.IsAsciiLetter));
     }
 
-    private List<CompositionSegment>? UnknownWordThenJapanese(IReadOnlyList<CompositionUnit> units, string pending, List<CompositionSegment> segments, DetectionLevel level, string whole)
+    /// <summary>
+    /// 固有名詞 (DLsite) が、ローマ字として読めない語 + する の活用 (dl + site) と読めるなら、その語の長さ。違えば -1。
+    /// ユーザーが覚えさせた語 (英字に直した dlsite) は分けない。
+    /// </summary>
+    private int ProperNounVerbStem(string raw)
     {
-        // 知らない英字の語 + 助詞で始まる日本語 (grokga、grokniyoruto) を最初から打っているなら、語は英字・後ろは日本語 (grokが)。
+        var lower = raw.ToLowerInvariant();
+        if (!lower.All(char.IsAsciiLetterLower) || !_proper.Contains(lower) || Memory?.Get(lower) is not null) return -1;
+        for (var end = 2; end <= lower.Length - 4; end++)
+            if (!_romaji.AnalyzeFragment(lower[..end]).IsValid && _romaji.Analyze(lower[..end]).Tokens.Count == 0 && IsSuruTail(lower[end..])) return end;
+        return -1;
+    }
+
+    private List<CompositionSegment>? UnknownWordThenJapanese(IReadOnlyList<CompositionUnit> units, string pending, List<CompositionSegment> segments, DetectionLevel level, string whole, bool? precedingEnglish)
+    {
+        // 知らない英字の語 + 助詞で始まる日本語 (grokga、grokniyoruto) や する の活用 (dlsite) を最初から打っているなら、語は英字・後ろは日本語 (grokが、dlして)。
         // 語は、ローマ字の打ちかけとしても読めない (gr) もの。後ろは最後までローマ字として読めるもの。
-        if (level != DetectionLevel.Manual && !segments[0].IsEnglish && whole.All(char.IsAsciiLetter) && !IsKnownEnglishWord(whole))
+        // 固有名詞の DLsite も dl + site (dlして) と読める (#886)。前が日本語 (ふぁいるを + dlsite) なら動詞として する の活用に分ける。
+        // 単独・英語の後ろでは固有名詞のまま (覚えた語は覚えたとおり)。
+        var verbAfterJapanese = precedingEnglish == false && ProperNounVerbStem(whole) > 0;
+        if (level != DetectionLevel.Manual && whole.All(char.IsAsciiLetter) && (verbAfterJapanese || !segments[0].IsEnglish && !IsKnownEnglishWord(whole)))
         {
             for (var k = 1; k < units.Count; k++)
             {
                 var stem = Raw(units, 0, k).ToLowerInvariant();
-                if (stem.Length < 3 || _romaji.AnalyzeFragment(stem).IsValid || IsKnownEnglishWord(stem) && stem.Length >= 5) continue;
+                var rest = (Raw(units, k, units.Count) + pending).ToLowerInvariant();
+                // 後ろが する の活用 (dl + site = dlして、pc + suru = pcする: issue #886) なら、語は 2 文字でもよい
+                // (助詞と違い、site・suru は 4 文字あるので、偶然の一致で短い語を割ることは少ない)。
+                var suruTail = IsSuruTail(rest);
+                if (verbAfterJapanese && !suruTail) continue;
+                if (stem.Length < (suruTail ? 2 : 3) || _romaji.AnalyzeFragment(stem).IsValid || IsKnownEnglishWord(stem) && stem.Length >= 5) continue;
                 // 語の頭から読めない (gr): 日本語の後ろの英単語 (kyouha|google) ではない。
                 // 読めない 1 文字の後ろが最後まで読める (s|dake) なら、英字 1 文字 + 日本語。
                 var readable = _romaji.Analyze(stem).Tokens.Sum(t => t.Romaji.Length);
                 if (readable >= 2 || _romaji.Analyze(stem[(readable + 1)..]) is { IsValid: true, Partial: "" }) continue;
-                var rest = (Raw(units, k, units.Count) + pending).ToLowerInvariant();
-                if (!TrailingParticles.Any(p => rest.StartsWith(p, StringComparison.Ordinal)) ||
-                    _romaji.Analyze(rest) is not { IsValid: true, Partial: "" or "n" }) continue;
+                if (!suruTail && (!TrailingParticles.Any(p => rest.StartsWith(p, StringComparison.Ordinal)) ||
+                    _romaji.Analyze(rest) is not { IsValid: true, Partial: "" or "n" })) continue;
                 return [new CompositionSegment(true, "", Raw(units, 0, k)), Japanese(units, k, units.Count, pending)];
             }
         }
@@ -497,6 +530,15 @@ public sealed partial class CompositionDetector
 
     internal bool IsJapaneseWordOrPrefix(string kana) => _kana?.IsJapaneseWordOrPrefix(kana) == true;
 
+    /// <summary>kana が、よく使う語の読み (readings.txt、3 文字以上) かその頭か (すいちょ = すいちょく の頭)。</summary>
+    internal static bool IsJapaneseReadingOrPrefix(string kana)
+    {
+        var readings = SortedReadings.Value;
+        var index = Array.BinarySearch(readings, kana, StringComparer.Ordinal);
+        if (index >= 0) return true;
+        return ~index < readings.Length && readings[~index].StartsWith(kana, StringComparison.Ordinal);
+    }
+
     /// <summary>スペルチェッカーが正しいと言う英単語か、よくある打ち間違い (teh、recieve) か。</summary>
     internal bool IsSpellWord(string lower) => SpellChecker is { } checker && (checker.IsWord(lower) || checker.AutoCorrection(lower) is not null);
 
@@ -589,6 +631,9 @@ public sealed partial class CompositionDetector
             .Select(line => line.Split('\t')[0].Trim())
             .Where(reading => reading.Length >= 3 && !reading.StartsWith('#'))
             .ToHashSet(StringComparer.Ordinal));
+
+    /// <summary>よく使う語の読み (readings.txt、3 文字以上) を並べたもの。読みの頭かどうかを二分探索で調べる。</summary>
+    private static readonly Lazy<string[]> SortedReadings = new(() => Readings.Value.Order(StringComparer.Ordinal).ToArray());
 
     /// <summary>
     /// かなの大部分 (3/4 以上) を占める、3 文字以上のよく使う語があるか。語は後ろのかな (kanaAfter) にはみ出してもよい

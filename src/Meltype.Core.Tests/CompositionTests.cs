@@ -244,7 +244,7 @@ internal static class CompositionTests
             Func<string, IReadOnlyList<string>>? moreCandidates = null, UserDictionary? userDictionary = null, LanguageMemory? languages = null,
             TranslationDictionary? translations = null, TranslationHistory? translationHistory = null, bool fullWidthCommaPeriod = false,
             char? comma = null, char? period = null, bool slashAsMiddleDot = false, Predictor? predictor = null, bool legacyGoogleConversion = false, Func<DateTime>? now = null, bool showTypedKeys = false, bool tabConversion = false,
-            IContextEvaluator? contextEvaluator = null)
+            IContextEvaluator? contextEvaluator = null, bool englishNamePredictions = false)
         {
             var detector = legacyGoogleConversion ? CompositionDetector.CreateDefault(legacyGoogleConversion: true) : Detector;
             Direct = direct;
@@ -299,6 +299,7 @@ internal static class CompositionTests
                 ClipboardCandidates = () => ClipboardCandidates,
                 Predictor = predictor,
                 Predictions = () => predictor is not null,
+                EnglishNamePredictions = () => englishNamePredictions,
                 Punctuation = () => Punctuation,
                 SlashAsMiddleDot = () => slashAsMiddleDot,
                 Now = now ?? (() => DateTime.Now),
@@ -398,6 +399,15 @@ internal static class CompositionTests
         Assert.Equal(shown[1], k.Showing, "クリックした語が選ばれる");
         k.Type("\n");
         Assert.Equal(shown[1], k.Host.Document, "その語で確定");
+    }
+
+    [Test]
+    public static void Issue887_ExeStaysEnglish()
+    {
+        // xe (ぇ) の小書きの綴りで最後まで読めても、拡張子の exe は英字のまま (えぇ になっていた)
+        var k = new Keyboard();
+        k.Type("exe");
+        Assert.Equal("exe", k.Showing, "exe は英字のまま");
     }
 
     [Test]
@@ -662,6 +672,36 @@ internal static class CompositionTests
         k.Press(VirtualKeys.Return);
         Assert.Equal(first, k.Host.Document);
     }
+
+    [Test]
+    public static void Issue890_EnglishNamePredictions_FromKanaPrefix()
+    {
+        // #890: 社名・サービス名を読みで打ちかけたら、英字の名前も予測の候補に出す (設定が ON のとき)
+        var predictor = new Predictor(null, null, null);
+        Assert.True(predictor.PredictEnglishNames("しゃお").Contains("Xiaomi"), string.Join(",", predictor.PredictEnglishNames("しゃお")));
+        Assert.True(predictor.PredictEnglishNames("ぎっと") is { } git && git.Contains("GitHub") && git.Contains("GitLab"), string.Join(",", predictor.PredictEnglishNames("ぎっと")));
+        Assert.True(predictor.PredictEnglishNames("しゃおみ").Contains("Xiaomi"), "読みを打ち終わっても出す");
+        Assert.Equal(1, predictor.PredictEnglishNames("しゃおみ").Count(w => w == "Xiaomi"), "同じ語は 1 つだけ (しゃおみ・しゃおみー)");
+        Assert.Equal(0, predictor.PredictEnglishNames("しゃ").Count, "2 文字では出さない");
+        Assert.True(predictor.PredictEnglishNames("あいあ").Count <= Predictor.MaxPredictions, "多すぎない");
+        Assert.Equal(0, predictor.PredictEnglishNames("ゐゐゐ").Count, "無い読みは出さない");
+
+        var on = new Keyboard(predictor: predictor, englishNamePredictions: true);
+        on.Type("shao");
+        Assert.True(on.Host.View!.Predictions?.Contains("Xiaomi") == true, "ON なら出る: " + string.Join(",", on.Host.View.Predictions ?? []));
+        on.Press(VirtualKeys.Tab);
+        while (on.Showing != "Xiaomi" && on.Host.View!.SelectedPrediction < (on.Host.View.Predictions?.Count ?? 0) - 1) on.Press(VirtualKeys.Tab);
+        on.Press(VirtualKeys.Return);
+        Assert.Equal("Xiaomi", on.Host.Document);
+
+        var off = new Keyboard(predictor: predictor);
+        off.Type("shao");
+        Assert.True(off.Host.View!.Predictions?.Contains("Xiaomi") != true, "OFF (既定) なら出さない");
+    }
+
+    [Test]
+    public static void Issue890_EnglishNamePredictions_OffByDefault() =>
+        Assert.True(!new Meltype.Config.Settings().EnglishNamePredictions, "既定で OFF");
 
     [Test]
     public static void Prediction_OffWithoutPredictor()
@@ -2466,6 +2506,33 @@ internal static class CompositionTests
     }
 
     [Test]
+    public static void Issue865_HashNumberIsOneClause()
+    {
+        // #123 は # と 123 を別々の文節に変換しない (タイトルが無い・設定 OFF でも)
+        var k = new Keyboard();
+        k.Type("#123 ");
+        Assert.True(k.Host.View is { } view && view.Candidates.Contains("#123") && view.Candidates.Contains("＃１２３"), string.Join(",", k.Host.View?.Candidates ?? []));
+        var none = new Keyboard { GitHubIssueCandidates = true, GitHubRepository = "a/b", GitHubTitles = new GitHubIssueTitles((_, _) => Task.FromResult<string?>(null)) };
+        none.Type("#45 ");
+        Assert.True(none.Host.View is { } v && v.Candidates.Contains("#45"), string.Join(",", none.Host.View?.Candidates ?? []));
+    }
+
+    [Test]
+    public static void Issue866_GitHubRepositorySettingIsNormalized()
+    {
+        // 設定のリポジトリは、空白・URL・.git が付いていても「所有者/名前」として問い合わせる
+        foreach (var setting in (string[])[" yksr-melt/Meltype ", "https://github.com/yksr-melt/Meltype", "github.com/yksr-melt/Meltype.git", "https://github.com/yksr-melt/Meltype/issues/1"])
+        {
+            Assert.Equal("yksr-melt/Meltype", GitHubIssueTitles.Normalize(setting), setting);
+            var titles = new GitHubIssueTitles((repository, number) => Task.FromResult<string?>(repository == "yksr-melt/Meltype" && number == 866 ? "候補に出ない" : null));
+            var k = new Keyboard { GitHubIssueCandidates = true, GitHubRepository = setting, GitHubTitles = titles };
+            k.Type("#866 ");
+            var candidates = k.Host.View?.Candidates ?? [];
+            Assert.True(candidates.Contains("#866 候補に出ない") && candidates.Contains("yksr-melt/Meltype#866"), setting + ": " + string.Join(",", candidates));
+        }
+    }
+
+    [Test]
     public static void Issue281_ClipboardTextIsOfferedOnlyWhenEnabled()
     {
         var k = new Keyboard { ClipboardCandidates = true };
@@ -2650,11 +2717,10 @@ internal static class CompositionTests
                 Detector.UseScoredSegmentation = null;
             }
         }
-        // 略語 (IME) は区切りを点数で選ぶ (α版) では い + ME になる (別の問題) ので、通常の判定だけで確かめる
-        Assert.Equal("IME。", Type("IME.\n", on: true), "略語の後ろも句点");
         foreach (var scored in new[] { false, true })
         {
             var mode = scored ? " (点数で選ぶ)" : "";
+            Assert.Equal("IME。", Type("IME.\n", on: true, scored), "略語の後ろも句点" + mode);
             Assert.Equal("Google.", Type("Google.\n", on: false, scored), "OFF は半角のまま" + mode);
             Assert.Equal("Google。", Type("Google.\n", on: true, scored), "ON は句点" + mode);
             Assert.Equal("Google、", Type("Google,\n", on: true, scored), "ON は読点" + mode);
@@ -3380,6 +3446,24 @@ internal static class CompositionTests
         Assert.Equal("しゃーなし", k.Host.View!.Candidates[0], string.Join(" ", k.Host.View!.Candidates));
         k.Press(VirtualKeys.Return);
         Assert.Equal("しゃーなし", k.Host.Document);
+    }
+
+    /// <summary>やほやほ を 谷保谷保 にする変換エンジン (issue #424)。</summary>
+    private sealed class YahoConverter : IKanjiConverter
+    {
+        public string? Convert(string hiragana) => hiragana == "やほやほ" ? "谷保谷保" : null;
+
+        public IReadOnlyList<ConversionClause>? ConvertClauses(string hiragana, string? context = null) =>
+            hiragana == "やほやほ" ? [new("やほ", "谷保"), new("やほ", "谷保")] : null;
+    }
+
+    [Test]
+    public static void Issue424_YahoyahoStaysHiragana()
+    {
+        // #424: yahoyaho を Enter すると 谷保谷保 になっていた。繰り返しはかなのまま。
+        var k = new Keyboard(live: true, converter: new YahoConverter(), userDictionary: new UserDictionary(null));
+        k.Type("yahoyaho\n");
+        Assert.Equal("やほやほ", k.Host.Document);
     }
 
     [Test]
@@ -4262,6 +4346,9 @@ internal static class CompositionTests
             ("commitsitekara", "commitしてから"),
             ("pushsite", "pushして"),
             ("gitpushsite", "gitpushして"),
+            // #886: 知らない短い英字 (dl) + する の活用も、英字 + して (全体が英字の dlshite になっていた)
+            ("dlshite", "dlして"),
+            ("dlsuru", "dlする"),
             ("website", "website"),
             ("websitewomiru", "websiteをみる"),
             ("tetsudou", "てつどう"),
@@ -4281,6 +4368,27 @@ internal static class CompositionTests
             {
                 Detector.SpellChecker = null;
             }
+        }
+    }
+
+    [Test]
+    public static void DLsite_IsVerbOnlyAfterJapanese()
+    {
+        // #886: dlsite はサイト名 (DLsite) とも dl + して とも読める。前が日本語 (ファイルを) なら dlして、
+        // 単独・後ろに助詞が続く (dlsiteで) ならサイト名のまま。
+        foreach (var (before, typed, expected) in new[]
+        {
+            ("ファイルを", "dlsite", "ファイルをdlして"),
+            ("", "fairuwodlsite", "ふぁいるをdlして"),
+            ("", "dlsite", "dlsite"),
+            ("", "dlsitede", "dlsiteで"),
+            ("", "dlsitenokaiin", "dlsiteのかいいん"),
+        })
+        {
+            var k = new Keyboard();
+            if (before.Length > 0) k.Host.PrecedingText = before;
+            k.Type(typed + "\n");
+            Assert.Equal(expected, before + k.Host.Document, typed);
         }
     }
 
@@ -4552,5 +4660,26 @@ internal static class CompositionTests
             k.Type(typed + "\n");
             Assert.Equal(expected, k.Host.Document, typed);
         }
+    }
+
+    [Test]
+    public static void Issue885_SuitYoku()
+    {
+        // Issue #885: suit は英単語だが、t + yo を ちょ と読むと すいちょく (垂直) になるので、全体を日本語にする。
+        // 英単語の後ろの助詞 (githubya → githubや) と、日本語の読みにならない英単語 + yo (editよ) は今までどおり英字を残す。
+        foreach (var (typed, expected) in new[]
+        {
+            ("suityoku", "すいちょく"),
+            ("githubya", "githubや"),
+            ("edityo", "editよ"),
+        })
+        {
+            var k = new Keyboard();
+            k.Type(typed + "\n");
+            Assert.Equal(expected, k.Host.Document, typed);
+        }
+        var text = new CompositionText(Detector);
+        foreach (var c in "suityoku") text.Append(c);
+        Assert.Equal("JA:suityoku", string.Join(" | ", text.Segments(final: true).Select(s => (s.IsEnglish ? "EN:" : "JA:") + s.Raw)));
     }
 }

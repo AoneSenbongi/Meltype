@@ -64,4 +64,24 @@ internal static class ScoredSegmentationTests
         foreach (var (typed, expected) in new[] { ("kyoumostringkamo", "きょうもstringかも"), ("zenbuglowerswo", "ぜんぶglowersを"), ("macOSnoupdate", "macOSのupdate"), ("seeyoulater", "seeyoulater") })
             Assert.Equal(expected, Type(typed), typed);
     }
+
+    [Test]
+    public static void Acronym_HeadIsNotReadAsKana()
+    {
+        // 大文字に大文字が続く略語の頭 (IME の I) は、英語の区間にできるならかなにしない。
+        // 辞書に無い略語 (IME) より、頭をかなにして残りを英単語にした区切り (い|ME) の点が高くなり、googleいME になっていた
+        foreach (var (typed, expected) in new[] {
+            ("IME", "IME"), ("googleIME", "googleIME"), ("theIMEis", "theIMEis"), ("KYOUHA", "KYOUHA"),
+            ("kyouhaIMEwotsukau", "きょうはIMEをつかう"), ("AutoIMEnotesuto", "AutoIMEのてすと") })
+            Assert.Equal(expected, Type(typed), typed);
+    }
+
+    [Test]
+    public static void CapitalFollowedByLowercase_StillScored()
+    {
+        // 小文字が続く大文字 (文の頭を Shift で打った Ga・Koreha) は、今までどおり点数で区切る (助詞 + 英単語を全部英語にしない)
+        foreach (var (typed, expected) in new[] {
+            ("Gagoogle", "がgoogle"), ("Hagithub", "はgithub"), ("Desupport", "でsupport"), ("Korehagithubni", "これはgithubに") })
+            Assert.Equal(expected, Type(typed), typed);
+    }
 }

@@ -25,6 +25,7 @@ OutputBaseFilename=Meltype-Native-Google-{#AppVersion}-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile={#PackageRoot}\Meltype.ico
 LicenseFile={#PackageRoot}\LICENSE
 UninstallDisplayIcon={app}\Meltype-Settings.exe
 CloseApplications=yes

@@ -101,9 +101,14 @@ HRESULT NativeComposition::Finish(TfEditCookie cookie) {
   if (SUCCEEDED(hr)) Clear();
   return hr;
 }
-HRESULT NativeComposition::Commit(ITfContext* context, TfEditCookie cookie, std::wstring_view text) {
+HRESULT NativeComposition::Commit(ITfContext* context, TfEditCookie cookie, std::wstring_view text, ITfRange** committedRange) {
+  if (committedRange) *committedRange = nullptr;
   HRESULT hr = Update(context, cookie, text);
   if (FAILED(hr) || !composition_) return hr;
+  if (committedRange) {
+    hr = composition_->GetRange(committedRange);
+    if (FAILED(hr)) return hr;
+  }
   return Finish(cookie);
 }
 HRESULT NativeComposition::Cancel(ITfContext* context, TfEditCookie cookie) {

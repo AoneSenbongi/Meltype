@@ -11,7 +11,7 @@ namespace meltype {
 class NativeComposition final : public ITfCompositionSink {
  public:
   HRESULT Update(ITfContext* context, TfEditCookie cookie, std::wstring_view text);
-  HRESULT Commit(ITfContext* context, TfEditCookie cookie, std::wstring_view text);
+  HRESULT Commit(ITfContext* context, TfEditCookie cookie, std::wstring_view text, ITfRange** committedRange = nullptr);
   HRESULT Cancel(ITfContext* context, TfEditCookie cookie);
   bool Active() const { return composition_ != nullptr; }
   ITfContext* Context() const { return context_; } // borrowed; TSF apartment only

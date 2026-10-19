@@ -75,6 +75,7 @@ class Document final : public ITextStoreACP, public ITfContextOwnerCompositionSi
   unsigned starts = 0, finishes = 0;
   bool accept = true;
   bool readOnly = false;
+  LONG caretOnCompositionEnd = -1;
   InputScope inputScope = IS_DEFAULT;
   bool scopeRequested = false;
   explicit Document(std::wstring initial, LONG position) : text(std::move(initial)), start(position), end(position) {}
@@ -175,7 +176,11 @@ class Document final : public ITextStoreACP, public ITfContextOwnerCompositionSi
   HRESULT STDMETHODCALLTYPE GetWnd(TsViewCookie, HWND* window) override { *window = nullptr; return S_OK; }
   HRESULT STDMETHODCALLTYPE OnStartComposition(ITfCompositionView*, BOOL* result) override { *result = accept; if (accept) ++starts; return S_OK; }
   HRESULT STDMETHODCALLTYPE OnUpdateComposition(ITfCompositionView*, ITfRange*) override { return S_OK; }
-  HRESULT STDMETHODCALLTYPE OnEndComposition(ITfCompositionView*) override { ++finishes; return S_OK; }
+  HRESULT STDMETHODCALLTYPE OnEndComposition(ITfCompositionView*) override {
+    ++finishes;
+    if (caretOnCompositionEnd >= 0) start = end = caretOnCompositionEnd;
+    return S_OK;
+  }
 };
 
 class Edit final : public ITfEditSession {
@@ -423,6 +428,14 @@ int main(int argc, char** argv) {
           Expect(f.document->start==8&&f.document->end==8,"caret moves inside committed bracket pair");
           Expect(f.document->starts==f.document->finishes,"bracket cursor move follows composition commit");
           std::puts("PASS: bracket pair commits once, caret moves inside, Enter is not replayed");
+        }
+        {
+          Fixture f(thread,client,L"prefix suffix",7);Check(thread->SetFocus(f.manager),"bracket reset focus");
+          f.document->caretOnCompositionEnd=7;
+          key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);
+          Expect(f.document->text==L"prefix 「」suffix","bracket reset keeps committed text");
+          Expect(f.document->start==8&&f.document->end==8,"bracket caret uses committed range despite application selection reset");
+          std::puts("PASS: bracket caret survives application selection reset at composition end");
         }
         configure("\"EnglishFirstInput\":false");
         {

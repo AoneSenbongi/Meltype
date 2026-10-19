@@ -79,7 +79,7 @@ try {
         if (Test-Path -LiteralPath $targetLauncher) { Copy-Item -LiteralPath $targetLauncher -Destination $backup }
         Copy-Item -LiteralPath $launcher -Destination $targetLauncher -Force
     }
-    $context.State | Add-Member NoteProperty BaseVersion '1.2.1' -Force
+    $context.State | Add-Member NoteProperty BaseVersion '1.3.0' -Force
     $context.State | Add-Member NoteProperty SearchPackage (Get-NativeSearchPackageName) -Force
     $context.State | Add-Member NoteProperty NativeVersion '2.0.0' -Force
     $context.State | ConvertTo-Json | Set-Content (Join-Path $context.Root 'experimental-build/native-ime-install.json') -Encoding UTF8

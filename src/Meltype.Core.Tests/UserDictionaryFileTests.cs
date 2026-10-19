@@ -119,6 +119,43 @@ internal static class UserDictionaryFileTests
         }
     }
 
+    [Test]
+    public static void Import_SkipsWordsWithControlChars()
+    {
+        // 語の途中の CR・ESC・C1 は、確定するとアプリにキー操作として届く (ターミナルで CR が Enter になる)
+        var text = Encoding.UTF8.GetBytes("ゆきしろ\t雪代\nこまんど\tls\r-la\nえすけーぷ\ta\u001Bb\nしーわん\ta\u0085b\n");
+        var result = UserDictionaryFile.Parse(text);
+        Assert.Equal(1, result.Words.Count, "制御文字を含む語は取り込まない");
+        Assert.Equal(new UserWord("ゆきしろ", "雪代"), result.Words[0]);
+        Assert.Equal(3, result.Skipped);
+
+        // XML 1.0 に ESC は書けないので、書ける DEL で確かめる
+        var plist = MacPlist.Replace("<string>雪代</string>", "<string>雪&#x7F;代</string>");
+        Assert.Equal(1, UserDictionaryFile.Parse(Encoding.UTF8.GetBytes(plist)).Words.Count, "plist の語も制御文字を含むものは飛ばす");
+
+        var dictionary = new UserDictionary(null, builtIn: false);
+        Assert.Equal(1, dictionary.AddRange([new UserWord("ゆきしろ", "雪代"), new UserWord("こまんど", "ls\r-la"), new UserWord("えすけーぷ", "a\u001Bb")]), "AddRange も制御文字を含む語を飛ばす");
+        Assert.True(dictionary.Add("こまんど", "ls\u0015") is not null, "Add も制御文字を含む語を断る");
+        Assert.Equal(1, dictionary.Count);
+    }
+
+    [Test]
+    public static void UserDictionary_SkipsControlCharsInUserdict()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"meltype-userdict-{Guid.NewGuid():N}.txt");
+        try
+        {
+            File.WriteAllText(path, "ゆきしろ\t雪代\nえすけーぷ\ta\u001Bb\n");
+            var dictionary = new UserDictionary(path, builtIn: false);
+            Assert.Equal(1, dictionary.Count, "前に取り込んだ制御文字を含む語は読まない");
+            Assert.Equal(0, dictionary.Lookup("えすけーぷ").Count);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static bool Throws(Action action)
     {
         try

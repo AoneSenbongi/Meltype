@@ -167,7 +167,9 @@ public sealed class CompositionText
                    !(last.Raw is "t" or "T" && _pending.Length > 0 && _pending[0] is 's' or 'S' && EndsWithEnglishWordFromUnit(_units.Count, tsuFollows: true)) &&
                    // 英単語全体の最後の子音 (github の b) は、助詞 ya の拗音 (bya = びゃ) に飲み込まれないようにする (githubya → githubや)。
                    // 接尾辞だけが英単語のとき (kaibuns の buns) は日本語の拗音 (しょ) を優先する。
-                   !(EndsWithWholeEnglishWord(_units.Count) && (c is 'y' or 'Y' || _pending.Length > 0 && _pending[0] is 'y' or 'Y')))
+                   // ただし y の後に母音まで打って、英字の並び全体を拗音 (tyo = ちょ) まで読むと日本語の語 (suityoku の すいちょ) なら日本語を優先する。
+                   !(EndsWithWholeEnglishWord(_units.Count) && (c is 'y' or 'Y' || _pending.Length > 0 && _pending[0] is 'y' or 'Y') &&
+                     !ReadsAsJapaneseWithYoon(c)))
             {
                 pulled.Insert(0, last.Raw);
                 _units.RemoveAt(_units.Count - 1);
@@ -398,6 +400,29 @@ public sealed class CompositionText
             if (i <= start && kana.Length + 1 >= (i == start ? 2 : 3) && _detector.IsJapaneseWordOrPrefix(kana + "つ")) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// 末尾の英字のまま残した子音 (suit の t) + 打ちかけの y + 今打った母音 c を拗音 (tyo = ちょ) と読み、
+    /// 前の英字の並び全体 (すい) と合わせると 3 文字以上の日本語の語・よく使う語の読みかその頭になるか (suityoku の すいちょ = すいちょく の頭)。
+    /// 並びの途中に かな にならない単位 (github の t) があれば読まない (githubya は githubや のまま)。
+    /// </summary>
+    private bool ReadsAsJapaneseWithYoon(char c)
+    {
+        if (c is not ('a' or 'i' or 'u' or 'e' or 'o') || _pending.ToString() is not ("y" or "Y")) return false;
+        var consonants = "";
+        var i = _units.Count - 1;
+        for (; i >= 0 && _units[i] is { Raw.Length: 1 } unit && unit.Kana == unit.Raw && char.IsAsciiLetter(unit.Raw[0]); i--) consonants = unit.Raw + consonants;
+        if (consonants.Length == 0) return false;
+        var yoon = _detector.Romaji.Analyze((consonants + "y" + c).ToLowerInvariant());
+        if (!yoon.IsValid || !yoon.Kana.All(KanaChars.IsHiraganaOrLongMark)) return false;
+        var kana = yoon.Kana;
+        for (; i >= 0 && _units[i].Raw.Length > 0 && _units[i].Raw.All(char.IsAsciiLetter); i--)
+        {
+            if (!_units[i].Kana.All(KanaChars.IsHiraganaOrLongMark)) return false;
+            kana = _units[i].Kana + kana;
+        }
+        return kana.Length >= 3 && (_detector.IsJapaneseWordOrPrefix(kana) || CompositionDetector.IsJapaneseReadingOrPrefix(kana));
     }
 
     private bool EndsWithEnglishWordFromUnit(int count, string extra = "", bool tsuFollows = false)

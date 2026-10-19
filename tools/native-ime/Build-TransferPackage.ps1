@@ -6,6 +6,9 @@ $runtimeRoot = Split-Path $Runtime -Parent
 $build = Join-Path $workspace 'experimental-build'
 $package = Join-Path $build 'native-ime-package'
 $manifest = Get-Content (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json
+# Local model configuration contains machine-specific, verified absolute paths.
+# Keep it in this PC's update package, but do not install it on another PC.
+$manifest.Files = @($manifest.Files | Where-Object Name -NE 'context-model.json')
 foreach ($file in $manifest.Files) {
     if ((Get-FileHash (Join-Path $package $file.Name)).Hash -ne $file.SHA256) { throw "Build package checksum mismatch: $($file.Name)" }
 }
@@ -37,6 +40,7 @@ foreach ($launcher in @('Enable-NativeAutoStart.cmd','Disable-NativeAutoStart.cm
 Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination (Join-Path $stage 'LICENSE')
 Copy-Item -LiteralPath (Join-Path $workspace 'SECURITY.md') -Destination (Join-Path $stage 'SECURITY.md')
 Copy-Item -LiteralPath (Join-Path $workspace 'Meltype-Settings.exe') -Destination (Join-Path $stage 'Meltype-Settings.exe')
+Copy-Item -LiteralPath (Join-Path $workspace 'native/tip/meltype.ico') -Destination (Join-Path $stage 'Meltype.ico')
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_IME_TRANSFER.md') -Destination (Join-Path $stage 'README.md')
 $stageDocs=Join-Path $stage 'docs'
 New-Item -ItemType Directory -Path $stageDocs -Force|Out-Null

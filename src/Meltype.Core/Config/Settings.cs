@@ -170,6 +170,8 @@ public enum AppProfile
 /// </summary>
 public sealed class Settings
 {
+    /// <summary>読みから英字の社名・サービス名を予測する（既定OFF）。</summary>
+    public bool EnglishNamePredictions { get; set; }
     // 型の情報はビルド時に作ったもの (SettingsJsonContext)。Mac・Linux の NativeAOT でも読める (issue #151)。
     // 字下げ・コメントと末尾の , を許す・列挙型は名前で読み書き は SettingsJsonContext の属性で指定している。
     private static JsonSerializerOptions JsonOptions => SettingsJsonContext.Default.Options;

@@ -83,6 +83,24 @@ internal static class SessionFacadeTests
     }
 
     [Test]
+    public static void CtrlEnterDuringCompositionCommitsWithoutSending()
+    {
+        // 変換中の Ctrl+Enter (送信のショートカット) は確定だけ行い、キーはアプリへ渡さない。
+        // 渡すと、アプリが確定を反映する前に送信し、確定した文字が欠けた内容が送られる。
+        var session = Create();
+        Type(session, "tadokoro");
+        var chord = session.HandleKey(VirtualKeys.Return, null, false, true, false, false);
+        Assert.True(chord.Consumed, "変換中の Ctrl+Enter はアプリへ渡さない");
+        Assert.Equal("たどころ", chord.Commits.Single().Text);
+        Assert.True(chord.View is null, "確定したら変換ボックスを閉じる");
+
+        // 変換が無い状態の Ctrl+Enter はアプリへ渡す (アプリが送信できる)。
+        var again = session.HandleKey(VirtualKeys.Return, null, false, true, false, false);
+        Assert.True(!again.Consumed, "確定後の Ctrl+Enter はアプリへ渡す");
+        Assert.Equal(0, again.Commits.Count, "確定後の Ctrl+Enter は何も確定しない");
+    }
+
+    [Test]
     public static void EnglishWord_SpaceCommitsWithSpace()
     {
         var session = Create();
@@ -428,6 +446,31 @@ internal static class SessionFacadeTests
     }
 
     [Test]
+    public static void FullWidthSpaceSetting_SpaceIsFullWidthAndShiftSpaceIsHalfWidth()
+    {
+        // #881: 設定「スペースを全角で入力」では、Meltype IME も何も打っていないときの Space が全角・Shift+Space が半角 (Meltype キーボードと同じ: #259)
+        var settings = new Settings { FullWidthSpaceByDefault = true };
+        var session = new MeltypeSession(CompositionTests.Detector, new CompositionTests.FakeConverter(), new CompositionOptions { FullWidthSpaceByDefault = () => settings.FullWidthSpaceByDefault }, () => settings);
+        var result = session.HandleKey(VirtualKeys.Space, ' ', false, false, false, false, "");
+        Assert.True(result.Consumed, "Space を受け取る");
+        Assert.Equal("　", string.Concat(result.Commits.Select(c => c.Text)));
+
+        result = session.HandleKey(VirtualKeys.Space, ' ', true, false, false, false, "");
+        Assert.True(result.Consumed, "Shift+Space を受け取る");
+        Assert.Equal(" ", string.Concat(result.Commits.Select(c => c.Text)));
+
+        session.Direct = true;
+        result = session.HandleKey(VirtualKeys.Space, ' ', false, false, false, false, "");
+        Assert.True(!result.Consumed && result.Commits.Count == 0, "英数ではアプリに通す");
+
+        // 設定が OFF なら、Space はアプリに通す (DLL も受け取らない)
+        settings.FullWidthSpaceByDefault = false;
+        session = new MeltypeSession(CompositionTests.Detector, new CompositionTests.FakeConverter(), new CompositionOptions { FullWidthSpaceByDefault = () => settings.FullWidthSpaceByDefault }, () => settings);
+        result = session.HandleKey(VirtualKeys.Space, ' ', false, false, false, false, "");
+        Assert.True(!result.Consumed && result.Commits.Count == 0, "設定が OFF なら通す");
+    }
+
+    [Test]
     public static void RoleKeys_OnlyWhenSettingIsOnAndComposing()
     {
         // #199: Linux の IBus・fcitx5 は、入力中の 変換・無変換・ひらがな/カタカナ を先に本体に渡す (meltype_role_key)。
@@ -470,7 +513,7 @@ internal static class SessionFacadeTests
     public static void Json_IsEscaped()
     {
         var result = new SessionResult(true, [new TextEdit(2, "a\"b\\c\n")], new CompositionView("x", ["y"], 0, true, "h", ["x"], 0));
-        const string expected = """{"consumed":true,"commits":[{"deleteBefore":2,"text":"a\"b\\c\n"}],"view":{"text":"x","converting":true,"selectedIndex":0,"selectedClause":0,"hint":"h","candidates":["y"],"clauses":["x"],"suggestion":null,"meaning":null,"notes":[null],"predictions":[],"selectedPrediction":-1,"typed":null}}""";
+        const string expected = """{"consumed":true,"commits":[{"deleteBefore":2,"text":"a\"b\\c\n"}],"view":{"text":"x","committed":null,"converting":true,"selectedIndex":0,"selectedClause":0,"hint":"h","candidates":["y"],"clauses":["x"],"suggestion":null,"meaning":null,"notes":[null],"predictions":[],"selectedPrediction":-1,"typed":null}}""";
         Assert.Equal(expected, result.ToJson());
     }
 

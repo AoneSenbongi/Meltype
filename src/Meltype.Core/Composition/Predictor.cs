@@ -120,6 +120,7 @@ public sealed class PhraseHistory
 /// 予測変換の候補 (issue #38)。打っている途中の読み・英字から、続きの候補を出す。
 ///   日本語: 前に確定した語句 (PhraseHistory) → ユーザー辞書 → 選び直した変換の学習 の、読みが前方一致する語
 ///   英語: よく使う英単語 (english.txt) → 同梱の英単語の一覧 (english-words.txt) の、前方一致する語 (短い順)
+///   英字の名前 (設定が ON のとき、issue #890): 社名・サービス名 (brands.txt) → 英字で書く語 (loanwords.txt) の、読みが前方一致する語 (しゃお → Xiaomi)
 /// </summary>
 public sealed class Predictor
 {
@@ -129,10 +130,17 @@ public sealed class Predictor
     /// <summary>この文字数から予測する (短いと候補が多すぎて当たらない)。</summary>
     public const int MinKanaLength = 2, MinEnglishLength = 3;
 
+    /// <summary>英字の名前を読みから予測する文字数 (2 文字だと あい → IIS, IaaS … のように当たらない候補が多すぎる)。</summary>
+    public const int MinEnglishNameKanaLength = 3;
+
     private readonly PhraseHistory? _phrases;
     private readonly UserDictionary? _userDictionary;
     private readonly ConversionHistory? _history;
     private readonly Lazy<(string[] Common, string[] All)> _english;
+    private readonly Lazy<EnglishName[]> _englishNames = new(LoadEnglishNames);
+
+    /// <summary>英字の名前の読みと語。Brand は社名・サービス名の辞書 (brands.txt) のもの、Order は辞書に書いた順。</summary>
+    private readonly record struct EnglishName(string Reading, string Word, bool Brand, int Order);
 
     public Predictor(PhraseHistory? phrases, UserDictionary? userDictionary, ConversionHistory? history)
     {
@@ -186,6 +194,55 @@ public sealed class Predictor
             .Take(MaxPredictions)
             .Select(w => MatchCase(w.Word, raw));
         return words.ToList();
+    }
+
+    /// <summary>
+    /// 打ちかけの読み (ひらがな) から、英字で書く社名・サービス名・語の候補 (しゃお → Xiaomi、ぎっとは → GitHub)。
+    /// 社名・サービス名を先に、それぞれ読みの短い順。読みと同じ長さ (読みを打ち終わったもの) も出す。
+    /// 読みで並べた一覧を二分探索するので、打つたびに全部を見ることはしない。
+    /// </summary>
+    public IReadOnlyList<string> PredictEnglishNames(string kana)
+    {
+        if (kana.Length < MinEnglishNameKanaLength) return [];
+        var names = _englishNames.Value;
+        var matches = new List<EnglishName>();
+        for (var i = FirstReadingAtOrAfter(names, kana); i < names.Length && names[i].Reading.StartsWith(kana, StringComparison.Ordinal); i++) matches.Add(names[i]);
+        return matches.OrderByDescending(n => n.Brand).ThenBy(n => n.Reading.Length).ThenBy(n => n.Order)
+            .Select(n => n.Word).Distinct().Take(MaxPredictions).ToList();
+    }
+
+    /// <summary>読みが prefix 以上になる最初の位置 (読みは序数順に並べてある)。</summary>
+    private static int FirstReadingAtOrAfter(EnglishName[] names, string prefix)
+    {
+        int low = 0, high = names.Length;
+        while (low < high)
+        {
+            var mid = (low + high) / 2;
+            if (string.CompareOrdinal(names[mid].Reading, prefix) < 0) low = mid + 1;
+            else high = mid;
+        }
+        return low;
+    }
+
+    /// <summary>brands.txt・loanwords.txt (読み 英字 英字 …) から、英字を含む語だけを読みの順に並べる。</summary>
+    private static EnglishName[] LoadEnglishNames()
+    {
+        var names = new List<EnglishName>();
+        void Add(string file, bool brand)
+        {
+            foreach (var line in Detection.DictionarySource.LinesWithoutComments(Detection.DictionarySource.ReadEmbedded(file)))
+            {
+                var parts = line.Split([' ', '\t', '\r', '　'], StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 2) continue;
+                foreach (var word in parts.Skip(1))
+                {
+                    if (word.Any(char.IsAsciiLetter)) names.Add(new(parts[0], word, brand, names.Count));
+                }
+            }
+        }
+        Add("brands.txt", brand: true);
+        Add("loanwords.txt", brand: false);
+        return names.OrderBy(n => n.Reading, StringComparer.Ordinal).ThenBy(n => n.Order).ToArray();
     }
 
     private static IEnumerable<string> StartingWith(string[] sorted, string prefix)

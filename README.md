@@ -2,7 +2,7 @@
 
 [雪代／Yukishiro氏のMeltype](https://github.com/yksr-melt/Meltype)を基に、Windowsの入力欄へ未確定文字を表示するIMEと、インストール済みGoogle日本語入力との連携を追加した非公式Forkです。改良は`google-native-ime`ブランチで管理しています。Googleや元作者の公式配布版ではありません。
 
-1.1.0では、本家Meltype 1.2.1の共通コア・辞書・予測に加え、管理画面からMicrosoft IMEとGoogle日本語入力を変換先として選べます。Microsoft側は本家の変換・候補取得・日英判別を使います。Google側は従来の判定と辞書・学習履歴を保持します。IMEのアイコンは本家由来のMeltypeアイコン、入力モードは「自動／英語」です。画面下端では変換候補を入力位置の上へ表示します。[変更点](docs/RELEASE_1_1_0.md)と[仕様と制限](docs/NATIVE_ENGINE_MODE.md)を参照してください。
+2.0.0では本家Meltype 1.3.0の共通変換処理・判定・辞書を取り込みました。管理画面からMicrosoft IMEとGoogle日本語入力を選べます。入力操作・計算の設定は管理画面内にあり、英語と誤判定された文節もShift＋左右で範囲を変更できます。括弧対の確定後に内側へ移動する設定も修正しました。[変更点・検証と制限](docs/RELEASE_2_0_0.md)と[変換エンジンの仕様](docs/NATIVE_ENGINE_MODE.md)を参照してください。
 
 ## 管理画面
 
@@ -28,7 +28,7 @@ Googleの既存辞書・学習履歴を使います。学習が有効なら、�
 必要なものはWindows 10／11のx64版と、インストール済みのGoogle日本語入力です。ARM版と32ビット版にはこのパッケージを使わないでください。ランタイムはインストーラーに同梱しているので、Codex・開発環境・別途の.NETインストールは不要です。
 
 1. Google日本語入力をインストールし、一度日本語を入力して動作を確認します。
-2. [Meltype Native 1.1.0 Release](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-1.1.0)から `Meltype-Native-Google-1.1.0-Setup.exe` を取得し、通常のダブルクリックで開きます。
+2. [Meltype Native 2.0.0 Release](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-2.0.0)から `Meltype-Native-Google-2.0.0-Setup.exe` を取得し、通常のダブルクリックで開きます。
 3. セットアップで保存先とデスクトップショートカットを確認します。必要な管理者確認を承認すると、導入または更新後にIMEが起動します。
 4. デスクトップまたはスタートメニューの「Meltypeの管理画面」から、起動・停止・辞書登録などを操作します。
 
@@ -37,7 +37,7 @@ Googleの既存辞書・学習履歴を使います。学習が有効なら、�
 インストーラーのSHA-256はReleaseの`.sha256`ファイルと比較できます。
 
 ```powershell
-Get-FileHash .\Meltype-Native-Google-1.1.0-Setup.exe -Algorithm SHA256
+Get-FileHash .\Meltype-Native-Google-2.0.0-Setup.exe -Algorithm SHA256
 ```
 
 詳しくは[自分のPCへの導入](docs/NATIVE_IME_TRANSFER.md)を参照してください。Mac版・Linux版のNative Google連携パッケージは配布していません。
@@ -115,7 +115,7 @@ General Public License for more details.
 
 ## 本家1.0.4の取り込み
 
-本家v1.0.4までの共通入力コアとテストを取り込みました。拡張ローマ字表記と日英・かなキーの判定改善を含みます。Qtアプリ向けの貼り付け修正は常駐版のソースに含みますが、Native Google版はTSFで入力し、貼り付け経路を追加していません。Windows常駐版、Mac・Linux向けの変更もソースに含みます。Native Google版は独自のTSF入力・管理画面を使うため、本家の入力画面や設定画面の変更は直接反映されません。選択済み文字の再変換は本家アプリ側の実装を含みますが、Native IME側では未対応です。
+本家の共通変換処理を取り込み、独自のTSF入力・管理画面を使います。本家のキーフック・TIPやOS別パッケージをそのまま使う構成ではなく、本家の設定すべてに対応するものではありません。選択済み文字の再変換とTab文節変換にも対応します。
 
 ウイルス対策による脅威検出はSmartScreenの未署名警告とは別です。定義を更新し、配布物を再取得して再検査してください。引き続き検出される場合は保護を無効にせず、個人情報を伏せて検出名と版をこのForkのIssuesへ報告してください。
 

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="420" viewBox="0 0 1080 420" role="img" aria-labelledby="title desc">
+<title id="title">文節の区切りを直して、候補を選び直す</title><desc id="desc">に・だいをShiftと左右キーで一つの文節へ広げ、Googleから荷台の候補を取得する例。英語と誤判定された部分も日本語の読みを持つ場合は修正できます。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10" fill="#46748f"/></marker></defs>
+<rect width="1080" height="420" rx="20" fill="#edf6fc"/>
+<g font-family="Yu Gothic,Meiryo,sans-serif" fill="#172c43">
+<text x="35" y="48" font-size="26" font-weight="700">自動の区切りを、自分で直せる。</text>
+<text x="35" y="81" font-size="17" fill="#42627e">Shift ＋ ← / → で範囲変更。変えた読みでGoogleの候補を取得し直します。</text>
+<g fill="white" stroke="#bfd2e4"><rect x="35" y="107" width="295" height="137" rx="14"/><rect x="393" y="107" width="295" height="137" rx="14"/><rect x="750" y="107" width="295" height="137" rx="14"/></g>
+<text x="55" y="142" font-size="17" fill="#42627e">候補が見つからない</text><text x="55" y="189" font-size="30">に ｜ だい</text><text x="55" y="222" font-size="15">「にだい」が分かれている</text>
+<text x="413" y="142" font-size="17" fill="#42627e">Shift ＋ → で範囲を広げる</text><text x="413" y="189" font-size="30">にだい</text><path d="M413 199H513" stroke="#2185ac" stroke-width="3"/><text x="413" y="222" font-size="15">一つの文節として候補を取得</text>
+<text x="770" y="142" font-size="17" fill="#42627e">欲しい表記を選ぶ</text><text x="770" y="189" font-size="30" fill="#126184">荷台</text><text x="770" y="222" font-size="15">変更した範囲のまま確定</text>
+<path d="M343 179H378" stroke="#46748f" stroke-width="3" marker-end="url(#arrow)"/><path d="M701 179H735" stroke="#46748f" stroke-width="3" marker-end="url(#arrow)"/>
+<rect x="35" y="264" width="1010" height="104" rx="14" fill="#fff" stroke="#bfd2e4"/>
+<text x="55" y="298" font-size="20" font-weight="700">英語だと誤判定された部分にも。</text>
+<text x="55" y="335" font-size="18">英字表示の文節 → Shift ＋ 左右 → 日本語の読みで範囲変更・候補選択</text>
+<text x="35" y="399" font-size="14" fill="#42627e">操作の説明図です。英字部分は日本語の読みを持つ場合が対象。URLや読めない英字は保持します。</text>
+</g></svg>

@@ -367,3 +367,12 @@ Meltype 本体と同じライセンス (GPL-3.0-or-later) です。
 
 - `docs/meltype.jpg`・`docs/images/logo.png` (Meltype のロゴ) は [@Crysta1221](https://github.com/Crysta1221) さんの作品です。
 - `docs/images/headings/` の画像 (README と docs/ の見出し) と `docs/images/demo.svg`・`docs/images/features.svg` の文字は、M PLUS Rounded 1c (Copyright 2016 The M+ Project Authors、SIL Open Font License 1.1) の字形を図形にしたものです。
+
+## Windows Native 2.0.0の追加同梱物
+
+WindowsのSetup.exeには以下を同梱します。ライセンス全文・出典通知は、導入されたパッケージ内の同名ファイルにも配置します。
+
+| 同梱物 | ライセンス | 通知 |
+| --- | --- | --- |
+| [zenz-v3.2-small Q5_K_M](https://huggingface.co/Miwa-Keita/zenz-v3.2-small-gguf)、revision c67e03e | Apache-2.0 | licenses/ZENZ-APACHE-2.0.txt、licenses/ZENZ-NOTICE.txt |
+| [azooKey/llama.cpp b4846](https://github.com/azooKey/llama.cpp/releases/tag/b4846)、Windows AVX2 CPU版 | MIT | licenses/LLAMA-MIT.txt、licenses/ZENZ-NOTICE.txt |

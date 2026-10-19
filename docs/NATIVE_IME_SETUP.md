@@ -6,7 +6,7 @@
 
 ## ビルドと起動
 
-別のPCへ移す場合は、`Build-TransferPackage.ps1`で作るWindows x64用ZIPを使う。ZIPには必要なPowerShellランタイム、試作IME、対応するソースを含める。個人の設定・学習履歴・インストール先のパス・Windowsアカウント情報は含めない。移行先のPCではGoogle日本語入力を別途インストールし、ZIPを固定した場所へ展開してから管理者権限で登録する。展開先は登録後に移動しない。
+別のPCへ配布する2.0.0では、`Build-TransferPackage.ps1 -Runtime <pwsh.exe> -ModelAssets <モデルとruntimeの保存先>`でWindows x64用ZIPを作る。固定ハッシュのzenzモデル・CPU runtimeとライセンスを含め、個人の設定・学習履歴・インストール先のパス・Windowsアカウント情報は含めない。このZIPを`Build-NativeInstaller.ps1 -TransferZip <ZIP> -Compiler <ISCC.exe>`へ渡してSetup.exeを作る。受け取る人はGoogle日本語入力を別途導入し、SetupからIMEとモデルを一緒にインストールする。モデル資産の出典と固定ハッシュ、配置と検証はdocs/BUNDLED_ZENZ.mdを参照する。
 
 管理画面は`Meltype-Settings.exe`で開く。インストール、起動、停止、更新、単語登録、辞書管理を操作できる。詳しくは[管理画面の説明](NATIVE_GUI.md)を参照。停止すると通常のGoogle日本語入力に戻す。Windowsへのサインイン後は入力サービスとトレイの管理画面を非表示で起動する。句読点設定と学習設定はGoogle側で別途設定する。
 

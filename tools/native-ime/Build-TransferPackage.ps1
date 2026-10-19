@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory)][string]$Runtime)
+﻿param([Parameter(Mandatory)][string]$Runtime,[Parameter(Mandatory)][string]$ModelAssets)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $Runtime = (Resolve-Path -LiteralPath $Runtime).Path
@@ -6,8 +6,7 @@ $runtimeRoot = Split-Path $Runtime -Parent
 $build = Join-Path $workspace 'experimental-build'
 $package = Join-Path $build 'native-ime-package'
 $manifest = Get-Content (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json
-# Local model configuration contains machine-specific, verified absolute paths.
-# Keep it in this PC's update package, but do not install it on another PC.
+# Replace development paths with relocatable, verified model assets for Setup.
 $manifest.Files = @($manifest.Files | Where-Object Name -NE 'context-model.json')
 foreach ($file in $manifest.Files) {
     if ((Get-FileHash (Join-Path $package $file.Name)).Hash -ne $file.SHA256) { throw "Build package checksum mismatch: $($file.Name)" }
@@ -23,6 +22,7 @@ New-Item -ItemType Directory -Path $stage -Force | Out-Null
 $stagePackage = Join-Path $stage 'experimental-build/native-ime-package'
 New-Item -ItemType Directory -Path $stagePackage -Force | Out-Null
 foreach ($file in $manifest.Files) { Copy-Item -LiteralPath (Join-Path $package $file.Name) -Destination (Join-Path $stagePackage $file.Name) }
+$manifest.Files += @(& (Join-Path $PSScriptRoot 'Add-BundledContextModel.ps1') -Stage $stagePackage -ModelAssets $ModelAssets)
 @{ Architecture = 'x64'; Portable = $true; SourceCommit = $version; NativeRegistration=$manifest.NativeRegistration; Files = $manifest.Files } |
     ConvertTo-Json -Depth 4 | Set-Content (Join-Path $stagePackage 'manifest.json') -Encoding UTF8
 $scripts = Join-Path $stage 'tools/native-ime'

@@ -9,5 +9,5 @@
 <text x="55" y="147" font-size="19" font-weight="700">01　そのまま打つ</text><text x="55" y="188" font-size="17">kyouha google de kensaku</text><text x="55" y="226" font-size="16">日本語の読みと英語を判別</text><text x="55" y="251" font-size="14" fill="#52718c">※読みやすさのため空白で区切って表示</text>
 <text x="414" y="147" font-size="19" font-weight="700">02　エンジンを選ぶ</text><text x="414" y="193" font-size="19" fill="#145c8c">Google日本語入力</text><text x="414" y="228" font-size="19">Microsoft IME</text><text x="414" y="255" font-size="14" fill="#52718c">管理画面で切り替え</text>
 <text x="773" y="147" font-size="19" font-weight="700">03　元の入力欄へ</text><text x="773" y="194" font-size="21">今日はgoogleで検索</text><path d="M775 204H1019" stroke="#2486b1" stroke-width="2"/><text x="773" y="238" font-size="16">未確定表示 → 候補選択 → 確定</text><text x="773" y="261" font-size="14" fill="#52718c">フォントや色は入力先に従います</text>
-<text x="35" y="325" font-size="15" fill="#42627e">概念図です。Google日本語入力は別途導入。zenzモデルは配布物に含みません。</text>
+<text x="35" y="325" font-size="15" fill="#42627e">概念図です。Google日本語入力は別途導入。zenzモデルもSetupで一緒に導入します。</text>
 </g></svg>

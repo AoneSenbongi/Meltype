@@ -2,7 +2,7 @@
 
 ## 現在タスク: 2.0.0の図解README整備と公開準備（PC適用済み、未公開）
 
-2026年10月20日、利用者が2.0.0公開と本家との差分を図入りREADMEに明記することを指示。READMEを現行版へ整理し、図3点と既存の実管理画面を追加。配布物にも同じ案内を同梱するため梱包スクリプトを変更する。製品DLLは変更しない。新しい本文と配布物を確認可能な状態に整えてから、今回変更した公開内容の承認を受ける。以下のEXE情報は再梱包前の記録。最新ソースf9cdc5eddebbc9868cde40207553fc2c20083561から配布EXE・SHA-256・対応ソース同梱ZIPを再構築済み。EXEのSHA-256は5E2D823E08DDE6C194826E183B3ED42DE72F7A99B06B046846011DA4352D3712。distributions/Meltype-Native-Google-2.0.0-Setup.exeと同名.sha256が公開確認対象。対応ソース・公開payload6点・個人データ非同梱を照合し、Setupのアイコンも元ICOと全画素一致した。証跡experimental-build/installer-build.json、upstream-1.3.0/installer-arrow-final.log、public-arrow-package-check.json。ソース確定後の差分は結果を反映した状態・公開資料だけ。利用者から括弧内移動の成功報告を受領した（対象アプリは報告に記載なし）。公開内容の承認待ちで、未公開。
+2026年10月20日、利用者がREADMEの再構成、文節編集・英語誤判定修正の強調、zenzをSetupで標準インストールすること、別PC試験用のGoogle Drive配置、リファクタリングを指定した。READMEを本家由来・独自変更・未対応へ分離し、文節編集の図を追加（計4図＋実画面）。モデル未同梱だった419c3f6のEXEは今回の配布候補として使わない。相対パスのモデル・CPU runtime・ライセンスをmanifestへ追加して既存のSetup・保護配置を使う。設定読込・パス解決・ハッシュ検証をGet-NativeVerifiedContextModelへ分離。実装前に別パス設定の失敗を確認し、実装後は実モデル推論・終了・移動後起動・不正パスと改ざん拒否、既存絶対設定、AVX2無効化時のモデル停止が通過。製品DLLはf9cdc5eの確認済み版を維持。TSF連携試験とモデル込みSetup作成・配布照合を進める。Driveの非公開フォルダーは18O-ixJFYU9BgPnJBxp54_xMIIPwVYBW_（https://drive.google.com/drive/folders/18O-ixJFYU9BgPnJBxp54_xMIIPwVYBW_）。完成したEXE・sha256・別PC確認手順をアップロードし、結果を記録する。GitHub push・タグ・Releaseは未実施。仕様docs/BUNDLED_ZENZ.md。
 
 利用者がComputer Useの停止を明示したため、この作業では以後使用しない。画面操作・自動キー入力をCLIによる別手段へ置き換えない。ソース・ログ・画面を操作しないCLI試験・配布準備で進める。
 

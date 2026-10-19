@@ -7,6 +7,41 @@ namespace Meltype.Tests;
 internal static class GoogleImeTests
 {
     [Test]
+    public static void GoogleCandidates_WholeReadingSurvivesDefaultSegmentation()
+    {
+        foreach (var failure in new[] { "", "stuck", "wrong-reading", "disconnect" })
+        {
+            var commands = new List<ulong>(); var extensions = 0;
+            byte[] Segment(string reading, string text) => new byte[] { 19 }
+                .Concat(P.String(4, text)).Concat(P.String(6, reading)).Concat(new byte[] { 20 }).ToArray();
+            byte[] Split() => P.Blob(5, Segment("に", "二").Concat(Segment("だい", "代")).ToArray())
+                .Concat(P.Blob(14, P.Blob(2, P.String(4, "二")))).ToArray();
+            var converter = new GoogleImeConverter(request => {
+                var input = P.Parse(request); var kind = input.Int(1); commands.Add(kind);
+                if (kind == 1) return P.Number(1, 12345);
+                if (kind != 3) return [];
+                var key = input.Message(3);
+                if (key.Int(3) == 4) return Split();
+                if (key.Int(3) != 7 || key.Int(4) != 4) return [];
+                extensions++;
+                if (failure == "disconnect") throw new IOException("layout change failed");
+                if (failure == "stuck") return Split();
+                var reading = failure == "wrong-reading" ? "にたい" : "にだい";
+                return P.Blob(5, Segment(reading, "二代"))
+                    .Concat(P.Blob(14, P.Blob(2, P.String(4, "二代")).Concat(P.Blob(2, P.String(4, "荷台"))).ToArray())).ToArray();
+            });
+            var plain = converter.ConvertClauses("にだい");
+            Assert.Equal("に|だい", string.Join("|", plain!.Select(c => c.Reading)), "通常変換の境界を維持する");
+            Assert.Equal(0, extensions, "ライブ変換では全体候補の追加照会をしない");
+            var candidates = converter.Candidates("にだい");
+            Assert.Equal(failure == "", candidates.Contains("荷台"), "まとめた文節の候補だけを取得する");
+            Assert.True(extensions > 0 && extensions <= 3, "候補照会では文節を制限回数だけ伸ばす");
+            Assert.True(commands.Count(c => c == 1) == commands.Count(c => c == 2), "全セッションを破棄する");
+            Assert.True(commands.All(c => c is 1 or 2 or 3 or 5 or 17), "学習・設定保存を送らない");
+        }
+    }
+
+    [Test]
     public static void GooglePunctuation_RestoresWidthAndRejectsDifferentReadings()
     {
         foreach (var returned in new[] { "にほんご?", "にほんこ?", "ｎほんご?" })
@@ -69,12 +104,72 @@ internal static class GoogleImeTests
     public static void GoogleInvalidReading_DoesNotContactServer()
     {
         var converter = new GoogleImeConverter(_ => throw new Exception("must not connect"));
-        foreach (var reading in new[] { "", "あ\n", new string('あ', 101) })
+        foreach (var reading in new[] { "", "あ\n", new string('あ', 513) })
             Assert.True(converter.Convert(reading) is null, "Invalid reading rejected before connection");
+    }
+
+    [Test]
+    public static void GoogleLongReading_ReturnsVerifiedClausesAndDeletesPrivateSession()
+    {
+        var reading = new string('あ', 512);
+        var commands = new List<ulong>();
+        var current = "";
+        var converter = new GoogleImeConverter(request =>
+        {
+            var input = P.Parse(request); var kind = input.Int(1); commands.Add(kind);
+            if (kind == 1) return P.Number(1, 12345);
+            if (kind == 17) Assert.Equal(1UL, input.Message(9).Int(23), "Use a private conversion session");
+            if (kind == 5 && input.Message(4).Int(1) == 26)
+            {
+                current = input.Message(4).Message(11).Text(1);
+                Assert.True(current.Length <= 100, "Each Google window stays bounded");
+            }
+            if (kind == 3) return Preedit(current, "長文");
+            return [];
+        });
+        Assert.Equal(string.Concat(Enumerable.Repeat("長文", 6)), converter.Convert(reading));
+        Assert.Equal(6, commands.Count(c => c == 2), "Every private window is deleted");
+        Assert.Equal(2UL, commands[^1], "Always delete the session");
+        Assert.True(!commands.Any(c => c is 6 or 8), "No config or persistence writes");
     }
 
     private static byte[] Preedit(string reading, string value) =>
         P.Blob(5, new byte[] { 19 }.Concat(P.String(4, value)).Concat(P.String(6, reading)).Concat(new byte[] { 20 }).ToArray());
+
+    [Test]
+    public static void GoogleLongReading_RereadsLastClauseAndRejectsIncompleteResult()
+    {
+        foreach (var failSecond in new[] { false, true })
+        {
+            var reading = new string('あ', 101); var current = "";
+            var windows = new List<string>(); var deleted = 0;
+            var converter = new GoogleImeConverter(request =>
+            {
+                var input = P.Parse(request); var kind = input.Int(1);
+                if (kind == 1) return P.Number(1, 12345);
+                if (kind == 2) { deleted++; return []; }
+                if (kind == 5 && input.Message(4).Int(1) == 26)
+                { current = input.Message(4).Message(11).Text(1); windows.Add(current); }
+                if (kind != 3) return [];
+                if (windows.Count > 1)
+                {
+                    if (failSecond) throw new IOException("second window failure");
+                    return Preedit(current, "後");
+                }
+                byte[] Clause(string r, string t) => new byte[] { 19 }.Concat(P.String(4, t)).Concat(P.String(6, r)).Concat(new byte[] { 20 }).ToArray();
+                return P.Blob(5, Clause(current[..80], "前").Concat(Clause(current[80..], "未完")).ToArray());
+            });
+            var result = converter.ConvertClauses(reading);
+            if (failSecond) Assert.True(result is null, "Do not return a partially converted long reading");
+            else
+            {
+                Assert.Equal("前後", string.Concat(result!.Select(c => c.Text)));
+                Assert.Equal(reading, string.Concat(result!.Select(c => c.Reading)));
+            }
+            Assert.Equal(21, windows[1].Length, "Re-read the uncommitted last clause with the next characters");
+            Assert.Equal(2, deleted, "Both window sessions are deleted even after failure");
+        }
+    }
 
     private static GoogleImeConverter LearningMock(List<string> commands, bool candidateExists = true, bool sameBoundary = true,
         Func<bool>? learningEnabled = null, Action? highlighted = null)
@@ -188,6 +283,30 @@ internal static class GoogleImeTests
         }
         var bridge = converter.Candidates("はし");
         Assert.True(bridge.Contains("橋") && bridge.Contains("箸") && bridge.Contains("端"), "Google alternative candidates");
+        Assert.True(converter.Candidates("にだい").Contains("荷台"), "手動でまとめた読みに対するGoogle候補");
+        foreach (var suffix in new[] { "", "nitsumu" })
+        {
+            var resized = new CompositionTests.Keyboard(live: true, converter: converter,
+                moreCandidates: converter.Candidates, legacyGoogleConversion: true);
+            if (suffix.Length == 0) resized.Type("nidai ");
+            else
+            {
+                // Use a known kana reading to isolate resizing from English detection.
+                resized.Host.Selection = new ReconversionSelection("二代に積む", "にだいにつむ");
+                resized.Key(Input.VirtualKeys.Convert);
+            }
+            resized.Key(Input.VirtualKeys.LShift);
+            resized.Key(Input.VirtualKeys.Right); resized.Key(Input.VirtualKeys.Right);
+            resized.Key(Input.VirtualKeys.LShift, up: true);
+            Assert.True(resized.Host.View!.Candidates.Contains("荷台"), "Shift+Right後の候補に荷台を表示する");
+            var following = string.Concat(resized.Host.View.Clauses!.Skip(1));
+            for (var step = 0; step < resized.Host.View.Candidates.Count &&
+                resized.Host.View.Candidates[resized.Host.View.SelectedIndex] != "荷台"; step++) resized.Key(Input.VirtualKeys.Down);
+            Assert.Equal("荷台" + following, resized.Showing, "後続文節を保持して荷台を選択する");
+            resized.Type("\n");
+            Assert.Equal("荷台" + following, resized.Host.Document, "選択した表記を確定する");
+            Console.WriteLine("PASS: resized にだい -> 荷台; following clauses and commit preserved");
+        }
         Assert.Equal("3時", converter.Convert("3じ"), "Numbers mixed with Japanese");
         foreach (var (key, mark, fullWidth) in new[] { (",", "、", false), (".", "。", false), (",", "，", true), (".", "．", true), ("?", "？", true), ("!", "！", true), ("?!?", "？！？", true) })
         foreach (var space in new[] { false, true })

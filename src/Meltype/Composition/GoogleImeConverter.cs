@@ -16,6 +16,11 @@ public sealed class GoogleImeConverter : IKanjiConverter, ILearningConverter
     private bool CanLearn => _learning && LearningEnabled();
     private readonly object _gate = new();
     private readonly Dictionary<string, IReadOnlyList<string>> _candidates = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<string>> _contextCandidates = new(StringComparer.Ordinal);
+    public IReadOnlyList<string> CachedCandidates(string reading)
+    {
+        lock (_gate) return _contextCandidates.GetValueOrDefault(reading) ?? [];
+    }
 
     public GoogleImeConverter(bool learning = false) : this(CallPipe, learning) { }
     internal GoogleImeConverter(Func<byte[], byte[]> transport, bool learning = false) { _transport = transport; _learning = learning; }
@@ -28,22 +33,47 @@ public sealed class GoogleImeConverter : IKanjiConverter, ILearningConverter
         lock (_gate)
         {
             if (_candidates.TryGetValue(reading, out var cached)) return cached;
-            ConvertClauses(reading);
+            var clauses = ConvertClauses(reading);
+            // This is an explicit candidate request for one selected clause.
+            // Google's default segmentation may split a manually resized clause.
+            if (clauses is { Count: > 1 } && reading.Length <= 100)
+                ConvertCore(reading, null, singleClause: true);
             return _candidates.GetValueOrDefault(reading) ?? [];
         }
     }
 
     public IReadOnlyList<ConversionClause>? ConvertClauses(string hiragana, string? context = null)
     {
-        lock (_gate) return ConvertCore(hiragana, context);
+        if (hiragana.Length is 0 or > 512 || hiragana.Any(char.IsControl)) return null;
+        lock (_gate)
+        {
+            if (hiragana.Length <= 100) return ConvertCore(hiragana, context);
+            var result = new List<ConversionClause>();
+            var offset = 0;
+            var deadline = Stopwatch.StartNew();
+            while (offset < hiragana.Length)
+            {
+                var length = Math.Min(100, hiragana.Length - offset);
+                var window = ConvertCore(hiragana.Substring(offset, length), context, deadline);
+                if (window is null || window.Count == 0) return null;
+                // The last clause may end in the middle of a word. Re-read it with the next window.
+                var take = offset + length < hiragana.Length && window.Count > 1 ? window.Count - 1 : window.Count;
+                var accepted = window.Take(take).ToArray();
+                var consumed = accepted.Sum(c => c.Reading.Length);
+                if (consumed <= 0 || consumed > length) return null;
+                result.AddRange(accepted);
+                offset += consumed;
+            }
+            return result;
+        }
     }
 
-    private IReadOnlyList<ConversionClause>? ConvertCore(string hiragana, string? context)
+    private IReadOnlyList<ConversionClause>? ConvertCore(string hiragana, string? context, Stopwatch? operationDeadline = null, bool singleClause = false)
     {
         if (hiragana.Length is 0 or > 100 || hiragana.Any(char.IsControl)) return null;
         ulong session = 0;
         _candidates.Clear();
-        var deadline = Stopwatch.StartNew();
+        var deadline = operationDeadline ?? Stopwatch.StartNew();
         Proto Call(int kind, byte[]? payload = null)
         {
             // No config, submit, shutdown, reset-history, or dictionary commands.
@@ -70,6 +100,20 @@ public sealed class GoogleImeConverter : IKanjiConverter, ILearningConverter
             var clauses = output.Message(5).Groups(2)
                 .Select(p => new ConversionClause(p.Text(6), p.Text(4))).ToList();
             if (clauses.Count == 0 || !SameReading(string.Concat(clauses.Select(c => c.Reading)), hiragana)) return null;
+            if (singleClause)
+            {
+                for (var step = 0; clauses.Count > 1 && step < hiragana.Length; step++)
+                {
+                    var previousLength = clauses[0].Reading.Length;
+                    // SHIFT+RIGHT extends the focused first clause without committing.
+                    output = Call(3, Proto.Blob(3, Proto.Number(3, 7).Concat(Proto.Number(4, 4)).ToArray()));
+                    clauses = output.Message(5).Groups(2)
+                        .Select(p => new ConversionClause(p.Text(6), p.Text(4))).ToList();
+                    if (clauses.Count == 0 || clauses[0].Reading.Length <= previousLength ||
+                        !SameReading(string.Concat(clauses.Select(c => c.Reading)), hiragana)) return null;
+                }
+                if (clauses.Count != 1) return null;
+            }
             var offset = 0;
             for (var i = 0; i < clauses.Count; i++)
             {
@@ -83,6 +127,8 @@ public sealed class GoogleImeConverter : IKanjiConverter, ILearningConverter
                 var words = output.Message(14).Messages(2).Select(p => p.Text(4)).Where(t => t.Length > 0).ToList();
                 if (words.Count == 0) words = output.Message(6).Groups(3).Select(p => p.Text(5)).Where(t => t.Length > 0).ToList();
                 _candidates[clauses[index].Reading] = words.Select(w => RestoreSymbolWidth(w, clauses[index].Reading)).Prepend(clauses[index].Text).Distinct().ToArray();
+                if (_contextCandidates.Count > 256) _contextCandidates.Clear();
+                _contextCandidates[clauses[index].Reading] = _candidates[clauses[index].Reading];
             }
             return clauses;
         }

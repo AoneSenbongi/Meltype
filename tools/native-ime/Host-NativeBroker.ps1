@@ -13,8 +13,17 @@ Add-Type -Path $brokerSource -ReferencedAssemblies $references
 $created = $false
 $mutex = [Threading.Mutex]::new($true, ('Local\' + [MeltypeNativeBroker]::PipeName + '.Mutex'), [ref]$created)
 if (-not $created) { $mutex.Dispose(); return }
+$model=$null
+$previousEndpoint=$env:MELTYPE_CONTEXT_ENDPOINT
 try {
+    . (Join-Path $PSScriptRoot 'NativeContextModel.ps1')
+    $model=Start-NativeContextModel $loadRoot $build
+    if($model){$env:MELTYPE_CONTEXT_ENDPOINT=$model.Endpoint}
     [IO.File]::WriteAllText((Join-Path $build 'native-broker.pid'), [string]$PID)
     Write-Output "Native broker ready; learning=$($Learning.IsPresent)"
     [MeltypeNativeBroker]::Run($Learning.IsPresent)
-} finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
+} finally {
+    Stop-NativeContextModel $model
+    $env:MELTYPE_CONTEXT_ENDPOINT=$previousEndpoint
+    $mutex.ReleaseMutex(); $mutex.Dispose()
+}

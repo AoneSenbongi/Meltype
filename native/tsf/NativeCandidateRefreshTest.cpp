@@ -12,7 +12,7 @@ int wmain(int argc, wchar_t** argv) {
   std::memcpy(&test, &address, sizeof(test));
   bool result = test && test();
   FreeLibrary(dll);
-  std::puts(result ? "PASS: candidate selection change repaints an existing popup at the same position and size."
-                   : "FAIL: candidate selection changed without repainting the existing popup.");
+  std::puts(result ? "PASS: candidate repaint, failed-layout resize, anchor recovery and reset."
+                   : "FAIL: candidate repaint, failed-layout resize, anchor recovery or reset.");
   return result ? 0 : 1;
 }

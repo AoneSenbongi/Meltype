@@ -20,6 +20,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Microsoft/Google conversion verification faile
 & (Join-Path $PSScriptRoot 'Test-NativeOpeningBracket.ps1')
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativeUpstreamFeatures.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Direct detection, selection reconversion and Tab TSF verification failed' }
+& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePrerelease.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Calculator and input-operation TSF verification failed' }
+& $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativeInputSettings.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Input-settings persistence verification failed' }
+& $Runtime -NoProfile -STA -File (Join-Path $PSScriptRoot 'Test-NativeControlPanelSettings.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Inline control-panel settings verification failed' }
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePrivacy.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Private field learning and typed header verification failed' }
 & $Runtime -NoProfile -File (Join-Path $PSScriptRoot 'Test-NativePredictionTrace.ps1')
@@ -33,6 +39,10 @@ foreach ($name in $files) { Copy-Item -LiteralPath (Join-Path $build $name) -Des
 Copy-Item -LiteralPath (Join-Path $workspace 'native/tsf/NativeBroker.cs') -Destination (Join-Path $stage 'NativeBroker.cs') -Force
 Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination (Join-Path $stage 'LICENSE') -Force
 $files += @('NativeBroker.cs', 'LICENSE')
+if(Test-Path (Join-Path $workspace 'native/tsf/context-model.json')){
+    Copy-Item (Join-Path $workspace 'native/tsf/context-model.json') (Join-Path $stage 'context-model.json') -Force
+    $files += 'context-model.json'
+}
 $hashes = foreach ($name in $files) { @{ Name = $name; SHA256 = (Get-FileHash (Join-Path $stage $name)).Hash } }
 @{ Created = (Get-Date).ToString('o'); Architecture = 'x64'; UserSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value; NativeRegistration='Machine'; Files = @($hashes) } |
     ConvertTo-Json -Depth 4 | Set-Content (Join-Path $stage 'manifest.json') -Encoding UTF8

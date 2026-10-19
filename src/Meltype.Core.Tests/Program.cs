@@ -18,6 +18,14 @@ internal static class Program
     {
         switch (args.FirstOrDefault())
         {
+            case "--context-clause-run":
+                return ContextClauseReplay.Run(args[1], args[2]);
+            case "--context-length-run":
+                return ContextLengthReplay.Run(args[1], args[2]);
+            case "--context-long-run":
+                return ContextLongRun.Run(args[1], args[2], args[3]);
+            case "--context-bench":
+                return ContextReplay.Run(args[1], args[2], args[3]);
             case "--version":
                 Console.WriteLine($"Meltype {Meltype.Config.ProjectInfo.CoreVersion}");
                 return 0;

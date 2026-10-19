@@ -36,27 +36,56 @@ function Get-NativeGuiContext([string]$SourceRoot) {
 function Get-NativeInputPreferencesPath {
     return Join-Path $env:LOCALAPPDATA 'MeltypeNativeGoogle/input-preferences.json'
 }
+function Get-NativeInputOptionDefaults {
+    return @{
+        CalculatorCandidates=$true; EscStepsBack=$false; EscRevertsSelectedClause=$false
+        EnterCommitsAsShown=$false; AlphanumericKeyStartsAsTyped=$false; FunctionKeysAffectSelectedClause=$true
+        ShiftSpaceHalfWidth=$false; FullWidthParentheses=$false; FullWidthSlash=$false; SquareBrackets=$false
+        CursorIntoBrackets=$false; EnglishFirstInput=$false; ControlKeyBindings=''
+    }
+}
 function Get-NativeInputPreferences {
     $path = Get-NativeInputPreferencesPath
     $result = [pscustomobject]@{ Comma='，'; Period='．'; LearningEnabled=$true; ConversionEngine='Google'; DirectModeAutoDetect=$true; TabConversion=$true }
+    foreach($entry in (Get-NativeInputOptionDefaults).GetEnumerator()) { $result | Add-Member NoteProperty $entry.Key $entry.Value }
     if (-not [IO.File]::Exists($path)) { return $result }
     try {
         $value = [IO.File]::ReadAllText($path) | ConvertFrom-Json
         if ($value.Comma -in @('、','，',',')) { $result.Comma = $value.Comma }
         if ($value.Period -in @('。','．','.')) { $result.Period = $value.Period }
         if ($value.ConversionEngine -in @('Google','Microsoft')) { $result.ConversionEngine = $value.ConversionEngine }
-        if ($value.DirectModeAutoDetect -is [bool]) { $result.DirectModeAutoDetect = $value.DirectModeAutoDetect }
-        if ($value.TabConversion -is [bool]) { $result.TabConversion = $value.TabConversion }
+        foreach($name in @('DirectModeAutoDetect','TabConversion') + @((Get-NativeInputOptionDefaults).Keys | Where-Object { $_ -ne 'ControlKeyBindings' })) {
+            if ($value.$name -is [bool]) { $result.$name = $value.$name }
+        }
+        if($value.ControlKeyBindings -is [string]) { $result.ControlKeyBindings = $value.ControlKeyBindings }
         $result.LearningEnabled = $value.LearningEnabled -is [bool] -and $value.LearningEnabled
     } catch { $result.LearningEnabled = $false }
     return $result
 }
-function Save-NativeInputPreferences([ValidateSet('、','，',',')][string]$Comma, [ValidateSet('。','．','.')][string]$Period, [bool]$LearningEnabled, [ValidateSet('Google','Microsoft')][string]$ConversionEngine = (Get-NativeInputPreferences).ConversionEngine, [bool]$DirectModeAutoDetect = (Get-NativeInputPreferences).DirectModeAutoDetect, [bool]$TabConversion = (Get-NativeInputPreferences).TabConversion) {
+function Save-NativeInputPreferences([ValidateSet('、','，',',')][string]$Comma, [ValidateSet('。','．','.')][string]$Period, [bool]$LearningEnabled, [ValidateSet('Google','Microsoft')][string]$ConversionEngine = (Get-NativeInputPreferences).ConversionEngine, [bool]$DirectModeAutoDetect = (Get-NativeInputPreferences).DirectModeAutoDetect, [bool]$TabConversion = (Get-NativeInputPreferences).TabConversion, [hashtable]$Options = @{}) {
     $path = Get-NativeInputPreferencesPath
+    $current=Get-NativeInputPreferences
+    $data=@{}
+    if([IO.File]::Exists($path)) {
+        try { $old=[IO.File]::ReadAllText($path)|ConvertFrom-Json; foreach($p in $old.PSObject.Properties){$data[$p.Name]=$p.Value} } catch {}
+    }
+    foreach($p in $current.PSObject.Properties){$data[$p.Name]=$p.Value}
+    $defaults=Get-NativeInputOptionDefaults
+    foreach($name in $Options.Keys) {
+        if(-not $defaults.ContainsKey($name)){throw "Unknown input option: $name"}
+        if($name -eq 'ControlKeyBindings') {
+            if($Options[$name] -isnot [string] -or $Options[$name].Length -gt 512){throw 'Invalid Control key bindings'}
+            foreach($binding in ($Options[$name] -split ';')) {
+                if($binding.Trim() -and $binding.Trim() -notmatch '^[A-Za-z]=(F[6-9]|F10|Left|Right|Up|Down|Home|End|Delete|Back|Enter|Esc|Tab)$'){throw 'Control割当は T=F6;Y=F7 の形式で入力してください。'}
+            }
+        } elseif($Options[$name] -isnot [bool]){throw "Invalid boolean option: $name"}
+        $data[$name]=$Options[$name]
+    }
+    $data.Comma=$Comma;$data.Period=$Period;$data.LearningEnabled=$LearningEnabled;$data.ConversionEngine=$ConversionEngine;$data.DirectModeAutoDetect=$DirectModeAutoDetect;$data.TabConversion=$TabConversion
     [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
     $temp = $path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
     try {
-        [IO.File]::WriteAllText($temp, (@{Comma=$Comma;Period=$Period;LearningEnabled=$LearningEnabled;ConversionEngine=$ConversionEngine;DirectModeAutoDetect=$DirectModeAutoDetect;TabConversion=$TabConversion} | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText($temp, ($data | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
         if ([IO.File]::Exists($path)) { [IO.File]::Replace($temp,$path,[Management.Automation.Language.NullString]::Value) }
         else { [IO.File]::Move($temp,$path) }
     } finally { if ([IO.File]::Exists($temp)) { [IO.File]::Delete($temp) } }
@@ -125,7 +154,7 @@ function Test-NativeUpdateRequired([string]$SourceRoot, $Context) {
         $installed=Join-Path $Context.Root ('tools/native-ime/'+$name)
         if((Test-Path -LiteralPath $source) -and (-not(Test-Path -LiteralPath $installed) -or (Get-NativeFileSha256 $source) -ne (Get-NativeFileSha256 $installed))){return $true}
     }
-    foreach ($name in @('Set-NativeShortcuts.ps1','Uninstall-InstalledNativeIme.ps1','NativeGuiCommon.ps1','Host-NativeControlPanel.ps1','Open-NativeControlPanel.ps1','Open-NativeSnippets.ps1','Invoke-NativeGuiAction.ps1','Update-NativeIme.ps1','Set-InstalledNativeAutoStart.ps1','NativeAutoStart.ps1','Set-NativeAutoStart.ps1','Install-NativeIme.ps1','Start-NativeIme.ps1','Wait-NativeBroker.ps1','Stop-NativeIme.ps1','Uninstall-NativeIme.ps1','Host-NativeBroker.ps1','Backup-State.ps1','Start-Resident.ps1','Host-Resident.ps1')) {
+    foreach ($name in @('Set-NativeShortcuts.ps1','Uninstall-InstalledNativeIme.ps1','NativeGuiCommon.ps1','Host-NativeControlPanel.ps1','Open-NativeControlPanel.ps1','Open-NativeSnippets.ps1','Invoke-NativeGuiAction.ps1','Update-NativeIme.ps1','Set-InstalledNativeAutoStart.ps1','NativeAutoStart.ps1','Set-NativeAutoStart.ps1','Install-NativeIme.ps1','Start-NativeIme.ps1','Wait-NativeBroker.ps1','Stop-NativeIme.ps1','Uninstall-NativeIme.ps1','Host-NativeBroker.ps1','NativeContextModel.ps1','Backup-State.ps1','Start-Resident.ps1','Host-Resident.ps1')) {
         $source = Join-Path $SourceRoot ('tools/native-ime/'+$name)
         if (-not (Test-Path -LiteralPath $source)) { continue }
         $installed = Join-Path $Context.Root ('tools/native-ime/'+$name)

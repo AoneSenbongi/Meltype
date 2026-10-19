@@ -1,4 +1,4 @@
-param([switch]$Baseline)
+param([switch]$Baseline, [string]$ContextEndpoint)
 $ErrorActionPreference='Stop'
 $root=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $build=Join-Path $root 'experimental-build'
@@ -17,5 +17,14 @@ $broker=Join-Path $fixture 'NativeBroker.cs';[IO.File]::WriteAllText($broker,$so
 $refs=@((Join-Path $build 'Meltype.Core.dll'),(Join-Path $build 'Meltype.dll'))+@(Get-ChildItem (Join-Path $PSHOME 'ref') -Filter '*.dll'|ForEach-Object FullName)
 Add-Type -Path @($broker,(Join-Path $PSScriptRoot 'NativeFeatureTransportTest.cs')) -ReferencedAssemblies $refs
 if($Baseline){[NativeFeatureTransportTest]::Baseline().GetAwaiter().GetResult();return}
-[NativeFeatureTransportTest]::Run((Join-Path $build 'native-composition-test.exe'),(Join-Path $build 'native-composition-trace.bin'),(Join-Path $build 'MeltypeNative64.dll'),(Join-Path $build 'native-upstream-features.log'),$fixture).GetAwaiter().GetResult()|Out-Null
-Get-Content (Join-Path $build 'native-upstream-features.log')
+$previousEndpoint=$env:MELTYPE_CONTEXT_ENDPOINT
+try {
+    $env:MELTYPE_CONTEXT_ENDPOINT=$ContextEndpoint
+    $mode=if($ContextEndpoint){'--context-evaluation'}else{'--features'}
+    $log=Join-Path $build $(if($ContextEndpoint){'native-context-evaluation.log'}else{'native-upstream-features.log'})
+    [NativeFeatureTransportTest]::Run((Join-Path $build 'native-composition-test.exe'),(Join-Path $build 'native-composition-trace.bin'),(Join-Path $build 'MeltypeNative64.dll'),$log,$fixture,$mode,(-not [bool]$ContextEndpoint)).GetAwaiter().GetResult()|Out-Null
+    Get-Content $log
+} catch {
+    [Meltype.Diagnostics.Log]::Snapshot() | Where-Object Message -Like '文脈補正*' | ForEach-Object { Write-Output $_.Message }
+    throw
+} finally { $env:MELTYPE_CONTEXT_ENDPOINT=$previousEndpoint }

@@ -170,7 +170,7 @@ bool Transfer(HANDLE pipe, void* data, DWORD size, bool write) {
 struct Action { int kind; std::wstring text; };
 struct Reply {
   bool replay = false, converting = false;
-  bool switchToJapanese = false, directDetection = false;
+  bool switchToJapanese = false, directDetection = false, evaluationPending = false;
   int selected = -1;
   std::vector<Action> actions;
   std::vector<std::wstring> candidates;
@@ -224,7 +224,7 @@ class Channel {
     if (!integer(replay) || !integer(count) || count < 0 || count > 256) { Close(); return false; }
     for (int i = 0; i < count; ++i) {
       Action action;
-      if (!integer(action.kind) || !text(action.text) || action.kind < 0 || action.kind > 3) { Close(); return false; }
+      if (!integer(action.kind) || !text(action.text) || action.kind < 0 || action.kind > 4) { Close(); return false; }
       reply.actions.push_back(std::move(action));
     }
     if (!integer(converting) || !integer(reply.selected) || !integer(count) || count < 0 || count > 256) { Close(); return false; }
@@ -234,6 +234,7 @@ class Channel {
     if (offset != bytes.size()) { Close(); return false; }
     reply.replay = (replay & 1) != 0; reply.switchToJapanese = (replay & 2) != 0;
     reply.directDetection = (replay & 4) != 0; reply.converting = converting != 0;
+    reply.evaluationPending = (replay & 8) != 0;
     return true;
   }
  private:
@@ -329,6 +330,8 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     return S_OK;
   }
   HRESULT STDMETHODCALLTYPE Deactivate() override {
+    StopEvaluationTimer();
+    if (evaluationWindow_) { DestroyWindow(evaluationWindow_); evaluationWindow_ = nullptr; }
     if (!thread_) return S_OK;
     FinishCurrent();
     ClearInputContext();
@@ -460,8 +463,49 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     ShowPopup(anchor);
     bool refresh = GetUpdateRect(popup_, nullptr, FALSE) != FALSE;
     UpdateWindow(popup_);
+    // Exercise the same result handler used after an application's GetTextExt.
+    visible_.typed.clear();
+    visible_.candidates.assign(1, L"candidate"); visible_.selected = 0;
+    POINT point{}; MONITORINFO monitor{}; monitor.cbSize = sizeof(monitor);
+    if (!GetMonitorInfoW(MonitorFromPoint(point, MONITOR_DEFAULTTOPRIMARY), &monitor)) return false;
+    RECT bottom{monitor.rcWork.left + 40, monitor.rcWork.bottom - 100,
+                monitor.rcWork.left + 42, monitor.rcWork.bottom - 76};
+    PopupLayoutResult(S_OK, bottom);
+    visible_.candidates.assign(9, L"candidate"); visible_.selected = 8;
+    PopupLayoutResult(TS_E_NOLAYOUT, {});
+    RECT client{}, bounds{};
+    GetClientRect(popup_, &client); GetWindowRect(popup_, &bounds);
+    bool sized = client.bottom >= 4 + 9 * 24 && bounds.bottom <= bottom.top;
+    std::printf("candidate layout failure: client=%ld required=%d above=%s\n",
+                client.bottom, 4 + 9 * 24, bounds.bottom <= bottom.top ? "yes" : "no");
+    HWND foreground = GetForegroundWindow();
+    visible_.typed = L"typed";
+    PopupLayoutResult(TS_E_NOLAYOUT, {});
+    GetClientRect(popup_, &client);
+    sized = sized && client.bottom >= 4 + 10 * 24;
+    visible_.typed.clear(); visible_.candidates.assign(1, L"candidate"); visible_.selected = 0;
+    PopupLayoutResult(E_FAIL, {});
+    GetClientRect(popup_, &client); GetWindowRect(popup_, &bounds);
+    sized = sized && client.bottom < 60 && bounds.top >= bottom.bottom;
+    RECT recovered{monitor.rcWork.left + 40, monitor.rcWork.top + 20,
+                   monitor.rcWork.left + 42, monitor.rcWork.top + 44};
+    PopupLayoutResult(S_OK, recovered);
+    GetWindowRect(popup_, &bounds);
+    sized = sized && bounds.top == recovered.bottom + 2;
+    visible_.candidates.assign(9, L"candidate");
+    PopupLayoutResult(S_OK, {});
+    GetClientRect(popup_, &client);
+    sized = sized && client.bottom >= 4 + 9 * 24;
+    HidePopup();
+    PopupLayoutResult(TS_E_NOLAYOUT, {});
+    sized = sized && !IsWindowVisible(popup_) && !popupAnchorValid_;
+    PopupLayoutResult(S_OK, {});
+    sized = sized && !IsWindowVisible(popup_);
+    PopupLayoutResult(S_OK, recovered);
+    sized = sized && IsWindowVisible(popup_) && GetForegroundWindow() == foreground;
+    HidePopup();
     DestroyWindow(popup_); popup_ = nullptr;
-    return refresh;
+    return refresh && sized;
   }
 
   bool CandidatePlacementForTest() {
@@ -511,6 +555,44 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   std::wstring preedit_;
   Reply visible_;
   HWND popup_ = nullptr;
+  RECT popupAnchor_{};
+  bool popupAnchorValid_ = false;
+  HWND evaluationWindow_ = nullptr;
+  void StopEvaluationTimer() { if (evaluationWindow_) KillTimer(evaluationWindow_, 1); }
+  static LRESULT CALLBACK EvaluationWindow(HWND window, UINT message, WPARAM wp, LPARAM lp) {
+    auto* self = reinterpret_cast<TextService*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+    if (message == WM_NCCREATE) {
+      self = static_cast<TextService*>(reinterpret_cast<CREATESTRUCTW*>(lp)->lpCreateParams);
+      SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+    }
+    if (message == WM_TIMER && self) { self->PollEvaluation(); return 0; }
+    return DefWindowProcW(window, message, wp, lp);
+  }
+  void ScheduleEvaluation(bool pending) {
+    if (!pending) { StopEvaluationTimer(); return; }
+    if (!evaluationWindow_) {
+      WNDCLASSW type{}; type.hInstance = module; type.lpfnWndProc = EvaluationWindow; type.lpszClassName = L"MeltypeNativeEvaluation";
+      RegisterClassW(&type);
+      evaluationWindow_ = CreateWindowExW(0, type.lpszClassName, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, module, this);
+    }
+    if (evaluationWindow_) SetTimer(evaluationWindow_, 1, 40, nullptr);
+  }
+  void PollEvaluation() {
+    if (!thread_ || !composition_->Active() || finishing_->pending || !japanese_) { StopEvaluationTimer(); return; }
+    auto* context = composition_->Context();
+    Ptr<ITfDocumentMgr> focused; Ptr<ITfContext> current;
+    if (FAILED(thread_->GetFocus(&focused.p)) || !focused.p || FAILED(focused->GetTop(&current.p)) ||
+        current.p != context || !ContextAllowsInput(context, true)) { FinishCurrent(); return; }
+    Reply reply;
+    if (!channel_.Call(5, 0, 0, 0, privateField_ ? 64 : 0, reply)) { StopEvaluationTimer(); return; }
+    // This callback runs on the TSF apartment. No worker touches the document.
+    auto* edit = new Edit([this, context, reply](TfEditCookie cookie) { return Apply(context, cookie, reply); });
+    HRESULT status = E_FAIL;
+    HRESULT hr = context->RequestEditSession(client_, edit, TF_ES_SYNC | TF_ES_READWRITE, &status);
+    edit->Release();
+    if (FAILED(hr) || FAILED(status)) { FinishCurrent(); return; }
+    ScheduleEvaluation(reply.evaluationPending);
+  }
   bool testing_ = false;
   bool japanese_ = true;
   bool snippetBoundary_ = false;
@@ -583,7 +665,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     // Discard the corresponding controller session before accepting new typing.
     if (!composition_->Active() && !preedit_.empty()) {
       channel_.Close(); preedit_.clear(); captured_.fill(false);
-      if (popup_) ShowWindow(popup_, SW_HIDE);
+      HidePopup();
     }
     if (!ContextAllowsInput(context, true)) return false;
     if (Toggle(vk)) return true;
@@ -597,7 +679,8 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (composition_->Active()) return true;
     if (!testing_ && (GetKeyState(VK_CONTROL) < 0 || GetKeyState(VK_MENU) < 0 || GetKeyState(VK_LWIN) < 0 || GetKeyState(VK_RWIN) < 0)) return false;
     if (vk == VK_CONVERT) return true;
-    return (vk >= 'A' && vk <= 'Z') ||
+    if (vk == VK_SPACE && GetKeyState(VK_SHIFT) < 0) return true;
+    return (vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9') || (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) ||
       vk == VK_OEM_1 || vk == VK_OEM_PLUS ||
       ((vk == VK_OEM_4 || vk == VK_OEM_6) && (testing_ || GetKeyState(VK_SHIFT) >= 0)) ||
       ((vk == VK_OEM_COMMA || vk == VK_OEM_PERIOD) && (testing_ || GetKeyState(VK_SHIFT) >= 0));
@@ -742,6 +825,18 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       if (action.kind == 0) { hr = composition_->Update(context, cookie, action.text); preedit_ = action.text; }
       else if (action.kind == 1) { hr = composition_->Commit(context, cookie, action.text); preedit_.clear(); }
       else if (action.kind == 2) { hr = composition_->Cancel(context, cookie); preedit_.clear(); }
+      else if (action.kind == 4) {
+        if (action.text != L"left" || composition_->Active()) return E_ABORT;
+        TF_SELECTION selection{}; ULONG fetched = 0;
+        hr = context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &fetched);
+        Ptr<ITfRange> range; range.p = selection.range;
+        if (FAILED(hr) || fetched != 1 || !range.p) return E_ABORT;
+        LONG shifted = 0;
+        hr = range->ShiftStart(cookie, -1, &shifted, nullptr);
+        if (FAILED(hr) || shifted != -1) return E_ABORT;
+        hr = range->Collapse(cookie, TF_ANCHOR_START);
+        if (SUCCEEDED(hr)) { TF_SELECTION target{range.p,{TF_AE_NONE,FALSE}}; hr = context->SetSelection(cookie,1,&target); }
+      }
       else if (action.kind == 3) {
         size_t replacement=index+1;
         while(replacement<reply.actions.size()&&reply.actions[replacement].kind==2)++replacement;
@@ -770,6 +865,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       if (FAILED(hr)) return hr;
     }
     visible_ = reply;
+    ScheduleEvaluation(reply.evaluationPending);
     UpdatePopup(context, cookie);
     return S_OK;
   }
@@ -780,7 +876,8 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     NotifyInputMode();
   }
   void FinishCurrent() {
-    if (popup_) ShowWindow(popup_, SW_HIDE);
+    StopEvaluationTimer();
+    HidePopup();
     if (finishing_->pending) return;
     if (!composition_->Active()) { channel_.Close(); return; }
     // Keep text already displayed in the document when focus or input language changes.
@@ -830,15 +927,28 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   }
   void UpdatePopup(ITfContext* context, TfEditCookie cookie) {
     if (testing_) return;
-    if (!visible_.converting || (visible_.candidates.empty() && visible_.typed.empty()) || !composition_->Active()) { if (popup_) ShowWindow(popup_, SW_HIDE); return; }
+    if (!visible_.converting || (visible_.candidates.empty() && visible_.typed.empty()) || !composition_->Active()) { HidePopup(); return; }
     Ptr<ITfContextView> view;
     Ptr<ITfRange> range;
     RECT rect{}; BOOL clipped = FALSE;
-    if (FAILED(context->GetActiveView(&view.p)) || FAILED(composition_->Context()->GetStart(cookie, &range.p))) return;
+    if (FAILED(context->GetActiveView(&view.p)) || FAILED(composition_->Context()->GetStart(cookie, &range.p))) { PopupLayoutResult(E_FAIL, {}); return; }
     TF_SELECTION selection{}; ULONG fetched = 0;
     if (SUCCEEDED(context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &selection, &fetched)) && fetched == 1) { range.p->Release(); range.p = selection.range; }
-    if (FAILED(view->GetTextExt(cookie, range.p, &rect, &clipped))) return;
-    ShowPopup(rect);
+    PopupLayoutResult(view->GetTextExt(cookie, range.p, &rect, &clipped), rect);
+  }
+  void PopupLayoutResult(HRESULT result, const RECT& anchor) {
+    // Candidate data already changed. Keep geometry in sync even if the editor
+    // has not calculated its next layout yet; never reuse a previous composition.
+    if (FAILED(result) || anchor.bottom <= anchor.top) {
+      if (popupAnchorValid_) ShowPopup(popupAnchor_);
+      else HidePopup();
+      return;
+    }
+    ShowPopup(anchor);
+  }
+  void HidePopup() {
+    popupAnchorValid_ = false;
+    if (popup_) ShowWindow(popup_, SW_HIDE);
   }
   void ShowPopup(const RECT& anchor) {
     if (!popup_) {
@@ -856,7 +966,9 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     int top = anchor.bottom + 2;
     if (top + height > work.bottom) top = anchor.top - height - 2;
     top = std::clamp(top, static_cast<int>(work.top), static_cast<int>(work.bottom) - height);
-    SetWindowPos(popup_, HWND_TOPMOST, left, top, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    if (!SetWindowPos(popup_, HWND_TOPMOST, left, top, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW)) { HidePopup(); return; }
+    popupAnchor_ = anchor;
+    popupAnchorValid_ = true;
     // Selecting another candidate often leaves the window bounds unchanged.
     // SetWindowPos alone does not schedule a paint in that case.
     InvalidateRect(popup_, nullptr, FALSE);

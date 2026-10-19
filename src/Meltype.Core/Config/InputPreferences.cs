@@ -11,6 +11,19 @@ public sealed record InputPreferences
     public string ConversionEngine { get; init; } = "Google";
     public bool DirectModeAutoDetect { get; init; } = true;
     public bool TabConversion { get; init; } = true;
+    public bool CalculatorCandidates { get; init; } = true;
+    public bool EscStepsBack { get; init; }
+    public bool EscRevertsSelectedClause { get; init; }
+    public bool EnterCommitsAsShown { get; init; }
+    public bool AlphanumericKeyStartsAsTyped { get; init; }
+    public bool FunctionKeysAffectSelectedClause { get; init; } = true;
+    public bool ShiftSpaceHalfWidth { get; init; }
+    public bool FullWidthParentheses { get; init; }
+    public bool FullWidthSlash { get; init; }
+    public bool SquareBrackets { get; init; }
+    public bool CursorIntoBrackets { get; init; }
+    public bool EnglishFirstInput { get; init; }
+    public string ControlKeyBindings { get; init; } = "";
     public InputPreferences Validate() => this with
     {
         Comma = Comma is "、" or "，" or "," ? Comma : "，",

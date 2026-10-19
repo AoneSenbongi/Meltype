@@ -1,0 +1,15 @@
+{
+  "stream": 1000,
+  "probes": 40,
+  "homophone_pairs": 20,
+  "semantic_examples": 200,
+  "variants": 5,
+  "reviewed": 250,
+  "undone": 27,
+  "seed": "deterministic-v1",
+  "sha256": "600221373f4c06ac179e1c4b65178806b4457b9846c643b508827504706ea8b5",
+  "limitations": [
+    "Synthetic templates, not 1000 independent meanings.",
+    "Expected labels are authored choices, not human usability scores."
+  ]
+}

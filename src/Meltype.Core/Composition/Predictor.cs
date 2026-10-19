@@ -73,6 +73,16 @@ public sealed class PhraseHistory
         lock (_gate) return _entries.Keys.Where(k => k.Text == text && k.Reading.StartsWith(typed, StringComparison.Ordinal)).Select(k => k.Reading).FirstOrDefault();
     }
 
+    /// <summary>覚えている語句 text を、読みにかかわらずすべて忘れる (予測変換の候補を Delete で消す)。忘れた数を返す。</summary>
+    public int Forget(string text)
+    {
+        var keys = _entries.Keys.Where(k => k.Text == text).ToList();
+        if (keys.Count == 0) return 0;
+        foreach (var key in keys) _entries.Remove(key);
+        Save();
+        return keys.Count;
+    }
+
     public void Clear()
     {
         lock (_gate)
@@ -97,10 +107,7 @@ public sealed class PhraseHistory
         if (_path is null) return;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            var temp = _path + ".tmp";
-            File.WriteAllLines(temp, _entries.Select(e => $"{e.Key.Reading}\t{e.Key.Text}\t{e.Value.Count}\t{e.Value.Used}"), Encoding.UTF8);
-            File.Move(temp, _path, overwrite: true);
+            Config.DataFile.Write(_path, temp => File.WriteAllLines(temp, _entries.Select(e => $"{e.Key.Reading}\t{e.Key.Text}\t{e.Value.Count}\t{e.Value.Used}"), Encoding.UTF8));
         }
         catch (Exception ex)
         {

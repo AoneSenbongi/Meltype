@@ -1,0 +1,34 @@
+{
+  "ServerPath": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\llama-server.exe",
+  "ModelPath": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\zenz-v3.2-small-Q5_K_M.gguf",
+  "Assets": [
+    {
+      "Path": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\ggml-base.dll",
+      "SHA256": "D20D1CEFCD93AAB7AC9EF21D3AA572A5C7D77B91962E06169FAA91437815FE09"
+    },
+    {
+      "Path": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\ggml-cpu.dll",
+      "SHA256": "4FABF022A511D6AAFB212CE31CA1A935D53D429F726F0DED468F00180B15E195"
+    },
+    {
+      "Path": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\ggml-rpc.dll",
+      "SHA256": "5AC7EA0E5DE30F0C9B75D9008F7752DA4B9D91C271017CDC1CA268D6362B067A"
+    },
+    {
+      "Path": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\ggml.dll",
+      "SHA256": "2AB6179D90EA91D86EAA79F503F3B8C8456523E3220B9B124B0CC2A6D9937990"
+    },
+    {
+      "Path": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\llama-server.exe",
+      "SHA256": "9D816F87F885FA069D499F6433F588AFF78EC0815ED355EA1151E4C8986834A3"
+    },
+    {
+      "Path": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\llama.dll",
+      "SHA256": "542316EEC119BB5EF117856AE605BB36D77B64E2936AAC415413B11682587169"
+    },
+    {
+      "Path": "E:\\prog\\Meltype\\models\\zenz-v3.2-small\\zenz-v3.2-small-Q5_K_M.gguf",
+      "SHA256": "29C223D4C23327B80FD13EBB5AB2555057A46317997D5DA391584FFBEF0DB673"
+    }
+  ]
+}

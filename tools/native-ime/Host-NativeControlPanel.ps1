@@ -1,4 +1,4 @@
-param([switch]$Tray, [string]$RenderTo)
+﻿param([switch]$Tray, [string]$RenderTo, [switch]$RenderInputBottom)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 . (Join-Path $PSScriptRoot 'NativeGuiCommon.ps1')
@@ -21,9 +21,9 @@ $mutex = [Threading.Mutex]::new($false, ('Local\Meltype.NativePanel.' + $sid), [
 $showEvent = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::AutoReset, ('Local\Meltype.NativePanel.Show.' + $sid))
 if (-not $created -and -not $RenderTo) { $showEvent.Set() | Out-Null; $mutex.Dispose(); $showEvent.Dispose(); return }
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Meltype 1.1.2-rc.3 · Windows IME'
-$form.ClientSize = [Drawing.Size]::new(600, 690)
-$form.MinimumSize = [Drawing.Size]::new(616, 729)
+$form.Text = 'Meltype 2.0.0 · Windows IME'
+$form.ClientSize = [Drawing.Size]::new(1180, 766)
+$form.MinimumSize = [Drawing.Size]::new(1196, 765)
 $form.StartPosition = 'CenterScreen'
 $form.BackColor = [Drawing.Color]::White
 $form.Font = [Drawing.Font]::new('Yu Gothic UI', 10)
@@ -214,6 +214,61 @@ $saveFeatures={
 }
 $directToggle.Add_CheckedChanged($saveFeatures);$tabToggle.Add_CheckedChanged($saveFeatures)
 $features.Controls.Add($directToggle);$features.Controls.Add($tabToggle)
+# Keep all input settings in this management window.
+$form.Controls.Remove($layout)
+$main=[Windows.Forms.TableLayoutPanel]::new();$main.Dock='Fill';$main.ColumnCount=2;$main.RowCount=1
+[void]$main.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Absolute,600))
+[void]$main.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,100))
+[void]$main.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,100))
+$form.Controls.Add($main);$main.Controls.Add($layout,0,0)
+$inputLayout=[Windows.Forms.TableLayoutPanel]::new();$inputLayout.Dock='Fill';$inputLayout.Padding=[Windows.Forms.Padding]::new(12,24,20,24);$inputLayout.ColumnCount=1;$inputLayout.RowCount=3
+[void]$inputLayout.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,100))
+[void]$inputLayout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,64))
+[void]$inputLayout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,100))
+[void]$inputLayout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,48))
+$main.Controls.Add($inputLayout,1,0)
+$inputHeader=[Windows.Forms.Label]::new();$inputHeader.Dock='Fill';$inputHeader.Text="入力操作・計算`n設定を変更し、下の「入力設定を保存」を押してください。"
+$inputHeader.Font=[Drawing.Font]::new('Yu Gothic UI',11)
+$inputLayout.Controls.Add($inputHeader,0,0)
+$inputScroll=[Windows.Forms.FlowLayoutPanel]::new();$inputScroll.Dock='Fill';$inputScroll.AutoScroll=$true;$inputScroll.WrapContents=$false;$inputScroll.FlowDirection='TopDown'
+$inputLayout.Controls.Add($inputScroll,0,1)
+$inputValues=Get-NativeInputPreferences;$inputChecks=@{}
+$definitions=@(
+    @('CalculatorCandidates','計算結果を変換候補に表示','1+3 → Space → 4 / 1+3=4。元の式も選べます。'),
+    @('EscStepsBack','Escで一段ずつ戻す','漢字 → ひらがな → ローマ字 → 削除。英字表示からは削除します。'),
+    @('EscRevertsSelectedClause','変換中のEscは選択文節だけをかなに戻す','ほかの文節の変換結果を残します。'),
+    @('EnterCommitsAsShown','Enterは表示どおりに確定','確定時の自動修正を抑えます。末尾のnは「ん」にします。'),
+    @('AlphanumericKeyStartsAsTyped','F9 / F10の1回目は打ったまま','2回目以降で大文字・先頭のみ大文字などへ切り替えます。'),
+    @('FunctionKeysAffectSelectedClause','F6〜F10は選択文節だけに適用','現在の文節操作を維持する設定です。'),
+    @('ShiftSpaceHalfWidth','Shift + Spaceで半角スペース','OFFでは従来どおり全角。未確定文字がないときに適用します。'),
+    @('FullWidthParentheses','日本語入力の ( ) を全角にする','日本語入力時の括弧を（ ）で表示します。'),
+    @('SquareBrackets','日本語入力の [ ] を［ ］にする','OFFでは従来の「 」を使います。'),
+    @('FullWidthSlash','かなの直後の / を全角の／にする','英字の中のスラッシュは変更しません。'),
+    @('CursorIntoBrackets','括弧だけを確定したらカーソルを内側へ移す','()・「」・（）などの2文字を確定したときに適用します。'),
+    @('EnglishFirstInput','英字を主に入力する','Spaceは空白。変換キーまたは↓で日本語にします。直接入力モードとは別です。')
+)
+foreach($item in $definitions) {
+    $panel=[Windows.Forms.Panel]::new();$panel.Size=[Drawing.Size]::new(510,72);$panel.Margin=[Windows.Forms.Padding]::new(0,0,0,4)
+    $check=[Windows.Forms.CheckBox]::new();$check.Text=$item[1];$check.AutoSize=$true;$check.Location=[Drawing.Point]::new(2,0);$check.Checked=$inputValues.($item[0]);$inputChecks[$item[0]]=$check
+    $description=[Windows.Forms.Label]::new();$description.Text=$item[2];$description.Location=[Drawing.Point]::new(24,27);$description.Size=[Drawing.Size]::new(480,40);$description.ForeColor=[Drawing.Color]::DimGray
+    $panel.Controls.Add($check);$panel.Controls.Add($description);$inputScroll.Controls.Add($panel)
+}
+$bindingsPanel=[Windows.Forms.Panel]::new();$bindingsPanel.Size=[Drawing.Size]::new(510,112)
+$bindingsLabel=[Windows.Forms.Label]::new();$bindingsLabel.Text='Controlキーの割り当て（入力中のみ）';$bindingsLabel.AutoSize=$true
+$bindingText=[Windows.Forms.TextBox]::new();$bindingText.Location=[Drawing.Point]::new(2,28);$bindingText.Width=496;$bindingText.MaxLength=512;$bindingText.Text=$inputValues.ControlKeyBindings
+$bindingExample=[Windows.Forms.Label]::new();$bindingExample.Text='例: T=F6;Y=F7;U=F8;I=F9;O=F10　空欄で標準の操作';$bindingExample.Location=[Drawing.Point]::new(2,60);$bindingExample.Size=[Drawing.Size]::new(496,44)
+$bindingsPanel.Controls.AddRange([Windows.Forms.Control[]]@($bindingsLabel,$bindingText,$bindingExample));$inputScroll.Controls.Add($bindingsPanel)
+$inputSave=[Windows.Forms.Button]::new();$inputSave.Text='入力設定を保存';$inputSave.Size=[Drawing.Size]::new(180,36);$inputSave.Anchor='Right'
+$inputSave.Add_Click({
+    if($script:actionProcess){return}
+    try {
+        $options=@{};foreach($name in $inputChecks.Keys){$options[$name]=$inputChecks[$name].Checked};$options.ControlKeyBindings=$bindingText.Text.Trim()
+        $current=Get-NativeInputPreferences
+        Save-NativeInputPreferences $current.Comma $current.Period $current.LearningEnabled -Options $options
+        $message.Text='入力設定を保存しました。次の入力から反映します。'
+    } catch {Show-NativeGuiError ($_ | Out-String)}
+})
+$inputLayout.Controls.Add($inputSave,0,2)
 $message = Add-Label '画面を閉じると、タスクトレイに格納します。' 12 52
 $message.ForeColor = [Drawing.Color]::DimGray
 $icon = [Windows.Forms.NotifyIcon]::new(); $icon.Icon = $form.Icon; $icon.Text = 'Meltype'; $icon.Visible = -not [bool]$RenderTo
@@ -282,6 +337,7 @@ try {
         $script:refreshingAutoStart = $true
         try { $autoToggle.Checked = $true; $autoToggle.Enabled = $true } finally { $script:refreshingAutoStart = $false }
         $form.Show(); $form.PerformLayout(); [Windows.Forms.Application]::DoEvents()
+        if($RenderInputBottom){$inputScroll.ScrollControlIntoView($bindingsPanel);[Windows.Forms.Application]::DoEvents()}
         $bitmap = [Drawing.Bitmap]::new($form.Width,$form.Height)
         try { $form.DrawToBitmap($bitmap,[Drawing.Rectangle]::new(0,0,$form.Width,$form.Height)); $bitmap.Save($RenderTo,[Drawing.Imaging.ImageFormat]::Png) } finally { $bitmap.Dispose() }
     } else {

@@ -144,6 +144,7 @@ public static class MeltypeNativeBroker
         public readonly List<(int Kind, string Text)> Actions = new();
         public CompositionView View;
         public char Character;
+        public int CurrentKey;
         public bool Shift, ReplayCurrent, Private;
         public bool Direct, DirectEnglishWord, SwitchedToJapanese;
         public string Before, ProcessName;
@@ -161,7 +162,13 @@ public static class MeltypeNativeBroker
             DirectReplay.Clear();
         }
         public void RecordDirectReplay(char c) => DirectReplay.Append(c);
-        public void Replay(KeyEvent e) { if (!e.IsUp && e.Vk is not (0x10 or 0x11 or 0x12 or >= 0xa0 and <= 0xa5)) ReplayCurrent = true; }
+        public void Replay(KeyEvent e) {
+            if (e.Vk == 0x25 && CurrentKey != 0x25) {
+                if (!e.IsUp) Actions.Add((4, "left"));
+                return;
+            }
+            if (!e.IsUp && e.Vk is not (0x10 or 0x11 or 0x12 or >= 0xa0 and <= 0xa5)) ReplayCurrent = true;
+        }
         public void Replay(MouseButtonEvent e) => throw new InvalidOperationException("Mouse replay is not used by TSF");
         public char? CharFromKey(KeyEvent e, bool shift) => Character == 0 ? null : Character;
         public bool IsShiftDown() => Shift;
@@ -194,16 +201,32 @@ public static class MeltypeNativeBroker
                 return verdict;
             }
             using var converter = new NativeEngineConverter(engine, learning, () => !host.Private && preferences.Current.LearningEnabled);
+            var endpoint = Environment.GetEnvironmentVariable("MELTYPE_CONTEXT_ENDPOINT");
+            using var evaluator = string.IsNullOrEmpty(endpoint) ? null : new ZenzContextEvaluator(new Uri(endpoint));
             var userDictionary = new UserDictionary(Path.Combine(DataDirectory, "userdict.txt"));
             var history = new ConversionHistory(Path.Combine(DataDirectory, "conversions.json"));
             var snippets = new NativeSnippetSession(() => new SnippetStore(Path.Combine(DataDirectory, "snippets.json")), host);
             var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: engine == "Google"), converter, host,
                 new CompositionOptions { FullWidthCommaPeriod = true, Comma = () => preferences.Current.Comma[0],
+                    ContextEvaluator = evaluator, ContextCandidates = converter.CachedCandidates,
                     Period = () => preferences.Current.Period[0], LearningEnabled = () => learning && preferences.Current.LearningEnabled,
                     Learning = () => !host.Private, ShowTypedKeys = () => settings.ShowTypedKeys,
                     LiveConversion = () => true, MoreCandidates = converter.Candidates, AutoCorrect = () => false,
                     Predictor = new Predictor(Phrases.Value, userDictionary, history),
                     Predictions = () => true, TabConversion = () => preferences.Current.TabConversion,
+                    CalculatorCandidates = () => preferences.Current.CalculatorCandidates,
+                    EscStepsBack = () => preferences.Current.EscStepsBack,
+                    EscRevertsSelectedClause = () => preferences.Current.EscRevertsSelectedClause,
+                    EnterCommitsAsShown = () => preferences.Current.EnterCommitsAsShown,
+                    AlphanumericKeyStartsAsTyped = () => preferences.Current.AlphanumericKeyStartsAsTyped,
+                    FunctionKeysAffectSelectedClause = () => preferences.Current.FunctionKeysAffectSelectedClause,
+                    ShiftSpaceHalfWidth = () => preferences.Current.ShiftSpaceHalfWidth,
+                    FullWidthParentheses = () => preferences.Current.FullWidthParentheses,
+                    FullWidthSlash = () => preferences.Current.FullWidthSlash,
+                    SquareBrackets = () => preferences.Current.SquareBrackets,
+                    CursorIntoBrackets = () => preferences.Current.CursorIntoBrackets,
+                    EnglishFirstInput = () => preferences.Current.EnglishFirstInput,
+                    ControlKeyBindings = () => preferences.Current.ControlKeyBindings,
                     DirectMode = () => host.Direct, ClassifyDirect = ClassifyDirect,
                     DirectDecided = japanese => { host.Direct = !japanese; host.DirectEnglishWord = !japanese; host.SwitchedToJapanese |= japanese; },
                     DirectHoldCleared = () => host.DirectReplay.Clear() });
@@ -217,6 +240,7 @@ public static class MeltypeNativeBroker
                     if (input.ReadInt32() != 1) throw new InvalidDataException("Protocol version");
                     var operation = input.ReadInt32();
                     var vk = input.ReadInt32();
+                    host.CurrentKey = vk;
                     var scan = input.ReadInt32();
                     host.Character = (char)input.ReadInt32();
                     var flags = input.ReadInt32();
@@ -249,6 +273,7 @@ public static class MeltypeNativeBroker
                         }
                     }
                     else if (operation == 1) { snippets.Commit(); controller.CommitPending(); }
+                    else if (operation == 5) { controller.PollContextEvaluation(Environment.TickCount64); }
                     else if (operation is 2 or 3 or 4) {
                         int length = host.Character;
                         if (length > 4096) throw new InvalidDataException("Context too large");
@@ -277,7 +302,7 @@ public static class MeltypeNativeBroker
                     using var buffer = new MemoryStream();
                     using (var output = new BinaryWriter(buffer, Encoding.Unicode, leaveOpen: true))
                     {
-                        output.Write((host.ReplayCurrent ? 1 : 0) | (host.SwitchedToJapanese ? 2 : 0) | (operation == 2 && DirectDetection() ? 4 : 0));
+                        output.Write((host.ReplayCurrent ? 1 : 0) | (host.SwitchedToJapanese ? 2 : 0) | (operation == 2 && DirectDetection() ? 4 : 0) | (controller.ContextEvaluationPending ? 8 : 0));
                         output.Write(host.Actions.Count);
                         foreach (var action in host.Actions)
                         {
@@ -295,6 +320,7 @@ public static class MeltypeNativeBroker
             }
             catch (Exception e) when (e is IOException || e is OperationCanceledException) { }
             catch (Exception e) { Console.Error.WriteLine("Native broker client error: " + e.GetType().Name); }
+            finally { controller.Reset(); }
             // A disconnected client has no submit/learning operation. Its controller is discarded.
         }
     }

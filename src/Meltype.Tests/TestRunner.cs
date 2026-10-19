@@ -12,6 +12,8 @@ internal static class TestRunner
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.FirstOrDefault() == "--context-native-bench") return ContextNativeReplay.Run(args[1], args[2]);
+        if (args.FirstOrDefault() == "--context-native-long-bench") return ContextNativeReplay.Run(args[1], args[2], longInput: true);
         if (args.FirstOrDefault() == "--google-verify") return GoogleImeTests.VerifyInstalledGoogle();
         if (args.FirstOrDefault() == "--google-learning") return GoogleImeTests.VerifyLearning();
         TestSupport.WordChecker = Detection.WindowsSpellChecker.Shared;

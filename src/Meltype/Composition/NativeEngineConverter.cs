@@ -6,6 +6,7 @@ namespace Meltype.Composition;
 /// <summary>Each TSF connection owns its selected engine and Microsoft COM apartment.</summary>
 public sealed class NativeEngineConverter : IKanjiConverter, ILearningConverter, IDisposable
 {
+    public IReadOnlyList<string> CachedCandidates(string reading) => _google?.CachedCandidates(reading) ?? [];
     private readonly GoogleImeConverter? _google;
     private BlockingCollection<Action>? _work;
     private Thread? _thread;

@@ -31,6 +31,9 @@ internal sealed partial class LearningJsonContext : JsonSerializerContext;
 [JsonSerializable(typeof(Dictionary<string, ConversionHistory.Entry>), TypeInfoPropertyName = "Conversions")]
 internal sealed partial class ConversionJsonContext : JsonSerializerContext;
 
+[JsonSerializable(typeof(List<ContextBoundaryMemory.Entry>), TypeInfoPropertyName = "Entries")]
+internal sealed partial class BoundaryJsonContext : JsonSerializerContext;
+
 /// <summary>model.json は字下げして書く。</summary>
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(UserModel.ModelFile))]

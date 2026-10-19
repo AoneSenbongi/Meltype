@@ -29,7 +29,7 @@ public static class NativeFeatureTransportTest
         if ((BitConverter.ToInt32(payload) & 1) == 0) throw new Exception("Direct mode k must immediately pass through while undecided");
     }
 
-    public static async Task Run(string executable, string trace, string dll, string log, string fixture)
+    public static async Task Run(string executable, string trace, string dll, string log, string fixture, string mode = "--features", bool learning = true)
     {
         var name = "Meltype.FeatureTest." + Guid.NewGuid().ToString("N");
         using var stop = new CancellationTokenSource();
@@ -39,13 +39,13 @@ public static class NativeFeatureTransportTest
                 var server = MeltypeNativeBroker.CreateListener(name, false);
                 try {
                     await server.WaitForConnectionAsync(stop.Token);
-                    connections.Add(Task.Run(() => MeltypeNativeBroker.Serve(server, true, stop.Token, MeltypeNativeBroker.SearchPackageSid)));
+                    connections.Add(Task.Run(() => MeltypeNativeBroker.Serve(server, learning, stop.Token, MeltypeNativeBroker.SearchPackageSid)));
                 } catch (OperationCanceledException) { server.Dispose(); break; }
             }
         }
         var listening = Listen();
         var info = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var arg in new[] { trace, dll, "--features", "\\\\.\\pipe\\" + name, fixture }) info.ArgumentList.Add(arg);
+        foreach (var arg in new[] { trace, dll, mode, "\\\\.\\pipe\\" + name, fixture }) info.ArgumentList.Add(arg);
         using var process = Process.Start(info);
         var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
         try {

@@ -341,8 +341,10 @@ int main(int argc, char** argv) {
       Expect(registerMachine()==E_ACCESSDENIED && unregisterMachine()==E_ACCESSDENIED, "non-protected DLL cannot change machine registration");
       ITfTextInputProcessor* service = nullptr;
       Check(create(&service), "create native service");
-      const bool features = argc > 4 && std::string(argv[3]) == "--features";
-      if (features) {
+      const bool preRelease = argc > 5 && std::string(argv[3]) == "--pre2";
+      const bool features = argc > 4 && (std::string(argv[3]) == "--features" || preRelease);
+      const bool contextEvaluation = argc > 4 && std::string(argv[3]) == "--context-evaluation";
+      if (features || contextEvaluation) {
         auto setPipe = Export<void (WINAPI*)(ITfTextInputProcessor*, const WCHAR*)>(library, "MeltypeSetPipeForTest");
         Expect(setPipe != nullptr, "isolated feature pipe export");
         std::string name(argv[4]); std::wstring pipe(name.begin(), name.end()); setPipe(service, pipe.c_str());
@@ -378,6 +380,122 @@ int main(int argc, char** argv) {
       extended->Release();
       ITfKeyEventSink* keys = nullptr;
       Check(service->QueryInterface(IID_ITfKeyEventSink, reinterpret_cast<void**>(&keys)), "native key sink");
+      if (preRelease) {
+        std::string preferences=std::string(argv[5])+"/input-preferences.json";
+        auto configure=[&](const char* options) {
+          auto* out=std::fopen(preferences.c_str(),"wb");Expect(out!=nullptr,"pre2 isolated preferences");
+          std::string json=std::string("{\"DirectModeAutoDetect\":false,\"LearningEnabled\":false,")+options+"}";
+          std::fwrite(json.data(),1,json.size(),out);std::fclose(out);
+        };
+        auto key=[&](Fixture& f,UINT vk) {
+          BOOL eaten=FALSE;Check(keys->OnTestKeyDown(f.context,vk,0,&eaten),"pre2 eligibility");Expect(eaten,"pre2 key eligible");
+          Check(keys->OnKeyDown(f.context,vk,0,&eaten),"pre2 key down");Expect(eaten,"pre2 key eaten (no physical Enter replay)");
+          Check(keys->OnKeyUp(f.context,vk,0,&eaten),"pre2 key up");
+        };
+        configure("\"CalculatorCandidates\":true");
+        {
+          Fixture f(thread,client,L"",0);Check(thread->SetFocus(f.manager),"calculator focus");
+          key(f,'1');key(f,VK_ADD);key(f,'3');key(f,VK_SPACE);key(f,'2');
+          Expect(f.document->text==L"4","calculator result is committed into TSF document");
+          Expect(f.document->starts==f.document->finishes,"calculator result ends composition");
+          std::puts("PASS: 1+3 -> Space -> result candidate 4 -> TSF commit");
+        }
+        configure("\"EscStepsBack\":true,\"ControlKeyBindings\":\"T=F7\"");
+        {
+          Fixture f(thread,client,L"",0);Check(thread->SetFocus(f.manager),"Esc focus");
+          for(auto c:std::string("kyou"))key(f,c-'a'+'A');
+          BOOL control=FALSE;
+          Check(keys->OnTestKeyDown(f.context,VK_CONTROL,0,&control),"Control mapping eligibility");
+          Check(keys->OnKeyDown(f.context,VK_CONTROL,0,&control),"Control mapping down");
+          key(f,'T');
+          Check(keys->OnKeyUp(f.context,VK_CONTROL,0,&control),"Control mapping up");
+          Expect(f.document->text==L"キョウ","configured Control+T maps to F7");
+          key(f,VK_ESCAPE);Expect(f.document->text==L"きょう","Esc to kana");
+          key(f,VK_ESCAPE);Expect(f.document->text==L"kyou","Esc to raw letters");
+          key(f,VK_ESCAPE);Expect(f.document->text.empty(),"Esc clears only composition");
+          std::puts("PASS: Esc steps preserve kana/raw input then cancel");
+        }
+        configure("\"CursorIntoBrackets\":true");
+        {
+          Fixture f(thread,client,L"prefix suffix",7);Check(thread->SetFocus(f.manager),"bracket focus");
+          key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);
+          Expect(f.document->text==L"prefix 「」suffix","bracket commit preserves surrounding text");
+          Expect(f.document->start==8&&f.document->end==8,"caret moves inside committed bracket pair");
+          Expect(f.document->starts==f.document->finishes,"bracket cursor move follows composition commit");
+          std::puts("PASS: bracket pair commits once, caret moves inside, Enter is not replayed");
+        }
+        configure("\"EnglishFirstInput\":false");
+        {
+          Fixture f(thread,client,L"",0);Check(thread->SetFocus(f.manager),"English boundary focus");
+          for(auto c:std::string("camera"))key(f,c-'a'+'A');
+          Expect(f.document->text==L"camera","automatic English classification reproduced");
+          auto resize=[&](UINT arrow) {
+            BOOL shifted=FALSE;
+            Check(keys->OnTestKeyDown(f.context,VK_LSHIFT,0,&shifted),"boundary Shift eligibility");
+            Check(keys->OnKeyDown(f.context,VK_LSHIFT,0,&shifted),"boundary Shift down");
+            key(f,arrow);
+            Check(keys->OnKeyUp(f.context,VK_LSHIFT,0,&shifted),"boundary Shift up");
+          };
+          resize(VK_LEFT);
+          Expect(f.document->text!=L"camera"&&!f.document->text.empty(),"automatic English clause can shrink into Japanese clauses");
+          Expect(f.document->starts>f.document->finishes,"boundary resize keeps composition active");
+          resize(VK_RIGHT);
+          auto displayed=f.document->text;
+          Expect(displayed!=L"camera"&&!displayed.empty(),"resized clause expands again");
+          key(f,VK_RETURN);
+          Expect(f.document->text==displayed&&f.document->starts==f.document->finishes,"English boundary correction commits once without lost text");
+          std::puts("PASS: automatic English camera -> Shift+Left shrink -> Shift+Right expand -> Japanese commit through real TSF");
+        }
+        configure("\"EnglishFirstInput\":true");
+        {
+          Fixture f(thread,client,L"",0);Check(thread->SetFocus(f.manager),"English first focus");
+          for(auto c:std::string("nihongo"))key(f,c-'a'+'A');
+          Expect(f.document->text==L"nihongo","English first retains literal letters");
+          key(f,VK_CONVERT);Expect(f.document->text!=L"nihongo","explicit conversion uses Japanese");
+          key(f,VK_RETURN);Expect(f.document->starts==f.document->finishes,"English first explicit conversion commits");
+          std::puts("PASS: English first retains roman letters until explicit conversion");
+        }
+        Check(service->Deactivate(),"pre2 deactivate");keys->Release();service->Release();
+        thread->Deactivate();thread->Release();thread=nullptr;Expect(canUnload()==S_OK,"pre2 releases COM references");
+        FreeLibrary(library);CoUninitialize();return 0;
+      }
+      if (contextEvaluation) {
+        {
+          Fixture f(thread, client, L"", 0); Check(thread->SetFocus(f.manager), "context evaluation focus");
+          auto key = [&](UINT vk) {
+            BOOL eaten = FALSE;
+            Check(keys->OnTestKeyDown(f.context, vk, 0, &eaten), "context eligibility"); Expect(eaten, "context key eligible");
+            Check(keys->OnKeyDown(f.context, vk, 0, &eaten), "context key down"); Expect(eaten, "context key eaten");
+            Check(keys->OnKeyUp(f.context, vk, 0, &eaten), "context key up");
+          };
+          auto pump = [&](int milliseconds) {
+            auto until = GetTickCount64() + milliseconds;
+            while (GetTickCount64() < until) {
+              MSG message;
+              while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); }
+              Sleep(5);
+            }
+          };
+          for (auto c : std::string("kawadekutsuwotsukuru")) key(c - 'a' + 'A');
+          auto original = f.document->text;
+          pump(2500);
+          if (f.document->text != L"革で靴を作る") std::fprintf(stderr,"context idle failure: initialChars=%zu finalChars=%zu starts=%d finishes=%d\n",original.size(),f.document->text.size(),f.document->starts,f.document->finishes);
+          Expect(f.document->text == L"革で靴を作る", "model result reaches TSF document while typing is paused");
+          Expect(f.document->starts > f.document->finishes, "model update remains uncommitted");
+          key(VK_LEFT);
+          Expect(f.document->text == L"革で靴を作る", "arrow selection preserves model choices and live boundaries");
+          key(VK_RETURN); pump(250);
+          Expect(f.document->text == L"革で靴を作る" && f.document->starts == f.document->finishes, "Enter commits visible model result once");
+          for (auto c : std::string("hashidetaberu")) key(c - 'a' + 'A');
+          key(VK_ESCAPE); pump(500);
+          Expect(f.document->text == L"革で靴を作る", "late evaluation cannot reinsert cancelled input");
+          std::printf("PASS: local zenz -> broker poll -> real TSF document, idle update, visible Enter commit, cancellation; initialChars=%zu\n", original.size());
+          Check(thread->SetFocus(nullptr), "clear context focus");
+        }
+        Check(service->Deactivate(), "context deactivate"); keys->Release(); service->Release(); thread->Deactivate(); thread->Release(); thread = nullptr;
+        Expect(canUnload() == S_OK, "context evaluation releases COM and timer ownership");
+        FreeLibrary(library); CoUninitialize(); return 0;
+      }
       if (features) {
         {
         Fixture f(thread, client); Check(thread->SetFocus(f.manager), "feature focus");
@@ -393,11 +511,13 @@ int main(int argc, char** argv) {
         };
         auto key = [&](int vk, bool mayReplay = false) {
           BOOL eaten = FALSE; Check(keys->OnTestKeyDown(f.context, vk, 0, &eaten), "feature test key");
-          if (!eaten) std::fprintf(stderr, "feature ineligible vk=0x%02x textLength=%zu caret=%ld/%ld\n", vk, f.document->text.size(), f.document->start, f.document->end);
-          Expect(eaten, "feature key eligible"); Check(keys->OnKeyDown(f.context, vk, 0, &eaten), "feature key down");
+          if (!eaten && !mayReplay) std::fprintf(stderr, "feature ineligible vk=0x%02x textLength=%zu caret=%ld/%ld\n", vk, f.document->text.size(), f.document->start, f.document->end);
+          Expect(eaten || mayReplay, "feature key eligible");
+          if(eaten) Check(keys->OnKeyDown(f.context, vk, 0, &eaten), "feature key down");
           if (!eaten) {
             Expect(mayReplay, "feature key consumed");
-            WCHAR c = vk >= 'A' && vk <= 'Z' ? static_cast<WCHAR>(vk - 'A' + 'a') : vk == VK_SPACE ? L' ' : 0;
+            WCHAR c = vk >= 'A' && vk <= 'Z' ? static_cast<WCHAR>(vk - 'A' + 'a') :
+                vk >= '0' && vk <= '9' ? static_cast<WCHAR>(vk) : vk == VK_OEM_PERIOD ? L'.' : vk == VK_OEM_COMMA ? L',' : vk == VK_OEM_MINUS ? L'-' : vk == VK_SPACE ? L' ' : 0;
             if (c) {
               // A passed key is edited by the application itself, without a TIP composition.
               LONG start=f.document->start,end=f.document->end;
@@ -406,6 +526,21 @@ int main(int argc, char** argv) {
             }
           } else Check(keys->OnKeyUp(f.context, vk, 0, &eaten), "feature key up");
         };
+        key(VK_IME_ON);
+        BYTE previousKeys[256]{}, shiftedKeys[256]{};
+        Expect(GetKeyboardState(previousKeys), "read fixture keyboard state");
+        shiftedKeys[VK_SHIFT]=0x80;
+        Expect(SetKeyboardState(shiftedKeys), "set Shift for idle key eligibility");
+        BOOL idleSpace=FALSE;
+        Check(keys->OnTestKeyDown(f.context,VK_SPACE,0,&idleSpace), "idle Shift+Space eligibility");
+        Expect(SetKeyboardState(previousKeys), "restore fixture keyboard state");
+        Expect(idleSpace, "Japanese idle Shift+Space reaches fullwidth-space controller");
+        BYTE plainKeys[256]{};
+        Expect(SetKeyboardState(plainKeys), "clear Shift for idle Space");
+        Check(keys->OnTestKeyDown(f.context,VK_SPACE,0,&idleSpace), "idle plain Space eligibility");
+        Expect(SetKeyboardState(previousKeys), "restore fixture keys after plain Space");
+        Expect(!idleSpace, "Japanese idle plain Space passes to application");
+        std::puts("PASS: Japanese idle Shift+Space is accepted and plain Space passes through");
         key(VK_KANJI);
         preferences(false,true);BOOL detection=TRUE;Check(keys->OnTestKeyDown(f.context,'K',0,&detection),"disabled direct detection");Expect(!detection,"direct switch off passes letters without broker conversion");preferences(true,true);
         key('K', true); Expect(f.document->text == L"prefix ksuffix", "undecided direct letter displays immediately");
@@ -427,6 +562,78 @@ int main(int argc, char** argv) {
         key(VK_IME_OFF); for(char c:std::string("hello")) key(c-'a'+'A',true); key(VK_SPACE,true);
         Expect(f.document->text == L"prefix 日本語hello suffix", "English remains direct"); key(VK_IME_ON);
         std::puts("PASS: direct replay, caret movement, romaji detection, English retention and taskbar mode");
+        reset(L"prefix suffix",7,7);
+        for(char c:std::string("tanniwotoru")) key(c-'a'+'A');
+        key(VK_LEFT); key(VK_F6);
+        Expect(f.document->text==L"prefix 単位をとるsuffix", "F6 changes selected clause only");
+        key(VK_F10);
+        Expect(f.document->text==L"prefix 単位をtorusuffix", "F10 changes selected clause only");
+        key(VK_RETURN);
+        Expect(f.document->text==L"prefix 単位をtorusuffix", "clause spelling commits unchanged");
+        std::puts("PASS: selected clause F6/F10 preserve other clauses and commit visible text");
+        reset(L"prefix suffix",7,7);
+        for(char c:std::string("tanniwotoru")) key(c-'a'+'A');
+        auto liveBeforeSelection=f.document->text;
+        key(VK_LEFT);
+        Expect(f.document->text==liveBeforeSelection,"left selects live clause without changing display");
+        key(VK_DOWN);
+        Expect(f.document->text!=liveBeforeSelection&&f.document->text.find(L"prefix 単位を")==0,"down changes only selected candidate");
+        key(VK_UP);
+        Expect(f.document->text==liveBeforeSelection,"up restores the previous candidate");
+        key(VK_TAB);auto tabSpelling=f.document->text;
+        Expect(tabSpelling!=liveBeforeSelection&&tabSpelling.find(L"prefix 単位を")==0,"Tab changes selected candidate without Fn keys");
+        key(VK_RETURN);
+        Expect(f.document->text==tabSpelling,"arrow and Tab choice commits visible spelling");
+        std::puts("PASS: stable live navigation, up/down candidates and Tab candidate correction without Fn keys");
+        int numericFailures=0;
+        auto numericKey = [&](char c) { return c=='.'?VK_OEM_PERIOD:c==','?VK_OEM_COMMA:c=='-'?VK_OEM_MINUS:c>='0'&&c<='9'?c:c-'a'+'A'; };
+        const std::vector<std::pair<std::string,std::wstring>> numericSamples={
+          {"1.5baisoku",L"1.5倍速"},{"2baisoku",L"2倍速"},{"0.75bai",L"0.75倍"},{"1.25bai",L"1.25倍"},
+          {"1.50bai",L"1.50倍"},{"0.125bai",L"0.125倍"},{"2.0byou",L"2.0秒"},{"10.25byou",L"10.25秒"},
+          {"0.5jikan",L"0.5時間"},{"100en",L"100円"},{"3.5kiro",L"3.5キロ"},{"2.5me-toru",L"2.5メートル"},
+          {"1.5cm",L"1.5cm"},{"3.5kg",L"3.5kg"},{"1,000.5bai",L"1,000.5倍"},{"-1.5bai",L"-1.5倍"},
+          {"0",L"0"},{"1",L"1"},{"1.5",L"1.5"},{"0.75",L"0.75"},{"1,000",L"1,000"},{"2026",L"2026"},
+          {"1.5.0",L"1.5.0"},{"192.168.0.1",L"192.168.0.1"},{"v1.5.0",L"v1.5.0"},{"report1.5.txt",L"report1.5.txt"}
+        };
+        for(const auto& sample : numericSamples) {
+          key(VK_IME_OFF);key(VK_IME_ON);reset(L"",0,0);
+          for(size_t i=0;i<sample.first.size();++i) {
+            char c=sample.first[i];key(numericKey(c),true);
+            if(i==0&&c>='0'&&c<='9') Expect(f.document->starts>f.document->finishes,"first digit belongs to an active underlined composition");
+          }
+          key(VK_RETURN,true);
+          bool passed=f.document->text==sample.second;
+          std::printf("%s: numeric replay %s\n",passed?"PASS":"FAIL",sample.first.c_str());
+          if(!passed){++numericFailures;std::fprintf(stderr,"numeric replay result:");for(auto c:f.document->text)std::fprintf(stderr," %04x",static_cast<unsigned>(c));std::fprintf(stderr,"\n");}
+        }
+        Expect(numericFailures==0,"numeric-related replay cases preserve digits and convert Japanese suffixes");
+        for(size_t n : {size_t{0},size_t{2},size_t{18},size_t{21}}) {
+          const auto& sample=numericSamples[n];key(VK_IME_OFF);key(VK_IME_ON);reset(L"",0,0);
+          for(char c:sample.first) key(c>='0'&&c<='9'?VK_NUMPAD0+c-'0':c=='.'?VK_DECIMAL:numericKey(c),true);
+          key(VK_RETURN);Expect(f.document->text==sample.second,"numpad decimal and Japanese suffix convert without losing the first digit");
+          std::printf("PASS: numpad replay %s\n",sample.first.c_str());
+        }
+        for(const auto& prefix : {std::wstring{L"再生速度は"},std::wstring{L"speed: "}}) {
+          key(VK_IME_OFF);key(VK_IME_ON);reset(prefix+L"!",static_cast<LONG>(prefix.size()),static_cast<LONG>(prefix.size()));
+          for(char c:std::string("1.5baisoku")) key(numericKey(c),true);
+          key(VK_RETURN);Expect(f.document->text==prefix+L"1.5倍速!","decimal conversion preserves existing Japanese/English surroundings");
+        }
+        key(VK_IME_OFF);key(VK_IME_ON);
+        reset(L"",0,0); key(VK_NUMPAD1);
+        Expect(f.document->starts>f.document->finishes&&f.document->text==L"1","numpad digit starts an active composition");
+        key(VK_RETURN);
+        key(VK_IME_OFF);key(VK_IME_ON);
+        reset(L"",0,0); key('1');key(VK_SPACE);
+        auto firstNumber=f.document->text;key(VK_SPACE);
+        Expect(f.document->starts>f.document->finishes&&f.document->text!=firstNumber,"number-only input offers conversion candidates");key(VK_RETURN);
+        key(VK_IME_OFF); preferences(false,true);
+        for(const auto& sample : numericSamples) {
+          reset(L"",0,0);for(char c:sample.first) key(numericKey(c),true);
+          Expect(f.document->text==std::wstring(sample.first.begin(),sample.first.end()),"explicit English mode preserves numeric and technical input literally");
+        }
+        std::printf("PASS: explicit English mode preserves all %zu numeric-related samples\n",numericSamples.size());
+        key(VK_IME_ON);preferences(true,true);
+        std::puts("PASS: real key eligibility and application replay: decimal Japanese units, plain numbers and explicit English mode");
         reset(L"prefix にほんごsuffix",7,11);
         key(VK_CONVERT);
         if (f.document->text!=L"prefix 日本語suffix") { std::fprintf(stderr,"reconverted:");for(auto c:f.document->text)std::fprintf(stderr," %04x",static_cast<unsigned>(c));std::fprintf(stderr,"\n"); }

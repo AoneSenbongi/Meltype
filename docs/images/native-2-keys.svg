@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="460" viewBox="0 0 1080 460" role="img" aria-labelledby="title desc">
+<title id="title">3つの入力操作例</title><desc id="desc">Spaceで変換、数式をSpaceで計算候補へ、括弧対をEnterで確定して内側へ移動する操作の説明図です。</desc>
+<rect width="1080" height="460" rx="20" fill="#f1f6fb"/>
+<g font-family="Yu Gothic,Meiryo,sans-serif" fill="#172c43">
+<text x="35" y="49" font-size="25" font-weight="700">打つ → 選ぶ → 確定する</text>
+<g fill="white" stroke="#c4d5e5"><rect x="35" y="76" width="1010" height="96" rx="12"/><rect x="35" y="186" width="1010" height="96" rx="12"/><rect x="35" y="296" width="1010" height="112" rx="12"/></g>
+<text x="55" y="113" font-size="18" font-weight="700">変換</text><text x="230" y="115" font-size="24">きょう</text><rect x="418" y="95" width="106" height="40" rx="7" fill="#e5eef9"/><text x="438" y="122" font-size="20">Space</text><text x="570" y="121" font-size="24">→　今日</text><text x="790" y="116" font-size="18">Enterで確定</text><text x="55" y="151" font-size="15" fill="#52718c">変換候補から選びます。</text>
+<text x="55" y="224" font-size="18" font-weight="700">計算</text><text x="230" y="226" font-size="24">1+2*3</text><rect x="418" y="205" width="106" height="40" rx="7" fill="#e5eef9"/><text x="438" y="232" font-size="20">Space</text><text x="570" y="231" font-size="24">→　7 ／ 1+2*3=7</text><text x="55" y="262" font-size="15" fill="#52718c">計算候補をON。結果を候補から選びます。</text>
+<text x="55" y="334" font-size="18" font-weight="700">括弧</text><text x="240" y="338" font-size="28">()</text><rect x="418" y="316" width="106" height="40" rx="7" fill="#e5eef9"/><text x="443" y="343" font-size="20">Enter</text><text x="570" y="343" font-size="28">→　(　)</text><path d="M660 317V347" stroke="#d13778" stroke-width="3"/><text x="740" y="341" font-size="18" fill="#a5225c">内側へカーソル移動</text><text x="55" y="382" font-size="15" fill="#52718c">括弧内移動をONにして保存。括弧だけの確定が対象です。全角設定ONなら（ ）になります。</text>
+<text x="35" y="439" font-size="14" fill="#52718c">説明用イラストです。実際の入力欄・候補の外観を再現した画面ではありません。</text>
+</g></svg>

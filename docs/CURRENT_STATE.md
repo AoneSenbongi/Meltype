@@ -1,6 +1,8 @@
-﻿# 現在の状態
+# 現在の状態
 
-## 現在タスク: 本家1.3.0対応・独自2.0.0公開準備（PC適用済み、未公開）
+## 現在タスク: 2.0.0の図解README整備と公開準備（PC適用済み、未公開）
+
+2026年10月20日、利用者が2.0.0公開と本家との差分を図入りREADMEに明記することを指示。READMEを現行版へ整理し、図3点と既存の実管理画面を追加。配布物にも同じ案内を同梱するため梱包スクリプトを変更する。製品DLLは変更しない。新しい本文と配布物を確認可能な状態に整えてから、今回変更した公開内容の承認を受ける。以下のEXE情報は再梱包前の記録。最新ソースf9cdc5eddebbc9868cde40207553fc2c20083561から配布EXE・SHA-256・対応ソース同梱ZIPを再構築済み。EXEのSHA-256は5E2D823E08DDE6C194826E183B3ED42DE72F7A99B06B046846011DA4352D3712。distributions/Meltype-Native-Google-2.0.0-Setup.exeと同名.sha256が公開確認対象。対応ソース・公開payload6点・個人データ非同梱を照合し、Setupのアイコンも元ICOと全画素一致した。証跡experimental-build/installer-build.json、upstream-1.3.0/installer-arrow-final.log、public-arrow-package-check.json。ソース確定後の差分は結果を反映した状態・公開資料だけ。利用者から括弧内移動の成功報告を受領した（対象アプリは報告に記載なし）。公開内容の承認待ちで、未公開。
 
 利用者がComputer Useの停止を明示したため、この作業では以後使用しない。画面操作・自動キー入力をCLIによる別手段へ置き換えない。ソース・ログ・画面を操作しないCLI試験・配布準備で進める。
 
@@ -10,13 +12,13 @@
 
 2026年10月19日23:05JSTに追加修正を標準更新でPC適用。NativeVersion2.0.0、BaseVersion1.3.0、package-12079ea97b524c3b9bdd67b745e87e12。23:10JSTに配置7/7・登録DLL・管理スクリプト7点、設定等3/3、backups/20261019-230513の11/11ハッシュを独立照合。broker91236は本人SID・ジョブ外・更新元終了後も稼働、model66348 health ok。導入サービスの荷台候補も通過。PIDは検証時点の値。証跡experimental-build/upstream130-applied.jsonとverificationログ。
 
-共通・Windows回帰637/637、標準パッケージNative20/20・Google16/16・Microsoft2/2、設定保存・プライバシー・定型文が通過。今回の追加修正後も試験用TSF文書の通知・遅延・連続入力・明示移動、保護欄・学習抑止・再変換・Tab操作を確認した。実EDITの旧版失敗はexperimental-build/upstream-1.3.0/real-edit-red.log、新修正成功はreal-edit-arrow-green.log。追加回帰はbracket-arrow-contract.log、arrow-privacy.log、arrow-upstream.log。管理画面とCodexでの最新修正の最終確認は未完了。
+共通・Windows回帰637/637、標準パッケージNative20/20・Google16/16・Microsoft2/2、設定保存・プライバシー・定型文が通過。今回の追加修正後も試験用TSF文書の通知・遅延・連続入力・明示移動、保護欄・学習抑止・再変換・Tab操作を確認した。実EDITの旧版失敗はexperimental-build/upstream-1.3.0/real-edit-red.log、新修正成功はreal-edit-arrow-green.log。追加回帰はbracket-arrow-contract.log、arrow-privacy.log、arrow-upstream.log。PC適用後、利用者から最新修正で括弧内移動に成功したとの報告を受領した。アプリ別の確認範囲は未特定。
 
 新アイコンは本家タグの雪の結晶＋Mを変更せず使用。Native DLL・管理画面・トレイ、管理ランチャーとショートカット、Setupへ反映。自動／英語のモード文字は維持し、埋め込み32px画像と元ICOの全画素一致、管理画面描画を確認した。
 
 独自Windows本体が必要とする旧APIは保持。子音略入力・文脈別日英学習など全ての本家機能をNativeへ接続したものではない。PC用ローカルzenzモデルは維持し、配布物にはモデル本体と絶対パスのcontext-model.jsonを含めない。公開版はGoogle/Microsoft変換で動作する。個人の辞書・設定・履歴は配布しない。
 
-以前のEXE/ZIP（8b7cfa6・0f4483e）はexperimental-build/upstream-1.3.0/superseded-*へ退避し公開しない。最新の通常矢印キー修正からローカルソースを確定し配布物を再構築する。対応コミットとSHA-256はexperimental-build/installer-build.jsonに記録する。最新修正の管理画面/Codex確認と、公開内容の承認が残る。
+以前のEXE/ZIP（8b7cfa6・0f4483e）はexperimental-build/upstream-1.3.0/superseded-*へ退避し公開しない。docs/RELEASE_2_0_0.mdの内容とEXE/.sha256を提示して公開承認を受ける。
 
 ## 直前完了: 管理画面内の設定統合・英語文節の境界変更（2.0.0、PC適用完了）
 

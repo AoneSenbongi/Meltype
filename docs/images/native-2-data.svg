@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="360" viewBox="0 0 1080 360" role="img" aria-labelledby="title desc">
+<title id="title">PC内のデータと任意モデル</title><desc id="desc">Googleの既存辞書、Meltypeの設定・予測・定型文、別途導入するローカルzenzモデルを区別します。更新確認はGitHubへ接続します。</desc>
+<rect width="1080" height="360" rx="20" fill="#eef5fc"/>
+<g font-family="Yu Gothic,Meiryo,sans-serif" fill="#172c43">
+<text x="35" y="49" font-size="25" font-weight="700">変換に使うデータは、あなたのPCに。</text>
+<text x="35" y="79" font-size="15" fill="#42627e">個人の辞書・入力履歴は、公開EXEに含めません。</text>
+<g fill="white" stroke="#bfd2e4"><rect x="35" y="106" width="315" height="177" rx="14"/><rect x="382" y="106" width="315" height="177" rx="14"/><rect x="729" y="106" width="315" height="177" rx="14" stroke-dasharray="6 5"/></g>
+<text x="55" y="143" font-size="20" font-weight="700">Google日本語入力</text><text x="55" y="185" font-size="18">既存のユーザー辞書</text><text x="55" y="218" font-size="18">既存の学習履歴</text><text x="55" y="255" font-size="14" fill="#52718c">Googleの辞書管理画面で操作</text>
+<text x="402" y="143" font-size="20" font-weight="700">Meltype Native</text><text x="402" y="185" font-size="18">入力設定・予測履歴</text><text x="402" y="218" font-size="18">定型文・更新前バックアップ</text><text x="402" y="255" font-size="14" fill="#52718c">学習停止でも既存履歴は保持</text>
+<text x="749" y="143" font-size="20" font-weight="700">任意：ローカルzenz</text><text x="749" y="185" font-size="18">文脈に合う候補を評価</text><text x="749" y="218" font-size="18">モデルと設定は別途導入</text><text x="749" y="255" font-size="14" fill="#a5225c">標準セットアップには含みません</text>
+<text x="35" y="320" font-size="15" fill="#42627e">更新確認・配布物の取得はGitHubへ接続します。Google本体の通信設定は別です。</text>
+</g></svg>

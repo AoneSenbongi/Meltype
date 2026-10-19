@@ -1,124 +1,143 @@
-﻿# Meltype Native
+# Meltype Native 2.0.0
 
-[雪代／Yukishiro氏のMeltype](https://github.com/yksr-melt/Meltype)を基に、Windowsの入力欄へ未確定文字を表示するIMEと、インストール済みGoogle日本語入力との連携を追加した非公式Forkです。改良は`google-native-ime`ブランチで管理しています。Googleや元作者の公式配布版ではありません。
+**日英を判別し、いつもの入力欄で変換。Google日本語入力の辞書も使えるWindows IME。**
 
-2.0.0では本家Meltype 1.3.0の共通変換処理・判定・辞書を取り込みました。管理画面からMicrosoft IMEとGoogle日本語入力を選べます。入力操作・計算の設定は管理画面内にあり、英語と誤判定された文節もShift＋左右で範囲を変更できます。括弧対の確定後に内側へ移動する設定も修正しました。[変更点・検証と制限](docs/RELEASE_2_0_0.md)と[変換エンジンの仕様](docs/NATIVE_ENGINE_MODE.md)を参照してください。
+[ダウンロード](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-2.0.0) · [導入手順](docs/NATIVE_IME_TRANSFER.md) · [変更点と検証](docs/RELEASE_2_0_0.md) · [不具合の報告](https://github.com/AoneSenbongi/Meltype/issues)
 
-## 管理画面
+![日英混在入力から、選択した変換エンジン、元の入力欄へ至る概念図](docs/images/native-2-overview.svg)
 
-1.0.7では、更新成功後に管理画面を自動で開き直します。「最新版を確認」から通常Releaseを確認し、更新を選ぶとSHA-256検証・ダウンロード・バックアップ・セットアップまで進められます。Windowsの管理者確認は必要です。公開済み1.0.6にはこの機能はまだ含まれません。[更新の仕様](docs/NATIVE_RELEASE_UPDATE.md)を参照してください。
+[雪代／Yukishiro氏のMeltype](https://github.com/yksr-melt/Meltype)を基にした非公式Forkです。本家1.3.0の共通変換処理・日英判別・辞書を取り込み、独自のWindows TSF実装と管理画面を使います。Googleや元作者の公式配布版ではありません。改良は`google-native-ime`ブランチで管理しています。
 
-![先行版1.0.7-rc.1の管理画面プレビュー。「最新版を確認」を追加](docs/images/native-release-update.png)
+**Windows 10／11 x64向けです。** Google日本語入力を別途インストールして使う構成を標準とし、管理画面でMicrosoft IMEにも切り替えられます。モデルや開発環境の準備は不要です。
 
-![Meltype 1.0.2の管理画面。導入・起動・停止・自動起動・単語登録・辞書管理を操作できます](docs/images/native-settings.png)
-## できること
+## 本家との違い
 
-Meltypeの日英判別を使い、`kyouhagoogledekensaku`を「今日はgoogleで検索」のように入力できます。日本語の読みが4文字以上になると、Spaceを押す前からGoogleの変換結果で表示を更新します。途中では確定しません。
+本家にもWindows IMEがあります。「IMEとして動く」「計算する」こと自体が、このForkだけの機能という意味ではありません。共通機能を独自の入力処理へ接続し、Googleとの連携や管理方法を変更しています。
 
-未確定文字は元の入力欄へ表示し、フォントや色を独自に指定しません。変換候補や予測候補を白い候補画面に表示します。日本語の句読点は既定で全角の「，」「．」。管理画面から変更できます。ローマ字入力の区切りで`zh → ←`、`zj → ↓`、`zk → ↑`、`zl → →`を使えます。
+| 項目 | 本家1.3.0との関係 | このForkの2.0.0 |
+| --- | --- | --- |
+| 日英自動判別・共通辞書 | 本家由来 | 日本語を変換し、英語と判別した部分は英字で残します |
+| 変換エンジン | 独自の選択・連携 | Google日本語入力／Microsoft IMEを管理画面で選択。初期値はGoogleです |
+| Googleの辞書・学習 | 独自連携 | 導入先の既存データを利用。学習が有効なら、一致確認した確定結果をGoogleへ学習させます |
+| 入力欄と候補表示 | 独自TSF実装 | 未確定文字は元の入力欄、候補は入力位置の近くに表示します |
+| 英語に誤判定された文節 | 独自修正 | かなの読みを持つ文節もShift＋左右で範囲を変更し、日本語として変換し直せます |
+| 入力操作・計算 | 本家機能をNativeへ接続 | 主管理画面で設定し、「入力設定を保存」で反映します |
+| 括弧内への移動 | Native側を修正 | 設定ONで括弧対だけを確定すると、内側へカーソルを移します |
+| 予測・定型文 | 本家由来＋Native接続 | Tabで予測選択、`;名前`で登録文を展開します |
+| 導入・更新 | 独自の管理・配布 | EXEセットアップ、更新確認、SHA-256照合、更新前バックアップ |
+| アイコン | 本家1.3.0由来 | 「雪の結晶＋M」をIME・管理画面・トレイ・Setupで使用 |
 
-1.1.0では、入力中の読みや英単語から続きを最大5件表示します。Tab／Shift+Tabで予測を選び、Enterで確定、Escで選択を解除します。Spaceは選んだエンジンによる文節変換です。予測用の確定語句はPC内に保存し、学習停止中は追加せず既存履歴を利用します。
+Microsoftの候補APIはIME本体と候補順が一致するとは限らず、Microsoft辞書への学習書き込みには未対応です。「単語登録」「辞書管理」「Googleの設定」はGoogle専用です。[エンジンの仕様](docs/NATIVE_ENGINE_MODE.md)
 
-Googleの既存辞書・学習履歴を使います。学習が有効なら、確定した日本語を一致確認のうえGoogleにも学習させます。
+### 本家の機能すべてには対応していません
+
+子音略入力、文脈ごとに分ける日英学習、英字の社名・サービス名予測など、本家の追加設定すべてをNative管理画面へ接続したものではありません。本家のコードエディター向け判別や各OS向け機能も、このWindows配布物での提供を保証しません。本家の設定ファイルをコピーするだけで有効になるわけではありません。
+
+### zenzは別途モデルが必要です
+
+独自実装には、ローカルzenzで文脈に合う変換候補を評価する連携経路があります。開発用PCでは`zenz-v3.2-small`で検証していますが、**公開EXEにモデル本体やそのPC固有の設定は含みません。通常の導入だけでzenzが起動する構成ではありません。**
+
+モデル未設定でもGoogle／Microsoftの変換を使えます。モデル連携は開発者向けで、自動ダウンロードや管理画面からのモデル導入は提供していません。[候補評価の実装](https://github.com/AoneSenbongi/Meltype/blob/google-native-ime/src/Meltype.Core/Composition/ContextEvaluation.cs)・[起動と検証](https://github.com/AoneSenbongi/Meltype/blob/google-native-ime/tools/native-ime/NativeContextModel.ps1)を参照してください。本家Mac版の依存先にあるzenz関連コードとは別の連携です。
 
 ## インストール
 
-1.0.3ではWindows 10の検索欄への対応を追加します。開発用PCで入力できることを確認しました。[検証状況](docs/NATIVE_SEARCH.md)と[検索対応の通信権限](SECURITY.md#windows検索対応の通信権限)を参照してください。
+1. Windows 10／11 x64でGoogle日本語入力をインストールし、一度日本語を入力して動作を確認します。
+2. [2.0.0のRelease](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-2.0.0)から`Meltype-Native-Google-2.0.0-Setup.exe`を取得して開きます。
+3. 保存先とショートカットを確認し、必要なWindowsの管理者確認を承認します。導入後にIMEが起動します。
+4. スタートメニューかデスクトップの「Meltypeの管理画面」を開きます。更新した場合は入力アプリも開き直してください。
 
-必要なものはWindows 10／11のx64版と、インストール済みのGoogle日本語入力です。ARM版と32ビット版にはこのパッケージを使わないでください。ランタイムはインストーラーに同梱しているので、Codex・開発環境・別途の.NETインストールは不要です。
+ランタイムは同梱しています。別途.NET、Codex、開発環境を入れる必要はありません。ARM用・32ビット用パッケージは提供していません。従来のMeltype常駐版が動いている場合は先に終了してください。
 
-1. Google日本語入力をインストールし、一度日本語を入力して動作を確認します。
-2. [Meltype Native 2.0.0 Release](https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-2.0.0)から `Meltype-Native-Google-2.0.0-Setup.exe` を取得し、通常のダブルクリックで開きます。
-3. セットアップで保存先とデスクトップショートカットを確認します。必要な管理者確認を承認すると、導入または更新後にIMEが起動します。
-4. デスクトップまたはスタートメニューの「Meltypeの管理画面」から、起動・停止・辞書登録などを操作します。
-
-インストール時に、Windowsへのサインイン後の自動起動を設定します。起動時のコンソールは非表示です。自動起動の有効・無効は管理画面から切り替えます。自動更新はありません。従来のMeltype常駐版が動いている場合は、先に終了します。
-
-インストーラーのSHA-256はReleaseの`.sha256`ファイルと比較できます。
+コード署名はありません。SmartScreenの未署名警告と、ウイルス対策の脅威検出は別です。脅威検出時は保護を無効にせず、定義を更新して再確認し、検出名と版番号を報告してください。Releaseの`.sha256`と次の結果を照合できます。
 
 ```powershell
 Get-FileHash .\Meltype-Native-Google-2.0.0-Setup.exe -Algorithm SHA256
 ```
 
-詳しくは[自分のPCへの導入](docs/NATIVE_IME_TRANSFER.md)を参照してください。Mac版・Linux版のNative Google連携パッケージは配布していません。
+旧ZIPからの更新も含め、[詳しい導入手順](docs/NATIVE_IME_TRANSFER.md)を参照してください。
 
-## 使い方
+## 入力してみる
 
-入力欄へローマ字で入力します。自動モードでは日本語をライブ変換し、英語と判別した部分は英字で残します。Spaceで変換候補を選び、Enterで確定します。入力モードボタンのクリックまたは半角／全角キーで「自動／英語」を切り替えます。変換エンジンは管理画面で選び、入力先へ戻ると反映されます。初期値はGoogleです。
+![変換、計算、括弧内移動のキー操作を示す説明用イラスト](docs/images/native-2-keys.svg)
 
-管理画面を閉じると、タスクバー右下の通知領域へ格納します。Meltypeの常駐アイコンを右クリックすると「停止してGoogleに戻る」「単語登録」「辞書管理」を直接選べます。単語登録と辞書管理はGoogle日本語入力の画面を開きます。確認用1.1.0-rc.1では、入力モードボタンをクリックして「自動／英語」を切り替えられます。アイコンが見えない場合は通知領域の「隠れているインジケーター」を開いてください。
+図は操作例です。実際のフォント・色・候補順は入力先や変換エンジンにより異なります。
 
-Google本体でも全角の「，」「．」を使う場合は、Google日本語入力のプロパティで句読点を「，．」に設定します。新しい履歴をGoogleへ追加する場合は、Google側で「学習する」を選んでください。
+| やりたいこと | 操作 |
+| --- | --- |
+| 日英を混ぜて入力 | 自動モードでローマ字入力。例：`kyouhagoogledekensaku` → 「今日はgoogleで検索」 |
+| 変換・確定 | Spaceで変換候補を選び、Enterで確定 |
+| 文節選択・範囲変更 | 変換中に左右で文節移動、Shift＋左右で範囲変更 |
+| 予測候補を選ぶ | Tab／Shift＋Tabで選択、Enterで確定、Escで選択解除 |
+| 自動／英語を切り替え | 入力モードボタン、または半角／全角キー |
+| 選択文字を再変換 | かな・漢字・ローマ字を選択し変換キー。Enterで確定、Escで復元。読みを取れない場合は変更しません |
+| 定型文を展開 | 管理画面で登録後、行頭か空白の直後に`;名前`を入力してSpace／Tab。展開直後のEscで元に戻せます |
+| 数式を計算 | 計算候補を有効にし、`1+2*3` → Space。候補から`7`や`1+2*3=7`を選択 |
+| 括弧内に移動 | 「括弧だけを確定したらカーソルを内側へ移す」をONにして保存。`()` → Enter |
 
-1.0.5では、管理画面から読点「、／，／,」と句点「。／．／.」を個別に選べます。英語入力は半角のままです。「学習を停止／学習を再開」でMeltype経由の新しい学習を切り替え、既存の辞書・履歴を保持します。通常のGoogle日本語入力を直接使う場合の学習設定は変更しません。[設定の仕様](docs/INPUT_PREFERENCES.md)を参照してください。
+Google選択時は、日本語の読みが4文字以上になるとSpaceの前にもライブ変換で表示を更新します。表示更新だけで文字を確定することはありません。計算は変換候補から結果を選ぶ方式です。
 
-![1.0.5の管理画面。読点・句点の選択と学習停止ボタン](docs/images/native-input-preferences.png)
+英語文節の範囲変更は、かなの読みを持つ文節が対象です。URLや読めない英字を強制的に日本語へ変えません。英語直接入力中のShift＋左右は、入力先の範囲選択として扱います。
 
-## 停止・更新・削除
+## 管理画面で設定する
 
-管理画面の「停止してGoogleに戻る」で通常のGoogle日本語入力へ戻します。登録の削除は「インストール」の隣にある「アンインストール」です。バックアップとGoogleの辞書・学習履歴は残ります。導入済みの場合は、新しいセットアップEXEを実行します。管理画面から従来の配布物を更新する場合は「この版に更新」を押します。DLLが変わる更新では管理者確認が表示され、登録先も更新します。詳しくは[管理画面の説明](docs/NATIVE_GUI.md)を参照してください。
+![2.0.0の実管理画面。左にエンジン・辞書・学習、右に入力操作と計算の設定](docs/images/native-2-settings.png)
 
-1.0.4ではエラーを日本語で説明し、起動・停止ボタンを現在状態に合わせて無効化します。自動起動はチェックで切り替えます。管理者処理の起動方法も修正しましたが、別PCのインストールエラー解消は未確認です。現在のNative Google 1.0.6には、句読点・疑問符でライブ変換がかなへ戻る問題と、起動待ち時間が短すぎる問題への修正を含めています。古い版からも上記の管理画面で更新でき、個別の修正ZIPを適用する必要はありません。
+検証時に保存した実画面です。右側を下へスクロールした状態です。チェック値は撮影時の設定で、新規導入時の既定値ではありません。
 
-1.0.5では通信パイプの有無に依存せず起動・停止ボタンを切り替え、状態確認に失敗したときも操作ボタンを無効にします。通信枠を32へ増やし、満杯時に入力サービスを終了せず空きを待ちます。報告された突発停止との因果と長期利用での改善は未確認です。
+1. **左側で基本設定**：エンジン、句読点、学習の停止・再開、自動起動、Googleの辞書、定型文を管理します。
+2. **右側で入力操作**：計算、Esc・Enter・Fキー、空白、括弧・記号、英字優先、Controlキーの割り当てを設定します。上下にスクロールできます。
+3. **設定を保存**：右側は「入力設定を保存」、句読点は「句読点を保存」を押します。次の入力から反映します。
 
-## Android版
+管理画面を閉じると通知領域へ格納します。Meltypeアイコンの右クリックから停止・単語登録・辞書管理も操作できます。「管理画面を終了」は管理画面だけを終了します。
 
-[Android試作版0.2.0のRelease](https://github.com/AoneSenbongi/Meltype-Android/releases/tag/android-prototype-0.2.0)でAPKを公開しています。Android 8.0以降のarm64端末向けです。QWERTYのローマ字入力、日英自動判別、ライブ変換、英語専用モードへの切替を実装しています。フリック入力はありません。
+「英語モードでもローマ字を検知」と「英字を主に入力する」は別の設定です。前者は直接入力中のローマ字検知、後者は入力中の自動判別を抑え、変換キーや↓で日本語へ切り替える操作です。[入力設定の仕様](docs/PRERELEASE_INPUT_2_0_1_RC_8.md)
 
-0.2.0では専用アイコンと導入状態の表示を追加し、SimejiのQWERTY配置を参考に英字3段と操作1段へ整理しました。数字・記号は「123」で切り替えます。ライブ変換中も候補を表示し、候補を選ぶと他の文節と英語部分を保って確定します。
+## データとプライバシー
 
-AndroidではOSS版MozcとOSS辞書を同梱します。WindowsのGoogle日本語入力やGboardの辞書・学習履歴とは連携しません。エミュレーターでの入力は確認済みですが、実機での入力速度や各アプリとの相性は未確認です。
+![PC内のGoogle辞書、Meltypeの設定と予測・定型文、別途の任意モデルの関係図](docs/images/native-2-data.svg)
 
-0.2.0のAPKには本家1.0.3の修正を含めています。試作用の署名が旧版と異なる場合は、旧版を削除してからインストールします。削除ではアプリの学習データも消えます。[導入手順と検証範囲](https://github.com/AoneSenbongi/Meltype/blob/android-prototype/docs/ANDROID_PROTOTYPE.md)を確認して利用してください。
+入力の判別と変換エンジンへの要求はPC内で処理します。このForkに入力文字を外部サーバーへ送信する処理は追加していません。「最新版を確認」ではGitHubへ接続してRelease情報と配布物を取得します。Google日本語入力本体の通信設定は別です。
 
-## 検証範囲と制約
+| データ | 扱い |
+| --- | --- |
+| Googleの辞書・学習履歴 | 導入先の既存データを利用。Googleの辞書管理画面で操作 |
+| Meltypeの設定・予測履歴 | PC内に保存。学習停止中は新規追加を止め、既存履歴は利用 |
+| 定型文 | `%LOCALAPPDATA%\Meltype\snippets.json`に保存。Google辞書とは別 |
+| 更新前バックアップ | 導入先の`backups`に保存。個人の辞書・学習情報を含むため公開しないでください |
 
-WindowsのTSF文書を使った未確定文字・確定・取消の試験、Googleとの接続試験、日英混在と起動待ちの試験を実施しています。登録・有効化と、別のPCでの起動も確認しました。フォント・改行・候補配置は使用するアプリで確認してください。32ビットアプリとストアアプリは未検証です。
+配布EXEには開発者個人の設定・辞書・入力履歴を同梱しません。Meltype経由の学習停止は、Googleを直接使う場合の学習設定を変更しません。[権限・保存先・ログ](SECURITY.md)
 
-Native版では、前後の確定文字の取得やMeltype独自の永続学習をまだ接続していません。元のMeltypeにあるトレイ設定・コードエディター用の判別・ユーザー辞書画面など、一部の機能はNative版で提供していません。
+## 更新・停止・削除
 
-Googleへの接続は非公式IPCを使っています。Googleの更新によって接続できなくなる可能性があります。Google本体のプログラムやシステム辞書は改造・同梱していません。
+1. **更新**：「最新版を確認」で通常Releaseを確認します。更新を選ぶと取得、SHA-256照合、バックアップ、セットアップを行います。新しいEXEを直接開いても更新できます。
+2. **切り替え**：「停止してGoogleに戻る」で通常のGoogleへ戻します。入力先と合わない場合はWin＋Spaceでも入力方式を切り替えられます。
+3. **削除**：Windowsのアプリ一覧からアンインストールします。Googleの辞書・学習履歴とバックアップは残します。登録解除に失敗した場合はファイルを残して中止します。
 
-Windows 10の検索欄では、1.0.3の開発用PCで日本語を入力できることを確認しました。1.0.7にはWindows 11検索パッケージの通信修正を統合しています。修正のみの1.0.7-rc.2でThinkPadの検索欄の変換を確認済みですが、正式版のWindows 11実機適用と一般のストアアプリは未確認です。動作しない入力先ではWin＋SpaceでGoogle日本語入力へ切り替えてください。検証範囲は[通常Releaseの説明](docs/NATIVE_RELEASE.md)に記載しています。
+無操作で更新する方式ではありません。DLL更新後も開いたままの入力アプリは旧DLLを使い続けるため、再起動してください。旧ZIPから更新した場合は従来の導入先も保持します。[更新の仕様](docs/NATIVE_RELEASE_UPDATE.md)
 
-不具合を報告する際は、アプリ名、入力した操作、期待した動作、実際の動作を記載してください。起動失敗時は画面のメッセージと、`experimental-build`内の`native-broker-errors.txt`・`native-broker-output.txt`も確認できます。
+## 検証と制限
 
-## プライバシー
+共通・Windows回帰637/637、Native20/20、Google16/16、Microsoft2/2が通過しました。TSF文書の変換・確定・取消・文節操作に加え、通常のWindows EDITで`()` → Enterの不具合を再現し、修正後に内側の位置を保持することを確認しました。PC適用後、利用者の実操作でも成功報告を受領しています。[検証の詳細](docs/RELEASE_2_0_0.md)
 
-入力の判別とGoogleへの変換要求はPC内で処理します。入力文字をネットワークへ送信する処理は追加していません。ZIPには個人の設定・辞書・学習履歴を含めず、導入先のGoogleのデータを使います。登録時のバックアップは展開先の`backups`へ保存します。
+- すべての入力先での動作を保証するものではありません。32ビットアプリ、一般のストアアプリ、複数モニターは今回の網羅試験対象ではありません。
+- Windows検索欄は過去の開発用PC等で確認していますが、Windows 10／11の全構成の確認ではありません。[検証範囲](docs/NATIVE_SEARCH.md)
+- Google連携は非公式IPCです。Googleの更新で接続できなくなる可能性があります。Google本体やシステム辞書は改造・同梱していません。
+- ローカルモデルは別途導入が必要です。日常入力の精度向上や速度を一律に保証しません。
 
-PC版の権限、学習データの保存と削除、ログ、パスワード欄の制約、署名と脆弱性の報告先は[このForkのセキュリティ説明](SECURITY.md)を確認してください。バックアップには個人の辞書・学習情報が含まれるため、公開しないでください。
+不具合の報告には、版番号・アプリ名・入力操作・期待した動作・実際の動作を添えてください。起動失敗時は画面のメッセージと`experimental-build`内の`native-broker-errors.txt`・`native-broker-output.txt`も確認できます。ログを添付する前に個人情報を確認してください。
 
-## 元のMeltypeとライセンス
+## Android・Mac・Linux
 
-日英判別と入力処理は、元のMeltypeの成果を基にしています。元作者と協力者への謝意を含む[元のREADME](README.UPSTREAM.md)を保存しています。この文書は元の常駐版の説明であり、上記のNative版の導入手順とは異なります。
+Android試作版は[別のRelease](https://github.com/AoneSenbongi/Meltype-Android/releases)です。このWindows 2.0.0とは版番号・配布物・検証範囲が異なり、WindowsのGoogle辞書とも連携しません。
 
-[lnkiai氏のIME化Fork](https://github.com/lnkiai/Meltype/releases/tag/ime-1.0.1-2)の入力スコープ保護と通信先確認を参考にし、Google連携用のNative実装へ反映しています。参考にした実装の著作権とGPL表記をコード内に記載しています。
+本家のMac・Linux版は[元のリポジトリ](https://github.com/yksr-melt/Meltype)を参照してください。このForkからMac／LinuxのNative Google連携パッケージは配布していません。
 
-MeltypeとこのForkの改良は[GNU GPL](LICENSE)に従って公開しています。配布ZIPには対応するソースを同梱しています。同梱ランタイムのライセンスと第三者の通知は、ZIP内の`runtime/LICENSE.txt`と`runtime/ThirdPartyNotices.txt`を参照してください。
+## 開発・謝辞・ライセンス
 
-```text
-Meltype
-Copyright (C) 2026 雪代 / Yukishiro (@yksr_melt / @yksr-melt)
+日英判別と共通処理は、本家Meltypeと協力者の成果に基づきます。新アイコンも本家1.3.0のものです。[本家のREADME](README.UPSTREAM.md)を保存していますが、このForkの導入と対応範囲は本書を参照してください。
 
-This program is free software: you can redistribute it and/or modify it under the terms of the
-GNU General Public License as published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
+[lnkiai氏のIME化Fork](https://github.com/lnkiai/Meltype/releases/tag/ime-1.0.1-2)の入力スコープ保護と通信先確認も参考にしています。コード内の著作権・GPL表記を保持しています。
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
-even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-General Public License for more details.
-```
+MeltypeとこのForkは[GNU GPL v3以降](LICENSE)です。Setupには`corresponding-source.zip`として対応ソースを同梱します。ランタイムのライセンスと第三者通知は`runtime/LICENSE.txt`・`runtime/ThirdPartyNotices.txt`を参照してください。無保証で提供します。
 
-ソースからのビルドは[Native版の構成と手順](docs/NATIVE_IME_SETUP.md)、Googleとの接続方式は[Google連携の説明](docs/GOOGLE_IME_EXPERIMENT.md)を参照してください。
-
-## 本家1.0.4の取り込み
-
-本家の共通変換処理を取り込み、独自のTSF入力・管理画面を使います。本家のキーフック・TIPやOS別パッケージをそのまま使う構成ではなく、本家の設定すべてに対応するものではありません。選択済み文字の再変換とTab文節変換にも対応します。
-
-ウイルス対策による脅威検出はSmartScreenの未署名警告とは別です。定義を更新し、配布物を再取得して再検査してください。引き続き検出される場合は保護を無効にせず、個人情報を伏せて検出名と版をこのForkのIssuesへ報告してください。
-
-## セットアップ版
-
-1.0.6はEXEインストーラーで導入します。デスクトップショートカットは既定で作成し、不要ならセットアップで解除できます。Windowsのアプリ一覧から削除でき、IME登録の解除に失敗した場合はファイルを残します。Googleの辞書・学習履歴とバックアップは削除しません。旧ZIP版からの更新では既存の導入先を維持するため、旧フォルダーも保持してください。[セットアップの仕様](docs/NATIVE_INSTALLER.md)を参照してください。
+開発者向け：[ビルド手順](docs/NATIVE_IME_SETUP.md) · [Google連携](docs/GOOGLE_IME_EXPERIMENT.md) · [1.3.0統合範囲](docs/UPSTREAM_1_3_0.md)

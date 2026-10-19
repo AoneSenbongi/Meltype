@@ -601,12 +601,16 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (!evaluationWindow_ || !SetTimer(evaluationWindow_, 2, 40, nullptr)) CancelBracketCaret();
   }
   void MovePendingBracketCaret() {
+    // A synthetic arrow must not become Shift+Left/Ctrl+Left in the application.
+    if (!testing_ && (GetAsyncKeyState(VK_SHIFT) < 0 || GetAsyncKeyState(VK_CONTROL) < 0 ||
+        GetAsyncKeyState(VK_MENU) < 0 || GetAsyncKeyState(VK_LWIN) < 0 || GetAsyncKeyState(VK_RWIN) < 0)) return;
     if (evaluationWindow_) KillTimer(evaluationWindow_, 2);
     Ptr<ITfRange> caret; caret.p = pendingBracketCaret_.p; pendingBracketCaret_.p = nullptr;
     Ptr<ITfContext> context; context.p = pendingBracketContext_.p; pendingBracketContext_.p = nullptr;
     if (!caret.p || !context.p || !thread_ || composition_->Active() || finishing_->pending || !japanese_) return;
     Ptr<ITfDocumentMgr> focused; Ptr<ITfContext> current;
     if (FAILED(thread_->GetFocus(&focused.p)) || !focused.p || FAILED(focused->GetTop(&current.p)) || current.p != context.p) return;
+    WORD arrow = 0;
     auto* move = new Edit([&](TfEditCookie cookie) {
       TF_SELECTION existing{}; ULONG fetched = 0;
       HRESULT result = context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &existing, &fetched);
@@ -616,6 +620,12 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
           FAILED(selection->IsEmpty(cookie,&empty)) || !empty ||
           FAILED(selection->CompareStart(cookie,caret.p,TF_ANCHOR_START,&fromStart)) || fromStart < 0 ||
           FAILED(selection->CompareEnd(cookie,caret.p,TF_ANCHOR_END,&fromEnd)) || fromEnd > 0) return S_OK;
+      if (!testing_) {
+        // Let the application's normal key handling update its caret and its
+        // IMM/TSF bridge together. SetSelection alone is later overwritten by EDIT.
+        arrow = fromEnd == 0 ? VK_LEFT : fromStart == 0 ? VK_RIGHT : 0;
+        return S_OK;
+      }
       result = caret->Collapse(cookie, TF_ANCHOR_END);
       LONG shifted = 0;
       if (SUCCEEDED(result)) result = caret->ShiftStart(cookie, -1, &shifted, nullptr);
@@ -627,6 +637,15 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     HRESULT status = E_FAIL;
     context->RequestEditSession(client_, move, TF_ES_SYNC | TF_ES_READWRITE, &status);
     move->Release();
+    if (arrow && SUCCEEDED(status)) {
+      DWORD process = 0;
+      DWORD thread = GetWindowThreadProcessId(GetForegroundWindow(), &process);
+      if (process != GetCurrentProcessId() || thread != GetCurrentThreadId()) return;
+      INPUT input[2]{};
+      for (auto& key : input) { key.type = INPUT_KEYBOARD; key.ki.wVk = arrow; key.ki.dwFlags = KEYEVENTF_EXTENDEDKEY; }
+      input[1].ki.dwFlags |= KEYEVENTF_KEYUP;
+      SendInput(2, input, sizeof(INPUT));
+    }
   }
   void PollEvaluation() {
     if (!thread_ || !composition_->Active() || finishing_->pending || !japanese_) { StopEvaluationTimer(); return; }

@@ -386,6 +386,14 @@ int main(int argc, char** argv) {
       ITfKeyEventSink* keys = nullptr;
       Check(service->QueryInterface(IID_ITfKeyEventSink, reinterpret_cast<void**>(&keys)), "native key sink");
       if (preRelease) {
+        auto settleCaret=[]() {
+          DWORD until=GetTickCount()+100;
+          while(GetTickCount()<until) {
+            MSG message{};
+            while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){TranslateMessage(&message);DispatchMessageW(&message);}
+            Sleep(1);
+          }
+        };
         std::string preferences=std::string(argv[5])+"/input-preferences.json";
         auto configure=[&](const char* options) {
           auto* out=std::fopen(preferences.c_str(),"wb");Expect(out!=nullptr,"pre2 isolated preferences");
@@ -424,6 +432,7 @@ int main(int argc, char** argv) {
         {
           Fixture f(thread,client,L"prefix suffix",7);Check(thread->SetFocus(f.manager),"bracket focus");
           key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);
+          settleCaret();
           Expect(f.document->text==L"prefix 「」suffix","bracket commit preserves surrounding text");
           Expect(f.document->start==8&&f.document->end==8,"caret moves inside committed bracket pair");
           Expect(f.document->starts==f.document->finishes,"bracket cursor move follows composition commit");
@@ -433,9 +442,41 @@ int main(int argc, char** argv) {
           Fixture f(thread,client,L"prefix suffix",7);Check(thread->SetFocus(f.manager),"bracket reset focus");
           f.document->caretOnCompositionEnd=7;
           key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);
+          settleCaret();
           Expect(f.document->text==L"prefix 「」suffix","bracket reset keeps committed text");
           Expect(f.document->start==8&&f.document->end==8,"bracket caret uses committed range despite application selection reset");
           std::puts("PASS: bracket caret survives application selection reset at composition end");
+        }
+        {
+          Fixture f(thread,client,L"prefix suffix",7);Check(thread->SetFocus(f.manager),"late bracket reset focus");
+          key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);
+          Check(f.Run([&](TfEditCookie cookie){
+            ITfRange* range=nullptr;Check(f.context->GetStart(cookie,&range),"late caret range");
+            LONG moved=0;range->ShiftEnd(cookie,9,&moved,nullptr);range->Collapse(cookie,TF_ANCHOR_END);
+            TF_SELECTION selection{range,{TF_AE_NONE,FALSE}};
+            HRESULT hr=f.context->SetSelection(cookie,1,&selection);range->Release();return hr;
+          }),"application late caret reset");
+          settleCaret();
+          Expect(f.document->text==L"prefix 「」suffix"&&f.document->start==8&&f.document->end==8,"bracket caret survives later application selection notification");
+          std::puts("PASS: deferred bracket caret survives later application selection notification");
+        }
+        {
+          Fixture f(thread,client,L"prefix suffix",7);Check(thread->SetFocus(f.manager),"rapid bracket input focus");
+          key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);key(f,'A');key(f,VK_RETURN);
+          settleCaret();
+          Expect(f.document->text==L"prefix 「あ」suffix","typing before deferred move inserts inside brackets");
+          std::puts("PASS: immediate next input flushes pending bracket move without losing text");
+        }
+        {
+          Fixture f(thread,client,L"prefix suffix",7);Check(thread->SetFocus(f.manager),"moved bracket selection focus");
+          key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);
+          Check(f.Run([&](TfEditCookie cookie){
+            ITfRange* range=nullptr;Check(f.context->GetStart(cookie,&range),"explicit selection range");
+            TF_SELECTION selection{range,{TF_AE_NONE,FALSE}};HRESULT hr=f.context->SetSelection(cookie,1,&selection);range->Release();return hr;
+          }),"user moves outside brackets");
+          settleCaret();
+          Expect(f.document->start==0&&f.document->end==0,"deferred move respects user position outside brackets");
+          std::puts("PASS: deferred bracket move leaves a later explicit cursor position unchanged");
         }
         configure("\"EnglishFirstInput\":false");
         {

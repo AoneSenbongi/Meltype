@@ -331,6 +331,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   }
   HRESULT STDMETHODCALLTYPE Deactivate() override {
     StopEvaluationTimer();
+    CancelBracketCaret();
     if (evaluationWindow_) { DestroyWindow(evaluationWindow_); evaluationWindow_ = nullptr; }
     if (!thread_) return S_OK;
     FinishCurrent();
@@ -554,6 +555,8 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   std::array<bool, 256> captured_{};
   std::wstring preedit_;
   Ptr<ITfRange> bracketCaret_;
+  Ptr<ITfRange> pendingBracketCaret_;
+  Ptr<ITfContext> pendingBracketContext_;
   Reply visible_;
   HWND popup_ = nullptr;
   RECT popupAnchor_{};
@@ -566,17 +569,64 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       self = static_cast<TextService*>(reinterpret_cast<CREATESTRUCTW*>(lp)->lpCreateParams);
       SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
     }
-    if (message == WM_TIMER && self) { self->PollEvaluation(); return 0; }
+    if (message == WM_TIMER && self) {
+      if (wp == 2) self->MovePendingBracketCaret();
+      else if (wp == 1) self->PollEvaluation();
+      return 0;
+    }
     return DefWindowProcW(window, message, wp, lp);
   }
-  void ScheduleEvaluation(bool pending) {
-    if (!pending) { StopEvaluationTimer(); return; }
+  void EnsureCallbackWindow() {
     if (!evaluationWindow_) {
       WNDCLASSW type{}; type.hInstance = module; type.lpfnWndProc = EvaluationWindow; type.lpszClassName = L"MeltypeNativeEvaluation";
       RegisterClassW(&type);
       evaluationWindow_ = CreateWindowExW(0, type.lpszClassName, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, module, this);
     }
+  }
+  void ScheduleEvaluation(bool pending) {
+    if (!pending) { StopEvaluationTimer(); return; }
+    EnsureCallbackWindow();
     if (evaluationWindow_) SetTimer(evaluationWindow_, 1, 40, nullptr);
+  }
+  void CancelBracketCaret() {
+    if (evaluationWindow_) KillTimer(evaluationWindow_, 2);
+    if (pendingBracketCaret_.p) { pendingBracketCaret_.p->Release(); pendingBracketCaret_.p = nullptr; }
+    if (pendingBracketContext_.p) { pendingBracketContext_.p->Release(); pendingBracketContext_.p = nullptr; }
+  }
+  void ScheduleBracketCaret(ITfContext* context) {
+    CancelBracketCaret();
+    pendingBracketCaret_.p = bracketCaret_.p; bracketCaret_.p = nullptr;
+    pendingBracketContext_.p = context; context->AddRef();
+    EnsureCallbackWindow();
+    if (!evaluationWindow_ || !SetTimer(evaluationWindow_, 2, 40, nullptr)) CancelBracketCaret();
+  }
+  void MovePendingBracketCaret() {
+    if (evaluationWindow_) KillTimer(evaluationWindow_, 2);
+    Ptr<ITfRange> caret; caret.p = pendingBracketCaret_.p; pendingBracketCaret_.p = nullptr;
+    Ptr<ITfContext> context; context.p = pendingBracketContext_.p; pendingBracketContext_.p = nullptr;
+    if (!caret.p || !context.p || !thread_ || composition_->Active() || finishing_->pending || !japanese_) return;
+    Ptr<ITfDocumentMgr> focused; Ptr<ITfContext> current;
+    if (FAILED(thread_->GetFocus(&focused.p)) || !focused.p || FAILED(focused->GetTop(&current.p)) || current.p != context.p) return;
+    auto* move = new Edit([&](TfEditCookie cookie) {
+      TF_SELECTION existing{}; ULONG fetched = 0;
+      HRESULT result = context->GetSelection(cookie, TF_DEFAULT_SELECTION, 1, &existing, &fetched);
+      Ptr<ITfRange> selection; selection.p = existing.range;
+      BOOL empty = FALSE; LONG fromStart = 0, fromEnd = 0;
+      if (FAILED(result) || fetched != 1 || !selection.p ||
+          FAILED(selection->IsEmpty(cookie,&empty)) || !empty ||
+          FAILED(selection->CompareStart(cookie,caret.p,TF_ANCHOR_START,&fromStart)) || fromStart < 0 ||
+          FAILED(selection->CompareEnd(cookie,caret.p,TF_ANCHOR_END,&fromEnd)) || fromEnd > 0) return S_OK;
+      result = caret->Collapse(cookie, TF_ANCHOR_END);
+      LONG shifted = 0;
+      if (SUCCEEDED(result)) result = caret->ShiftStart(cookie, -1, &shifted, nullptr);
+      if (FAILED(result) || shifted != -1) return E_ABORT;
+      result = caret->Collapse(cookie, TF_ANCHOR_START);
+      if (SUCCEEDED(result)) { TF_SELECTION target{caret.p,{TF_AE_NONE,FALSE}}; result = context->SetSelection(cookie,1,&target); }
+      return result;
+    });
+    HRESULT status = E_FAIL;
+    context->RequestEditSession(client_, move, TF_ES_SYNC | TF_ES_READWRITE, &status);
+    move->Release();
   }
   void PollEvaluation() {
     if (!thread_ || !composition_->Active() || finishing_->pending || !japanese_) { StopEvaluationTimer(); return; }
@@ -754,6 +804,10 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   }
   HRESULT Key(ITfContext* context, WPARAM vk, LPARAM lparam, bool up, BOOL* eaten) {
     *eaten = FALSE;
+    if (!up && pendingBracketCaret_.p) {
+      if ((vk >= VK_LEFT && vk <= VK_DOWN) || vk == VK_HOME || vk == VK_END || vk == VK_ESCAPE) CancelBracketCaret();
+      else MovePendingBracketCaret();
+    }
     if (vk >= 256 || (up ? !captured_[vk] : !Eligible(context, vk))) return S_OK;
     if (Toggle(vk)) {
       if (!up) {
@@ -812,25 +866,9 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     HRESULT status = E_FAIL;
     HRESULT hr = context->RequestEditSession(client_, edit, TF_ES_SYNC | TF_ES_READWRITE, &status);
     edit->Release();
-    if (SUCCEEDED(hr) && SUCCEEDED(status) && bracketCaret_.p) {
-      // EndComposition notifies the application when the first edit session ends.
-      // Move in a separate edit session, after that notification has run.
-      auto* move = new Edit([this, context](TfEditCookie cookie) {
-        Ptr<ITfRange> caret; caret.p = bracketCaret_.p; bracketCaret_.p = nullptr;
-        HRESULT result = caret->Collapse(cookie, TF_ANCHOR_END);
-        LONG shifted = 0;
-        if (SUCCEEDED(result)) result = caret->ShiftStart(cookie, -1, &shifted, nullptr);
-        if (FAILED(result) || shifted != -1) return E_ABORT;
-        result = caret->Collapse(cookie, TF_ANCHOR_START);
-        if (SUCCEEDED(result)) { TF_SELECTION selection{caret.p,{TF_AE_NONE,FALSE}}; result = context->SetSelection(cookie,1,&selection); }
-        return result;
-      });
-      HRESULT moveStatus = E_FAIL;
-      context->RequestEditSession(client_, move, TF_ES_SYNC | TF_ES_READWRITE, &moveStatus);
-      // The text has already committed. Never replay Enter if the application
-      // rejects this follow-up selection edit.
-      move->Release();
-    }
+    // Application/IMM notifications can restore the selection after this key returns.
+    // Move once after the message queue has settled, without replaying Enter.
+    if (SUCCEEDED(hr) && SUCCEEDED(status) && bracketCaret_.p) ScheduleBracketCaret(context);
     if (bracketCaret_.p) { bracketCaret_.p->Release(); bracketCaret_.p = nullptr; }
     if (FAILED(hr) || FAILED(status)) { channel_.Close(); FinishCurrent(); captured_.fill(false); return S_OK; }
     if (reply.switchToJapanese) { SetInputModeAfterDetection(); directCaret_ = -1; }
@@ -892,6 +930,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   }
   void FinishCurrent() {
     StopEvaluationTimer();
+    CancelBracketCaret();
     HidePopup();
     if (finishing_->pending) return;
     if (!composition_->Active()) { channel_.Close(); return; }

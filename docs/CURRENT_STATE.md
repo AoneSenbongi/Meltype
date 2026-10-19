@@ -4,15 +4,15 @@
 
 専用作業先E:/prog/Meltype/Tools/release-2.0.0-1.3.0。本家v1.3.0（6310c44）を取得し、取り込み済みpre.2（21fb255）との差分から共通変換・判定・辞書と関連試験を三者統合した。元のcontext-evaluationの未コミット内容・インデックス・HEADを保持し、ローカルスナップショット4e9e3afから作業している。仕様と制限はdocs/UPSTREAM_1_3_0.md、公開本文案はdocs/RELEASE_2_0_0.md。外部へのpush・タグ・Release公開は未実施で、具体的な内容の確認が必要。
 
-利用者は()入力後のEnter確定でCodexと管理画面の両方で括弧内へ移動しないと報告。開始時の実設定CursorIntoBrackets/FullWidthParenthesesはtrue、両アプリは最新の導入DLLをロードしていた。共通コアの()・（）は通過したが、確定通知でアプリが選択を戻すTSF条件で旧実装の失敗を再現した。確定範囲を保持し、終了通知後の別編集セッションで内側を指定する変更で通過。移動が拒否されても確定済みEnterは再送しない。利用者の実アプリで同じ原因かと、解消の確認はまだ必要。
+利用者は()入力後のEnter確定でCodexと管理画面の両方で括弧内へ移動しないと報告。開始時の実設定CursorIntoBrackets/FullWidthParenthesesはtrue。一次修正8b7cfa6の適用後は「一瞬内側へ移動後に外側へ戻る」と報告され、新DLLのロードを確認した。遅延通知の再現試験で同じ失敗を確認し、確定範囲を保持して40ms後の一度だけの移動へ変更した。直後の新規入力では移動を先に実行し、フォーカス変更・範囲外のカーソル移動・選択は尊重する。確定文字やEnterは再送しない。確定時と遅延通知、連続入力、明示移動の試験が通過。実アプリの解消は利用者の再確認待ちで、公開保留。
 
 利用者の追加指定に従い、1.3.0の雪の結晶＋Mを変更せず使用。Native DLL・管理画面・トレイ、管理ランチャーとショートカット、セットアップEXEに反映する。自動／英語のモード文字は保持する。DLLとランチャーの32px画像は元ICOと全画素一致。管理画面の描画も確認した。
 
 共通・Windows回帰637/637、標準パッケージNative20/20・Google16/16・Microsoft2/2、TSF・設定保存・プライバシー・定型文が通過。アイコン更新後にもモード切替・画像照合とTSF括弧/英語文節/計算を確認した。証跡experimental-build/upstream-1.3.0のall-managed-first.log、package-final.log、bracket-reset-original-details.log、bracket-reset-green2.log、icon-build.log、icon-native-regression.logとpanel-final.png。
 
-2026年10月19日22:40JSTに新アイコン込みの2.0.0を通常更新でPC適用。BaseVersion1.3.0、配置7/7・登録DLL・管理スクリプト7点、設定等3/3、バックアップ11/11を照合。broker88440は本人SID・ジョブ外・更新起動元終了後も稼働、ローカルモデルhealth ok。導入サービスで荷台候補、英語文節の境界変更、計算4・全角Shift+Space・英語直接・打鍵補助非表示を確認。証跡experimental-build/upstream130-applied.jsonとverification/installedログ。PIDは検証時点の値。入力アプリの再起動と実操作の確認が残る。
+2026年10月19日22:49JSTに遅延対応と新アイコン込みの2.0.0を通常更新でPC適用。BaseVersion1.3.0、package-25d45b69622a428cb2c974aeefeed8af、配置7/7・登録DLL・管理スクリプト7点、設定等3/3、バックアップ11/11を照合。broker98576は本人SID・ジョブ外・更新起動元終了後も稼働、モデル93084 health ok。導入DLLで追加TSF試験全て通過。導入サービスの荷台候補も通過。証跡experimental-build/upstream130-applied.json、verificationログとupstream-1.3.0/bracket-deferred-installed.log。PIDは検証時点の値。旧開発用管理画面96728は終了し、最新の管理画面19204へ切替。Codexは再起動が必要。実操作の確認が残る。
 
-独自Windows本体が必要とする旧APIは保持。子音略入力・文脈別の日英学習などのNativeへの接続は有効化しない。PC用のローカルモデル機能は保持する。配布用ZIP/EXEからは他PCで起動できない絶対パスのcontext-model.jsonを除外し、モデル本体も同梱しない。公開版はGoogle/Microsoft変換で動作する。次は対応ソースを確定し、新アイコン付きEXEとSHA-256を作成、公開内容を提示する。
+独自Windows本体が必要とする旧APIは保持。子音略入力・文脈別の日英学習などのNativeへの接続は有効化しない。PC用のローカルモデル機能は保持する。配布用ZIP/EXEからは他PCで起動できない絶対パスのcontext-model.jsonを除外し、モデル本体も同梱しない。公開版はGoogle/Microsoft変換で動作する。旧EXEとZIP（ソース8b7cfa6）はexperimental-build/upstream-1.3.0/superseded-*へ退避し公開しない。最新ソースから再構築し、実操作と公開内容の確認後に公開する。
 
 ## 直前完了: 管理画面内の設定統合・英語文節の境界変更（2.0.0、PC適用完了）
 

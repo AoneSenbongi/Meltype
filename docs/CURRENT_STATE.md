@@ -1,8 +1,30 @@
 # 現在の状態
 
-## 現在タスク: 2.0.0の図解README整備と公開準備（PC適用済み、未公開）
+## 現在タスク: Windowsのzenz誤字補正を2.0.0 Setupへ統合（公開準備中）
 
-2026年10月20日、利用者がREADMEの再構成、文節編集・英語誤判定修正の強調、zenzをSetupで標準インストールすること、別PC試験用のGoogle Drive配置、リファクタリングを指定した。READMEを本家由来・独自変更・未対応へ分離し、文節編集の図を追加（計4図＋実画面）。モデル未同梱だった419c3f6のEXEは今回の配布候補として使わない。相対パスのモデル・CPU runtime・ライセンスをmanifestへ追加して既存のSetup・保護配置を使う。設定読込・パス解決・ハッシュ検証をGet-NativeVerifiedContextModelへ分離。実装前に別パス設定の失敗を確認し、実装後は実モデル推論・終了・移動後起動・不正パスと改ざん拒否、既存絶対設定、AVX2無効化時のモデル停止が通過。製品DLLはf9cdc5eの確認済み版を維持。TSF連携試験とモデル込みSetup作成・配布照合を進める。Driveの非公開フォルダーは18O-ixJFYU9BgPnJBxp54_xMIIPwVYBW_（https://drive.google.com/drive/folders/18O-ixJFYU9BgPnJBxp54_xMIIPwVYBW_）。完成したEXE・sha256・別PC確認手順をアップロードし、結果を記録する。GitHub push・タグ・Releaseは未実施。仕様docs/BUNDLED_ZENZ.md。
+2026年10月20日、利用者から前回モデル同梱Setupの別PC導入成功の報告と、Windowsのzenz誤字検出・修正変換のSetup化・説明追記・公開の依頼を受けた。元のtypo-monitor-windowsは別チャットで進行中のため変更せず、同じ9af8545基点の13ファイルをハッシュ付きでスナップショットして配布用作業先へ取り込んだ。仕様docs/ROMAN_TYPO_MONITOR.md。既存のTXT化・図・標準モデル同梱を保持する。版番号は2.0.0、本家基準1.3.0。
+
+小文字ローマ字の未変換英字を既存補正器で読み直し、元の表示と既存変換候補をzenzで比較する。180ms休止後、Enter/通常Spaceは最大1500ms待機する。正常英語・明示選択・URL等を保護し、古い応答・学習への逆流を防止する。対象は既存補正器が読みを作れる誤字で、文全体の自由な校正ではない。README.txtの第2機能へ短く追記し、詳細はdocs/ZENZ.txtへ分離。
+
+配布用ソースで実モデル＋Googleの7入力、製品broker隔離通信のEnter→一度だけ確定、NativeEngine2/2・Google16/16、プライバシー、括弧・入力操作・英語文節境界・設定保存・Setup隔離契約を再検証した。相対設定と同梱モデルでも誤字表示・確定が一致し、AVX2無効時の通常変換維持を確認。証跡experimental-build/roman-release-*。PowerShell反射全体試験は644/645（既知のMozc自己起動方式による1件）で、通常SDK apphost全体試験645/645が通過。SDKビルドは0エラー・既存nullable警告5件。
+
+残作業: 最終ソースのコミット、モデル標準同梱Setup再構築と対応ソース・17点manifest確認、非公開Drive単体EXE更新、具体的な公開内容を提示して最終確認。GitHubへはpush・タグ・公開していない。Computer Useと画面へのキー入力は行わない。前回EXEはexperimental-build/superseded-setup-before-roman-20261020へ保全した。
+
+## 前回配布: モデル標準同梱2.0.0の別PC検証（導入成功報告を受領）
+
+2026年10月20日、利用者の指定に従い、文節編集を中心とするREADMEへ再構成し、本家由来・独自変更・未対応を分離した。図4点＋実管理画面。Setupにzenz-v3.2-small Q5_K_M、CPU runtime、相対設定、ライセンスを標準同梱し、設定読込・パス解決・ハッシュ検証をGet-NativeVerifiedContextModelへ分離した。実装前の相対パス失敗、修正後の実推論・終了・移動後起動・不正パスと改ざん拒否・旧絶対設定・AVX2無効化、同梱元実モデル→broker→TSF試験用文書の表示・確定・取消、既存Setup契約試験が通過。配布manifest17点の全ハッシュ・ライセンス・相対設定・READMEリンク・対応ソース同梱を照合。元の6製品payloadはf9cdc5eと一致。導入済みPCの登録や入力アプリを変更していない。
+
+対応ソース9af8545f28fdb4649e27035a93baadcae35ce9cd。Setupはdistributions/Meltype-Native-Google-2.0.0-Setup.exe、159,500,089バイト、SHA-256 44B0B5465CE7FF38B4A76B3711E6AD84FB2F01CDC807D85B8E43C368B1EF721D。ZIP配布候補は20261020-083604（891FFEC939CACD85D3AC4F40462D9CE27812A7095A0473F68635001B04079391）。Setupビルド・新アイコン全画素一致と最終ハッシュを確認。旧419c3f6のモデル未同梱EXEを使わない。
+
+利用者の依頼でDriveの非公開フォルダーhttps://drive.google.com/drive/folders/18O-ixJFYU9BgPnJBxp54_xMIIPwVYBW_へ別PC試験用ファイル6点を配置済み。コネクターの100MB上限でEXE単体転送は413。圧縮後も158,973,453バイトのためZIPを83,886,080と75,087,373バイトの2分割にした。復元ps1/cmd、00-別PCでの確認手順.txt、Setup.sha256も同梱フォルダーへアップロードした。4ファイルを同じフォルダーへ取得してRestore-and-Install.cmdを実行すると、ZIP復元・SHA-256確認・展開・Setup確認後に起動する。Windows PowerShell 5でNoLaunchによる復元・展開・全ハッシュ一致と破損分割ファイル拒否を確認。実際のSetupインストールは未実行。Drive読戻しで6点の名前・サイズ・非公開状態を照合した。Driveメタデータではリモートchecksumが返らず、再ダウンロードしたバイトのハッシュ照合は未実施。証跡experimental-build/drive-delivery.json、drive-restore-test.log、drive-restore-corrupt-test.log、bundled-package-check.json、bundled-package-tsf.log、bundled-installer-build.log、installer-build.json。
+
+残作業は別PCでのSetup導入と実入力結果の受領、モデル標準同梱に変更した最終公開内容の確認、GitHub google-native-imeへのpush・native-google-2.0.0タグとRelease公開。GitHubは未公開。仕様docs/BUNDLED_ZENZ.md、公開本文docs/RELEASE_2_0_0.md。
+
+利用者がハッシュ照合の説明はREADMEに不要と指定したため、READMEから手動照合コマンドと照合機構の説明を削除した。文節編集を先頭に置く構成、本家由来・独自変更・未対応の表、zenzのSetup標準同梱、4図＋実画面は保持。追加指定により主要READMEをREADME.txtへ変更し、Markdown記法を使わない本文にした。Mac・Linuxは未対応の一行へ整理。zenzは2番目で短く紹介し、詳細をdocs/ZENZ.txtへ分離。主機能は文節編集→zenz→Google辞書連携→管理画面。図は別ファイルをパスで参照する。次回の梱包はREADME.txtと参照資料を含める。今回のREADMEのみの変更はローカルで、Drive配布済み9af8545版Setup内のREADMEにはまだ反映していない。公開用の次回梱包で反映する。
+
+README.txt・ZENZ.txtと図入り資料ZIPを別PCから読めるようDriveへ追加済み。README: https://drive.google.com/file/d/166DSO0g_sKOtR_fAACLjs3zIwNUyjRZc/view 、ZENZ: https://drive.google.com/file/d/1Qk24ytD_1g6KuVpFL90FmxyzJhXuwMZL/view 、資料ZIP: https://drive.google.com/file/d/1mSEaTw4WqHAG-iKU1PdWlwwD1kl4DUft/view 。同じ利用者のGoogleアカウントで取得する非公開配置。資料ZIPはREADME.txt、docs/ZENZ.txt、4図＋実管理画面、README参照資料を含み、同梱パスを照合済み。モデル込みSetupの実行内容と既存の分割ファイルは変更していない。次回の公開用梱包でTXTをSetup内へ反映する。
+
+利用者が単体Setup.exeを要求。Google Driveデスクトップ132.0.0.0を起動し、G:/マイドライブの既存検証フォルダーへ159,500,089バイトのEXEをコピーして元SHA-256と一致を確認したが、その後Driveオンライン一覧に単体EXEの反映を確認した。IDは1eRTKY9xp6QwU6naLKUbJyypHua1XsYMX、URLはhttps://drive.google.com/file/d/1eRTKY9xp6QwU6naLKUbJyypHua1XsYMX/view 。159,500,089バイト・親フォルダー・非公開状態・取得可能を確認。Google Driveの既存確認手順も単体EXE直接取得へ更新した。分割復元は不要。Drive反映待ち中に、単体取得用としてGitHubの非公開Release下書き418060606（https://github.com/AoneSenbongi/Meltype/releases/tag/untagged-f94f58575cc82cc24663）を作成し、同じEXEの転送を試みたが接続切断で失敗し、読み戻しで添付なしを確認した。下書きのみ残る。draft=trueで、一般公開・タグ作成・pushは行っていない。下書きのtargetは既定の公開済みブランチであり、公開時は新しいTXT対応ソースをpushしてタグ対象を確定してから更新する必要がある。
 
 利用者がComputer Useの停止を明示したため、この作業では以後使用しない。画面操作・自動キー入力をCLIによる別手段へ置き換えない。ソース・ログ・画面を操作しないCLI試験・配布準備で進める。
 
@@ -16,7 +38,7 @@
 
 新アイコンは本家タグの雪の結晶＋Mを変更せず使用。Native DLL・管理画面・トレイ、管理ランチャーとショートカット、Setupへ反映。自動／英語のモード文字は維持し、埋め込み32px画像と元ICOの全画素一致、管理画面描画を確認した。
 
-独自Windows本体が必要とする旧APIは保持。子音略入力・文脈別日英学習など全ての本家機能をNativeへ接続したものではない。PC用ローカルzenzモデルは維持し、配布物にはモデル本体と絶対パスのcontext-model.jsonを含めない。公開版はGoogle/Microsoft変換で動作する。個人の辞書・設定・履歴は配布しない。
+独自Windows本体が必要とする旧APIは保持。子音略入力・文脈別日英学習など全ての本家機能をNativeへ接続したものではない。追加指定により公開Setupにもローカルzenzモデル・CPU runtime・相対設定・ライセンスを同梱する。開発用PC固有の絶対パス設定と個人の辞書・設定・履歴は実行payloadに含めない。AVX2非対応CPUではモデルを起動せずGoogle／Microsoft変換を使う。
 
 以前のEXE/ZIP（8b7cfa6・0f4483e）はexperimental-build/upstream-1.3.0/superseded-*へ退避し公開しない。docs/RELEASE_2_0_0.mdの内容とEXE/.sha256を提示して公開承認を受ける。
 

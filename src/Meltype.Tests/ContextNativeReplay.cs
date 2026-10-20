@@ -31,11 +31,11 @@ internal static class ContextNativeReplay
         public void RequestSurroundingText(Action<string?, string?> callback) => callback(null, null);
     }
 
-    public static int Run(string endpoint, string output, bool longInput = false)
+    public static int Run(string endpoint, string output, bool longInput = false, bool romanTypos = false)
     {
         using var model = new ZenzContextEvaluator(new Uri(endpoint));
         var rows = new List<object>();
-        var inputs = longInput
+        var inputs = romanTypos ? new[] { "onegaishimsu", "sumimasne", "arigatpu", "meeting", "github", "camera", "kyou" } : longInput
             ? new[] { 6, 16 }.Select(n => "kawadekutsuwotsukuru" + string.Concat(Enumerable.Repeat("soshitesonotokinoyousuwokuwashikukirokushiteoku", n)))
             : ["hashidetaberu", "hashiwowataru", "kawadekutsuwotsukuru", "kawadeoyogu", "kyouhagoogledekensaku", "GitHubnoshiyouwokakuninshimasu", "C++noshiyouwoyomimasu"];
         foreach (var input in inputs)

@@ -12,6 +12,7 @@ internal static class TestRunner
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.FirstOrDefault() == "--roman-monitor-bench") return ContextNativeReplay.Run(args[1], args[2], romanTypos: true);
         if (args.FirstOrDefault() == "--context-native-bench") return ContextNativeReplay.Run(args[1], args[2]);
         if (args.FirstOrDefault() == "--context-native-long-bench") return ContextNativeReplay.Run(args[1], args[2], longInput: true);
         if (args.FirstOrDefault() == "--google-verify") return GoogleImeTests.VerifyInstalledGoogle();

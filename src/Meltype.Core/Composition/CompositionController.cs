@@ -105,6 +105,7 @@ public sealed record ReconversionSelection(string Text, string Reading);
 public sealed record CompositionOptions
 {
     public IContextEvaluator? ContextEvaluator { get; init; }
+    public Func<string, bool>? KnownEnglishForTypoReview { get; init; }
     /// <summary>Already fetched engine candidates only; this callback must not perform I/O.</summary>
     public Func<string, IReadOnlyList<string>>? ContextCandidates { get; init; }
     public bool FullWidthCommaPeriod { get; init; }
@@ -315,6 +316,12 @@ public sealed class CompositionController
     private readonly CompositionDetector _detector;
     private readonly IKanjiConverter _converter;
     private readonly ClauseContextEvaluation? _contextEvaluation;
+    private readonly ContextEvaluation? _romanEvaluation;
+    private readonly RomajiTypoCorrector? _romanCorrector;
+    private string? _romanKey, _romanRaw, _romanBaseline, _romanCommitSuffix, _romanSurrounding;
+    private bool _romanDisplay;
+    private ContextRequest? _romanRequest;
+    private long _romanDue;
     private string? _contextDisplay;
     private string? _contextBaseline;
     private string? _contextInputKey;
@@ -392,7 +399,12 @@ public sealed class CompositionController
         _converter = converter;
         _host = host;
         _options = options ?? new CompositionOptions();
-        if (_options.ContextEvaluator is { } evaluator) _contextEvaluation = new ClauseContextEvaluation(evaluator);
+        if (_options.ContextEvaluator is { } evaluator)
+        {
+            _contextEvaluation = new ClauseContextEvaluation(evaluator);
+            _romanEvaluation = new ContextEvaluation(evaluator);
+            _romanCorrector = _options.RomajiTypos ?? RomajiTypoCorrector.Load(detector.Romaji);
+        }
         _text.FullWidthCommaPeriod = _options.FullWidthCommaPeriod;
         _text.Comma = _options.Comma;
         _text.Period = _options.Period;
@@ -561,6 +573,7 @@ public sealed class CompositionController
     //追加処理に伴って、整理のための関数追加
     private void ClearComposition()
     {
+        ResetRomanEvaluation();
         _displayedLiveClauses = null; _displayedLiveKey = null; _contextAcceptedClauses = null;
         _contextEvaluation?.Reset(); _contextDisplay = _contextBaseline = _contextInputKey = null; _contextManual = false;
         _reconversion = null;
@@ -575,6 +588,7 @@ public sealed class CompositionController
     /// <summary>フォーカスが変わったときなど。前の入力欄の文脈を持ち越さない。</summary>
     public void ResetContext()
     {
+        ResetRomanEvaluation();
         _displayedLiveClauses = null; _displayedLiveKey = null; _contextAcceptedClauses = null;
         _contextEvaluation?.Reset(); _contextDisplay = _contextBaseline = _contextInputKey = null;
         _lastCommitEnglish = null;
@@ -618,6 +632,14 @@ public sealed class CompositionController
             _lastKeyDownTime = e.TimeMs;
         }
         var vk = e.Vk;
+        if (!e.IsUp && _romanCommitSuffix is not null && !VirtualKeys.IsModifier(vk))
+        {
+            // An edit cancels the pending commit. Continuing to type first commits the
+            // already requested word unchanged, then handles the new key normally.
+            if (vk is VirtualKeys.Back or VirtualKeys.Escape) _romanCommitSuffix = null;
+            else if (vk is VirtualKeys.Return or VirtualKeys.Space) return;
+            else FinishRomanCommit(useResult: false);
+        }
         if (e.IsUp)
         {
             _swallowedShift.Remove(vk);
@@ -772,6 +794,7 @@ public sealed class CompositionController
                 return;
             case VirtualKeys.Return:
                 if (IsProtectedInput) { CommitProtected(""); return; }
+                if (!_options.EnterCommitsAsShown() && TryCommitRomanTypo("")) return;
                 // 設定「Enter は見えているとおりに確定」: 打ち間違いの直しは Space で変換するときだけ (issue #677)
                 _text.FixTypos(correct: !_options.EnterCommitsAsShown());
                 Commit();
@@ -802,6 +825,7 @@ public sealed class CompositionController
             case VirtualKeys.Space:
                 // 保護区間 (メンション・URL・パス) の末尾は、自動変換せず原文のまま + 半角空白で確定する。
                 if (IsProtectedInput) { CommitProtected(" "); return; }
+                if (TryCommitRomanTypo(" ")) return;
                 if (_text.PrecedingEnglish != true && PreviewCandidates() is not null)
                 {
                     SelectCandidate(0);
@@ -2565,16 +2589,19 @@ public sealed class CompositionController
     {
         var baseline = _text.Display(final, _options.LiveConversion() ? LiveConvert : null);
         return _contextDisplay is not null && _contextBaseline is not null && _contextAcceptedRaw is not null &&
+            (!_romanDisplay || _text.Raw == _contextAcceptedRaw && baseline == _contextBaseline &&
+                !_contextManual && !_modeByKey && _text.Mode == DisplayMode.Auto) &&
             _contextAcceptedSurrounding == string.Join("\u0001", _precedingText, _followingText) &&
             _text.Raw.StartsWith(_contextAcceptedRaw, StringComparison.Ordinal) && baseline.StartsWith(_contextBaseline, StringComparison.Ordinal)
             ? _contextDisplay + baseline[_contextBaseline.Length..] : baseline;
     }
 
-    public bool ContextEvaluationPending => _contextEvaluation?.Pending == true;
+    public bool ContextEvaluationPending => _contextEvaluation?.Pending == true || _romanEvaluation?.Pending == true || _romanRequest is not null;
 
     /// <summary>Called on the owner thread, including while typing is paused. Never runs model inference here.</summary>
     public void PollContextEvaluation(long nowMs)
     {
+        PollRomanEvaluation(nowMs);
         if (_contextEvaluation is null) return;
         if (_text.IsEmpty || _converting || _contextManual || _modeByKey || _predictionIndex >= 0 || _text.Mode != DisplayMode.Auto)
         { _contextEvaluation.Reset(); return; }
@@ -2591,6 +2618,7 @@ public sealed class CompositionController
 
     private void RequestContextEvaluation(string baseline)
     {
+        if (RequestRomanEvaluation(baseline)) { _contextEvaluation?.Reset(); return; }
         if (_contextEvaluation is null || !_options.LiveConversion() || _contextManual || _modeByKey || _predictionIndex >= 0 || _text.Mode != DisplayMode.Auto)
         { _contextEvaluation?.Reset(); _contextDisplay = _contextInputKey = null; return; }
         var segments = _text.Segments(final: false);
@@ -2621,6 +2649,96 @@ public sealed class CompositionController
         _contextRequestedBaseline = baseline;
         _contextRequestedRaw = _text.Raw;
         _contextEvaluation.Update(pieces, _precedingText ?? "", _followingText ?? "", Environment.TickCount64);
+    }
+
+    private void ResetRomanEvaluation()
+    {
+        _romanEvaluation?.Reset();
+        _romanRequest = null;
+        _romanKey = _romanRaw = _romanBaseline = _romanCommitSuffix = _romanSurrounding = null;
+        if (_romanDisplay) _contextDisplay = _contextBaseline = null;
+        _romanDisplay = false;
+    }
+
+    private bool RequestRomanEvaluation(string baseline)
+    {
+        var raw = _text.Raw;
+        if (_romanEvaluation is null || _romanCorrector is null || !_options.CorrectTypos() ||
+            !_options.LiveConversion() || _contextManual || _modeByKey || _converting || _predictionIndex >= 0 ||
+            _text.Mode != DisplayMode.Auto || _text.KanaInput || IsProtectedInput ||
+            raw.Length is < 4 or > 64 || !raw.All(char.IsAsciiLetterLower) || !baseline.Any(char.IsAsciiLetterLower) ||
+            _detector.IsLexicalEnglishWord(raw) || _options.KnownEnglishForTypoReview?.Invoke(raw) == true ||
+            _options.Languages?.IsExplicitEnglish(raw) == true || _detector.Memory?.IsExplicitEnglish(raw) == true ||
+            (_options.UserDictionary?.Lookup(_detector.Romaji.ConvertLenient(raw, true)).Count ?? 0) > 0)
+        { ResetRomanEvaluation(); return false; }
+        var key = string.Join("\u0001", raw, baseline, _precedingText, _followingText);
+        if (_romanKey == key) return true;
+        ResetRomanEvaluation();
+        if (_romanCorrector.Fix(raw, final: true) is not { } fix) return false;
+        // Do not repair a Japanese run across a known embedded English word.
+        if (_detector.ContainsLexicalEnglishWord(raw)) return false;
+        var candidates = new[] { baseline, fix.Kana }.Distinct(StringComparer.Ordinal).ToArray();
+        var request = new ContextRequest(fix.Kana, _precedingText ?? "", _followingText ?? "", candidates, RomanTypo: true);
+        candidates = candidates.Where(c => ZenzContextEvaluator.AllowsCandidate(request, c)).ToArray();
+        if (candidates.Length < 2) return false;
+        _romanKey = key; _romanRaw = raw; _romanBaseline = baseline;
+        _romanSurrounding = string.Join("\u0001", _precedingText, _followingText);
+        _romanRequest = request with { Candidates = candidates };
+        _romanDue = Environment.TickCount64 + 180;
+        return true;
+    }
+
+    private void PollRomanEvaluation(long nowMs)
+    {
+        if (_romanEvaluation is null || _romanRaw is null) return;
+        if (_text.Raw != _romanRaw || _text.IsEmpty || _converting || _contextManual || _modeByKey || _predictionIndex >= 0 ||
+            _romanSurrounding != string.Join("\u0001", _precedingText, _followingText) ||
+            _text.Mode != DisplayMode.Auto || !_options.CorrectTypos())
+        { ResetRomanEvaluation(); return; }
+        if (_romanRequest is { } request)
+        {
+            if (nowMs < _romanDue) return;
+            _romanRequest = null;
+            try
+            {
+                var clauses = _converter.ConvertClauses(request.Reading, request.Left);
+                var converted = clauses is { Count: > 0 } ? string.Concat(clauses.Select(c => c.Text)) : _converter.Convert(request.Reading);
+                var candidates = new[] { request.Candidates[0], converted, request.Reading }
+                    .Where(c => c is not null && ZenzContextEvaluator.AllowsCandidate(request, c)).Cast<string>()
+                    .Distinct(StringComparer.Ordinal).Take(5).ToArray();
+                _romanEvaluation.Update(request with { Candidates = candidates }, nowMs - 180);
+            }
+            catch (Exception e) { Diagnostics.Log.Warn("誤字候補を取得できませんでした: " + e.GetType().Name); }
+        }
+        if (_romanEvaluation.Poll(nowMs) is { } result)
+        {
+            _contextDisplay = result; _contextBaseline = _romanBaseline;
+            _contextAcceptedRaw = _romanRaw;
+            _contextAcceptedSurrounding = string.Join("\u0001", _precedingText, _followingText);
+            _contextAcceptedClauses = null; _romanDisplay = true;
+            UpdateView();
+        }
+        if (_romanCommitSuffix is not null && !_romanEvaluation.Pending) FinishRomanCommit(useResult: true);
+    }
+
+    private bool TryCommitRomanTypo(string suffix)
+    {
+        if (!RequestRomanEvaluation(_text.Display(false, _options.LiveConversion() ? LiveConvert : null))) return false;
+        _romanCommitSuffix = suffix;
+        // Start immediately at the word boundary; the owner keeps pumping while the model runs.
+        _romanDue = Environment.TickCount64;
+        PollRomanEvaluation(_romanDue);
+        return true;
+    }
+
+    private void FinishRomanCommit(bool useResult)
+    {
+        var suffix = _romanCommitSuffix ?? "";
+        var text = useResult && _romanDisplay ? CurrentDisplay(false) : _romanBaseline ?? CurrentDisplay(false);
+        ResetRomanEvaluation();
+        // A model choice is not a user's language preference and must not seed correction memory.
+        CommitText(text + suffix, english: !IsJapaneseText(text), chosen: true, preserveText: true);
+        UpdateView();
     }
 
     // ---- 確定 ----
@@ -2944,6 +3062,7 @@ public sealed class CompositionController
     /// <summary>確定して入力する。英語だったか日本語だったか・確定した文字列を、次の入力の文脈として覚えておく。</summary>
     private void CommitText(string text, bool english, string raw = "", bool chosen = false, bool preserveText = false)
     {
+        ResetRomanEvaluation();
         var formatEnglish = _options.AutomaticEnglishSpacing() && _text.Mode == DisplayMode.Auto;
         var spaceIntended = _spaceStartedConversion;
         var afterEnglish = _text.PrecedingEnglish == true;
@@ -3056,6 +3175,7 @@ public sealed class CompositionController
     {
         if (_text.IsEmpty)
         {
+            ResetRomanEvaluation();
             // 英数状態の判定中は何も表示しない (英語ならそのまま出るだけ)。
             _host.Hide();
             return;

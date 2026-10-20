@@ -612,6 +612,18 @@ public sealed partial class CompositionDetector
         return IsPediaEnglishWord(lower);
     }
 
+    /// <summary>Lexical evidence only. Repeated accidental English choices are not a dictionary.</summary>
+    internal bool IsLexicalEnglishWord(string lower) => _english.Words.ContainsWord(lower) || _proper.Contains(lower) ||
+        ReadableEnglish.Value.ContainsWord(lower) || IsSpellWord(lower) || IsPediaEnglishWord(lower);
+
+    internal bool ContainsLexicalEnglishWord(string lower)
+    {
+        for (var start = 0; start < lower.Length; start++)
+            for (var length = 4; start + length <= lower.Length; length++)
+                if (_english.Words.ContainsWord(lower.Substring(start, length)) || _proper.Contains(lower.Substring(start, length))) return true;
+        return false;
+    }
+
     /// <summary>
     /// -pedia / -pedias 複合 (pedia / protopedia / wikipedias …)。
     /// ローマ字だと ぺぢあ になり、途中の to が助詞「と」に割れる。複数の s が付いても同じ。

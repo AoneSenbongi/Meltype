@@ -209,6 +209,8 @@ public static class MeltypeNativeBroker
             var controller = new CompositionController(gate, CompositionDetector.CreateDefault(legacyGoogleConversion: engine == "Google"), converter, host,
                 new CompositionOptions { FullWidthCommaPeriod = true, Comma = () => preferences.Current.Comma[0],
                     ContextEvaluator = evaluator, ContextCandidates = converter.CachedCandidates,
+                    KnownEnglishForTypoReview = word => WindowsSpellChecker.Shared.IsWord(word) || WindowsSpellChecker.Shared.AutoCorrection(word) is not null,
+                    CorrectTypos = () => settings.CorrectTypos,
                     Period = () => preferences.Current.Period[0], LearningEnabled = () => learning && preferences.Current.LearningEnabled,
                     Learning = () => !host.Private, ShowTypedKeys = () => settings.ShowTypedKeys,
                     LiveConversion = () => true, MoreCandidates = converter.Candidates, AutoCorrect = () => false,

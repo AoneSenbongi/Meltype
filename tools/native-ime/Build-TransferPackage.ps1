@@ -41,15 +41,16 @@ Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination (Join-Path 
 Copy-Item -LiteralPath (Join-Path $workspace 'SECURITY.md') -Destination (Join-Path $stage 'SECURITY.md')
 Copy-Item -LiteralPath (Join-Path $workspace 'Meltype-Settings.exe') -Destination (Join-Path $stage 'Meltype-Settings.exe')
 Copy-Item -LiteralPath (Join-Path $workspace 'native/tip/meltype.ico') -Destination (Join-Path $stage 'Meltype.ico')
-Copy-Item -LiteralPath (Join-Path $workspace 'README.md') -Destination (Join-Path $stage 'README.md')
+Copy-Item -LiteralPath (Join-Path $workspace 'README.txt') -Destination (Join-Path $stage 'README.txt')
 Copy-Item -LiteralPath (Join-Path $workspace 'README.UPSTREAM.md') -Destination (Join-Path $stage 'README.UPSTREAM.md')
 $stageDocs=Join-Path $stage 'docs'
 New-Item -ItemType Directory -Path $stageDocs -Force|Out-Null
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_SEARCH.md') -Destination (Join-Path $stageDocs 'NATIVE_SEARCH.md')
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_RELEASE_UPDATE.md') -Destination (Join-Path $stageDocs 'NATIVE_RELEASE_UPDATE.md')
-# Ship the same illustrated guide as GitHub, including every directly linked document.
-$readme = Get-Content -LiteralPath (Join-Path $workspace 'README.md') -Raw
-foreach ($link in [regex]::Matches($readme, '\]\((docs/[^)#]+)(?:#[^)]*)?\)')) {
+# Ship the plain-text guide, separate model explanation, and referenced illustrations.
+$readme = (Get-Content -LiteralPath (Join-Path $workspace 'README.txt') -Raw) + "`n" +
+    (Get-Content -LiteralPath (Join-Path $workspace 'docs/ZENZ.txt') -Raw)
+foreach ($link in [regex]::Matches($readme, '(?m)^\s*(docs/[A-Za-z0-9_./-]+)')) {
     $relative = $link.Groups[1].Value
     $target = Join-Path $stage $relative
     New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null

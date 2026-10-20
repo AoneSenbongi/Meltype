@@ -244,9 +244,9 @@ internal static class CompositionTests
             Func<string, IReadOnlyList<string>>? moreCandidates = null, UserDictionary? userDictionary = null, LanguageMemory? languages = null,
             TranslationDictionary? translations = null, TranslationHistory? translationHistory = null, bool fullWidthCommaPeriod = false,
             char? comma = null, char? period = null, bool slashAsMiddleDot = false, Predictor? predictor = null, bool legacyGoogleConversion = false, Func<DateTime>? now = null, bool showTypedKeys = false, bool tabConversion = false,
-            IContextEvaluator? contextEvaluator = null, bool englishNamePredictions = false)
+            IContextEvaluator? contextEvaluator = null, bool englishNamePredictions = false, CompositionDetector? detectorOverride = null)
         {
-            var detector = legacyGoogleConversion ? CompositionDetector.CreateDefault(legacyGoogleConversion: true) : Detector;
+            var detector = detectorOverride ?? (legacyGoogleConversion ? CompositionDetector.CreateDefault(legacyGoogleConversion: true) : Detector);
             Direct = direct;
             Controller = new CompositionController(Gate, detector, converter ?? Converter, Host, new CompositionOptions
             {

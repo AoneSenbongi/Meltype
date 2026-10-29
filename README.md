@@ -1,6 +1,6 @@
 # Meltype Native
 
-現在の先行版は2.0.1-rc.9です。文章末尾の空の括弧を確定すると内側へ移動し、内側の文章を確定すると外側へ移動します。[導入案内](README.txt)と[今回の変更点](docs/RELEASE_2_0_1_RC_9.md)を参照してください。
+現在の正式版は2.0.1です。IME本体はPC適用済み2.0.1-rc.9と同じです。文章末尾の空の括弧を確定すると内側へ移動し、内側の文章を確定すると外側へ移動します。[導入案内](README.txt)と[今回の変更点](docs/RELEASE_2_0_1.md)を参照してください。
 
 [雪代／Yukishiro氏のMeltype](https://github.com/yksr-melt/Meltype)を基に、Windowsの入力欄へ未確定文字を表示するIMEと、インストール済みGoogle日本語入力との連携を追加した非公式Forkです。改良は`google-native-ime`ブランチで管理しています。Googleや元作者の公式配布版ではありません。
 

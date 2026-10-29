@@ -4,7 +4,7 @@
 #ifndef OutputRoot
   #error OutputRoot is required
 #endif
-#define AppVersion "2.0.1-rc.9"
+#define AppVersion "2.0.1"
 [Setup]
 AppId={{6955B1D0-7141-4D6D-BD2B-51303E8C28B1}
 AppName=Meltype Google日本語入力

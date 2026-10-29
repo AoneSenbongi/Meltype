@@ -1,13 +1,31 @@
-function Start-NativeContextModel([string]$PackageRoot,[string]$BuildRoot) {
+function Resolve-NativeModelAssetPath([string]$PackageRoot,[string]$Path) {
+    if([string]::IsNullOrWhiteSpace($Path) -or $Path -match '["\r\n]'){throw 'Invalid context model asset path'}
+    if([IO.Path]::IsPathFullyQualified($Path)){return [IO.Path]::GetFullPath($Path)}
+    # Bundled assets are flat manifest files, not arbitrary paths relative to the process.
+    if($Path -in @('.','..') -or $Path -match '[/\\:]'){throw 'Invalid bundled context model asset path'}
+    return [IO.Path]::GetFullPath((Join-Path $PackageRoot $Path))
+}
+function Get-NativeVerifiedContextModel([string]$PackageRoot) {
     $configPath=Join-Path $PackageRoot 'context-model.json'
     if(-not(Test-Path -LiteralPath $configPath)){return $null}
     $config=Get-Content -LiteralPath $configPath -Raw|ConvertFrom-Json
     foreach($asset in $config.Assets){
-        if(-not [IO.Path]::IsPathFullyQualified($asset.Path) -or $asset.Path -match '["\r\n]'){throw 'Invalid context model asset path'}
+        $asset.Path=Resolve-NativeModelAssetPath $PackageRoot $asset.Path
         if((Get-FileHash -LiteralPath $asset.Path).Hash -ne $asset.SHA256){throw 'Context model asset checksum mismatch'}
     }
+    $config.ModelPath=Resolve-NativeModelAssetPath $PackageRoot $config.ModelPath
+    $config.ServerPath=Resolve-NativeModelAssetPath $PackageRoot $config.ServerPath
     foreach($path in @($config.ModelPath,$config.ServerPath)){
         if($path -notin $config.Assets.Path){throw 'Context model asset is not verified'}
+    }
+    return $config
+}
+function Start-NativeContextModel([string]$PackageRoot,[string]$BuildRoot) {
+    $config=Get-NativeVerifiedContextModel $PackageRoot
+    if($null -eq $config){return $null}
+    if($config.RequireAvx2 -and -not [Runtime.Intrinsics.X86.Avx2]::IsSupported){
+        @{running=$false;reason='AVX2 is not supported';brokerPid=$PID}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $BuildRoot 'context-model-status.json') -Encoding utf8
+        return $null
     }
     $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
     $listener.Start();$port=$listener.LocalEndpoint.Port;$listener.Stop()

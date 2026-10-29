@@ -1,0 +1,21 @@
+Meltype Native 2.0.0 - bundled local model and inference runtime
+
+Model: zenz-v3.2-small, Q5_K_M GGUF
+Publisher: Miwa-Keita
+Source: https://huggingface.co/Miwa-Keita/zenz-v3.2-small-gguf
+Revision: c67e03e07d215c869f591b274c1631170d3e11fe
+License declared by publisher: Apache-2.0 (ZENZ-APACHE-2.0.txt)
+Upstream filename: ggml-model-Q5_K_M.gguf
+Bundled filename: zenz-v3.2-small-Q5_K_M.gguf
+Only the filename is changed; the model bytes are unchanged.
+SHA-256: 29C223D4C23327B80FD13EBB5AB2555057A46317997D5DA391584FFBEF0DB673
+
+Runtime: azooKey/llama.cpp b4846, Windows AVX2 x64 CPU build
+Source: https://github.com/azooKey/llama.cpp/releases/tag/b4846
+Archive: llama-b4846-bin-win-avx2-x64.zip
+Archive SHA-256: 52AD0D24305421BB011A1308FADAC37A28BC74F9767B0702B20311AE0539AA5B
+License: MIT (LLAMA-MIT.txt); copyright notices are preserved there.
+Bundled runtime binaries are unchanged. CPU inference is used, not GPU inference.
+
+Meltype's integration is an unofficial fork. Model/runtime publishers do not
+endorse this distribution. Their licenses remain separate from Meltype's GPL.

@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory)][string]$Runtime)
+param([Parameter(Mandatory)][string]$Runtime,[Parameter(Mandatory)][string]$ModelAssets)
 $ErrorActionPreference = 'Stop'
 $workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $Runtime = (Resolve-Path -LiteralPath $Runtime).Path
@@ -23,6 +23,7 @@ New-Item -ItemType Directory -Path $stage -Force | Out-Null
 $stagePackage = Join-Path $stage 'experimental-build/native-ime-package'
 New-Item -ItemType Directory -Path $stagePackage -Force | Out-Null
 foreach ($file in $manifest.Files) { Copy-Item -LiteralPath (Join-Path $package $file.Name) -Destination (Join-Path $stagePackage $file.Name) }
+$manifest.Files += @(& (Join-Path $PSScriptRoot 'Add-BundledContextModel.ps1') -Stage $stagePackage -ModelAssets $ModelAssets)
 @{ Architecture = 'x64'; Portable = $true; SourceCommit = $version; NativeRegistration=$manifest.NativeRegistration; Files = $manifest.Files } |
     ConvertTo-Json -Depth 4 | Set-Content (Join-Path $stagePackage 'manifest.json') -Encoding UTF8
 $scripts = Join-Path $stage 'tools/native-ime'
@@ -41,11 +42,14 @@ Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination (Join-Path 
 Copy-Item -LiteralPath (Join-Path $workspace 'SECURITY.md') -Destination (Join-Path $stage 'SECURITY.md')
 Copy-Item -LiteralPath (Join-Path $workspace 'Meltype-Settings.exe') -Destination (Join-Path $stage 'Meltype-Settings.exe')
 Copy-Item -LiteralPath (Join-Path $workspace 'native/tip/meltype.ico') -Destination (Join-Path $stage 'Meltype.ico')
-Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_IME_TRANSFER.md') -Destination (Join-Path $stage 'README.md')
+Copy-Item -LiteralPath (Join-Path $workspace 'README.txt') -Destination (Join-Path $stage 'README.txt')
 $stageDocs=Join-Path $stage 'docs'
 New-Item -ItemType Directory -Path $stageDocs -Force|Out-Null
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_SEARCH.md') -Destination (Join-Path $stageDocs 'NATIVE_SEARCH.md')
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_RELEASE_UPDATE.md') -Destination (Join-Path $stageDocs 'NATIVE_RELEASE_UPDATE.md')
+foreach($name in @('BRACKET_COMMIT_NAVIGATION.md','RELEASE_2_0_1_RC_9.md')){
+    Copy-Item -LiteralPath (Join-Path $workspace ('docs/'+$name)) -Destination (Join-Path $stageDocs $name)
+}
 Set-Content (Join-Path $stage 'SOURCE_VERSION.txt') $version -Encoding ASCII
 $sourceArchive = Join-Path $stage 'corresponding-source.zip'
 & git -C $workspace archive --format=zip --output $sourceArchive HEAD

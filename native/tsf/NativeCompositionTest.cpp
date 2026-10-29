@@ -430,12 +430,56 @@ int main(int argc, char** argv) {
         }
         configure("\"CursorIntoBrackets\":true");
         {
+          Fixture f(thread,client,L"",0);Check(thread->SetFocus(f.manager),"sentence bracket focus");
+          for(auto c:std::string("nihongo"))key(f,c-'a'+'A');
+          key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);settleCaret();
+          auto pair=f.document->text.rfind(L"「」");
+          Expect(pair!=std::wstring::npos,"sentence ends with empty pair");
+          Expect(f.document->start==static_cast<LONG>(pair+1),"sentence commit enters trailing pair");
+          key(f,'A');key(f,VK_RETURN);settleCaret();
+          Expect(f.document->text.substr(pair)==L"「あ」","inside commit retains closing bracket");
+          Expect(f.document->start==static_cast<LONG>(pair+3),"inside commit exits closing bracket");
+          key(f,'I');key(f,VK_RETURN);settleCaret();
+          Expect(f.document->text.substr(pair)==L"「あ」い","next input follows closing bracket");
+          std::puts("PASS: sentence trailing pair enters, inside commit exits, next text stays outside");
+        }
+        {
+          Fixture f(thread,client,L"「」",1);Check(thread->SetFocus(f.manager),"existing bracket focus");
+          key(f,'A');key(f,VK_RETURN);settleCaret();
+          Expect(f.document->text==L"「あ」" && f.document->start==2,"ordinary editing inside existing pair stays inside");
+          std::puts("PASS: ordinary bracket editing does not trigger automatic exit");
+        }
+        {
+          Fixture f(thread,client,L"",0);Check(thread->SetFocus(f.manager),"rapid bracket exit focus");
+          key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);settleCaret();
+          key(f,'A');key(f,VK_RETURN);key(f,'I');key(f,VK_RETURN);settleCaret();
+          Expect(f.document->text==L"「あ」い","immediate typing flushes pending exit");
+          std::puts("PASS: immediate typing after inner commit inserts outside");
+        }
+        {
+          Fixture f(thread,client,L"",0);Check(thread->SetFocus(f.manager),"cancel bracket exit focus");
+          key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);settleCaret();
+          BOOL escaped=FALSE;
+          Check(keys->OnTestKeyDown(f.context,VK_ESCAPE,0,&escaped),"idle Esc passes to application");
+          Expect(!escaped,"idle Esc is not captured");
+          key(f,'A');key(f,VK_RETURN);settleCaret();
+          Expect(f.document->text==L"「あ」" && f.document->start==2,"Esc cancels tracked exit");
+          std::puts("PASS: explicit Esc cancels automatic exit tracking");
+        }
+        {
           Fixture f(thread,client,L"prefix suffix",7);Check(thread->SetFocus(f.manager),"bracket focus");
           key(f,VK_OEM_4);key(f,VK_OEM_6);key(f,VK_RETURN);
           settleCaret();
           Expect(f.document->text==L"prefix 「」suffix","bracket commit preserves surrounding text");
           Expect(f.document->start==8&&f.document->end==8,"caret moves inside committed bracket pair");
           Expect(f.document->starts==f.document->finishes,"bracket cursor move follows composition commit");
+          auto previousExtra=SetMessageExtraInfo(0x4d425243);
+          BOOL arrowCaptured=FALSE;
+          Check(keys->OnTestKeyDown(f.context,VK_LEFT,0,&arrowCaptured),"own bracket arrow eligibility");
+          SetMessageExtraInfo(previousExtra);
+          Expect(!arrowCaptured,"own bracket arrow is handled by application");
+          key(f,'A');key(f,VK_RETURN);settleCaret();
+          Expect(f.document->text==L"prefix 「あ」suffix" && f.document->start==10,"own synthetic arrow preserves exit tracking");
           std::puts("PASS: bracket pair commits once, caret moves inside, Enter is not replayed");
         }
         {

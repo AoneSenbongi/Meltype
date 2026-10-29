@@ -2986,8 +2986,8 @@ public sealed class CompositionController
             _host.ReplaceBackward(count, replacement + text);
         }
         else _host.CommitText(text);
-        // 設定「カッコを打ったら中にカーソルを移動」: カッコの組だけを確定したら、← を送って中に入る (issue #72)
-        if (_options.CursorIntoBrackets() && text.Length == 2 && BracketPairs.Contains(text))
+        // 文章の末尾にある空の括弧ペアにも適用する。
+        if (_options.CursorIntoBrackets() && text.Length >= 2 && BracketPairs.Contains(text[^2..]))
         {
             _host.Replay(new KeyEvent(VirtualKeys.Left, 0, false, false, false, Environment.TickCount64));
             _host.Replay(new KeyEvent(VirtualKeys.Left, 0, false, true, false, Environment.TickCount64));

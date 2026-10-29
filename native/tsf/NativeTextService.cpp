@@ -377,6 +377,10 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     return S_OK;
   }
   HRESULT STDMETHODCALLTYPE OnTestKeyDown(ITfContext* context, WPARAM vk, LPARAM, BOOL* eaten) override {
+    // Idle navigation is passed to the application, so OnKeyDown may never run.
+    if (GetMessageExtraInfo() != BracketCaretInput && ((vk >= VK_LEFT && vk <= VK_DOWN) || vk == VK_HOME || vk == VK_END || vk == VK_ESCAPE)) {
+      ClearBracketExit(); CancelBracketCaret();
+    }
     *eaten = Eligible(context, vk) && (Toggle(vk) || channel_.Connect()); return S_OK;
   }
   HRESULT STDMETHODCALLTYPE OnTestKeyUp(ITfContext*, WPARAM vk, LPARAM, BOOL* eaten) override { *eaten = vk < 256 && captured_[vk]; return S_OK; }
@@ -555,6 +559,11 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   std::array<bool, 256> captured_{};
   std::wstring preedit_;
   Ptr<ITfRange> bracketCaret_;
+  Ptr<ITfRange> bracketExit_;
+  static constexpr LPARAM BracketCaretInput = 0x4d425243;
+  WCHAR bracketExitCharacter_ = 0;
+  bool bracketMoveRight_ = false;
+  bool pendingBracketMoveRight_ = false;
   Ptr<ITfRange> pendingBracketCaret_;
   Ptr<ITfContext> pendingBracketContext_;
   Reply visible_;
@@ -593,9 +602,13 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (pendingBracketCaret_.p) { pendingBracketCaret_.p->Release(); pendingBracketCaret_.p = nullptr; }
     if (pendingBracketContext_.p) { pendingBracketContext_.p->Release(); pendingBracketContext_.p = nullptr; }
   }
+  void ClearBracketExit() {
+    if (bracketExit_.p) { bracketExit_.p->Release(); bracketExit_.p = nullptr; }
+  }
   void ScheduleBracketCaret(ITfContext* context) {
     CancelBracketCaret();
     pendingBracketCaret_.p = bracketCaret_.p; bracketCaret_.p = nullptr;
+    pendingBracketMoveRight_ = bracketMoveRight_;
     pendingBracketContext_.p = context; context->AddRef();
     EnsureCallbackWindow();
     if (!evaluationWindow_ || !SetTimer(evaluationWindow_, 2, 40, nullptr)) CancelBracketCaret();
@@ -607,6 +620,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
     if (evaluationWindow_) KillTimer(evaluationWindow_, 2);
     Ptr<ITfRange> caret; caret.p = pendingBracketCaret_.p; pendingBracketCaret_.p = nullptr;
     Ptr<ITfContext> context; context.p = pendingBracketContext_.p; pendingBracketContext_.p = nullptr;
+    const bool moveRight = pendingBracketMoveRight_;
     if (!caret.p || !context.p || !thread_ || composition_->Active() || finishing_->pending || !japanese_) return;
     Ptr<ITfDocumentMgr> focused; Ptr<ITfContext> current;
     if (FAILED(thread_->GetFocus(&focused.p)) || !focused.p || FAILED(focused->GetTop(&current.p)) || current.p != context.p) return;
@@ -623,14 +637,16 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       if (!testing_) {
         // Let the application's normal key handling update its caret and its
         // IMM/TSF bridge together. SetSelection alone is later overwritten by EDIT.
-        arrow = fromEnd == 0 ? VK_LEFT : fromStart == 0 ? VK_RIGHT : 0;
+        arrow = moveRight ? (fromStart == 0 ? VK_RIGHT : 0) : (fromEnd == 0 ? VK_LEFT : fromStart == 0 ? VK_RIGHT : 0);
         return S_OK;
       }
       result = caret->Collapse(cookie, TF_ANCHOR_END);
       LONG shifted = 0;
-      if (SUCCEEDED(result)) result = caret->ShiftStart(cookie, -1, &shifted, nullptr);
-      if (FAILED(result) || shifted != -1) return E_ABORT;
-      result = caret->Collapse(cookie, TF_ANCHOR_START);
+      if (!moveRight) {
+        if (SUCCEEDED(result)) result = caret->ShiftStart(cookie, -1, &shifted, nullptr);
+        if (FAILED(result) || shifted != -1) return E_ABORT;
+        result = caret->Collapse(cookie, TF_ANCHOR_START);
+      }
       if (SUCCEEDED(result)) { TF_SELECTION target{caret.p,{TF_AE_NONE,FALSE}}; result = context->SetSelection(cookie,1,&target); }
       return result;
     });
@@ -642,7 +658,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       DWORD thread = GetWindowThreadProcessId(GetForegroundWindow(), &process);
       if (process != GetCurrentProcessId() || thread != GetCurrentThreadId()) return;
       INPUT input[2]{};
-      for (auto& key : input) { key.type = INPUT_KEYBOARD; key.ki.wVk = arrow; key.ki.dwFlags = KEYEVENTF_EXTENDEDKEY; }
+      for (auto& key : input) { key.type = INPUT_KEYBOARD; key.ki.wVk = arrow; key.ki.dwFlags = KEYEVENTF_EXTENDEDKEY; key.ki.dwExtraInfo = BracketCaretInput; }
       input[1].ki.dwFlags |= KEYEVENTF_KEYUP;
       SendInput(2, input, sizeof(INPUT));
     }
@@ -823,6 +839,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   }
   HRESULT Key(ITfContext* context, WPARAM vk, LPARAM lparam, bool up, BOOL* eaten) {
     *eaten = FALSE;
+    if (!up && GetMessageExtraInfo() != BracketCaretInput && ((vk >= VK_LEFT && vk <= VK_DOWN) || vk == VK_HOME || vk == VK_END || vk == VK_ESCAPE)) ClearBracketExit();
     if (!up && pendingBracketCaret_.p) {
       if ((vk >= VK_LEFT && vk <= VK_DOWN) || vk == VK_HOME || vk == VK_END || vk == VK_ESCAPE) CancelBracketCaret();
       else MovePendingBracketCaret();
@@ -903,9 +920,36 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
       if (action.kind == 0) { hr = composition_->Update(context, cookie, action.text); preedit_ = action.text; }
       else if (action.kind == 1) {
         bool insideBrackets = index + 1 < reply.actions.size() && reply.actions[index + 1].kind == 4 && reply.actions[index + 1].text == L"left";
-        if (insideBrackets && action.text.size() != 2) return E_INVALIDARG;
-        hr = composition_->Commit(context, cookie, action.text, insideBrackets ? &bracketCaret_.p : nullptr);
-        if (insideBrackets) ++index;
+        if (insideBrackets && action.text.size() < 2) return E_INVALIDARG;
+        Ptr<ITfRange> committed;
+        hr = composition_->Commit(context, cookie, action.text, &committed.p);
+        if (SUCCEEDED(hr) && committed.p && insideBrackets) {
+          ClearBracketExit();
+          // Keep only the final pair: the prefix may contain a whole sentence.
+          hr = committed->Collapse(cookie, TF_ANCHOR_END);
+          LONG shifted = 0;
+          if (SUCCEEDED(hr)) hr = committed->ShiftStart(cookie, -2, &shifted, nullptr);
+          if (SUCCEEDED(hr) && shifted == -2) hr = committed->Clone(&bracketExit_.p);
+          if (SUCCEEDED(hr) && bracketExit_.p) {
+            bracketExit_->Collapse(cookie, TF_ANCHOR_END);
+            bracketExit_->ShiftStart(cookie, -1, &shifted, nullptr);
+            bracketExit_->SetGravity(cookie, TF_GRAVITY_FORWARD, TF_GRAVITY_FORWARD);
+            bracketExitCharacter_ = action.text.back();
+            bracketCaret_.p = committed.p; committed.p = nullptr;
+            bracketMoveRight_ = false;
+          }
+          ++index;
+        } else if (SUCCEEDED(hr) && committed.p && bracketExit_.p && !action.text.empty()) {
+          Ptr<ITfContext> owner; bracketExit_->GetContext(&owner.p);
+          LONG distance = 1;
+          WCHAR close[2]{}; ULONG read = 0;
+          if (owner.p == context && SUCCEEDED(bracketExit_->GetText(cookie,0,close,2,&read)) && read == 1 && close[0] == bracketExitCharacter_ &&
+              SUCCEEDED(committed->CompareEnd(cookie,bracketExit_.p,TF_ANCHOR_START,&distance)) && distance == 0) {
+            hr = bracketExit_->Clone(&bracketCaret_.p);
+            bracketMoveRight_ = true;
+          }
+          ClearBracketExit();
+        }
         preedit_.clear();
       }
       else if (action.kind == 2) { hr = composition_->Cancel(context, cookie); preedit_.clear(); }
@@ -950,6 +994,7 @@ class TextService final : public MeltypeTextInputProcessorEx, public ITfKeyEvent
   void FinishCurrent() {
     StopEvaluationTimer();
     CancelBracketCaret();
+    ClearBracketExit();
     HidePopup();
     if (finishing_->pending) return;
     if (!composition_->Active()) { channel_.Close(); return; }

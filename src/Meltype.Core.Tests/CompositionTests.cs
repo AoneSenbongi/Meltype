@@ -3790,6 +3790,34 @@ internal static class CompositionTests
     }
 
     [Test]
+    public static void Clauses_ShiftArrowResizesAcrossUnreadableEnglish_LegacyGoogle()
+    {
+        // 報告: Google 変換では Shift+← → が効かず、VRChatter → VRCはってr のあとに VRChatter へ戻せない。
+        // 読み直せない英語の文節 (vrc、r) も、日本語の変換と同じく文節の区切りを動かせること。
+        var k = new Keyboard(legacyGoogleConversion: true);
+        k.Type("vrchatter ");
+        Assert.Equal("vrc|はって|r", string.Join("|", k.Host.View!.Clauses!));
+        k.Press(VirtualKeys.Left);
+        k.Key(VirtualKeys.LShift);
+        k.Press(VirtualKeys.Right);
+        Assert.Equal("vrcha|って|r", string.Join("|", k.Host.View.Clauses!), "読み直せない英語の文節を、打った元ローマ字の 1 音で伸ばせる");
+        k.Press(VirtualKeys.Right);
+        Assert.Equal("vrchat|て|r", string.Join("|", k.Host.View.Clauses!));
+        k.Key(VirtualKeys.LShift, up: true);
+        k.Press(VirtualKeys.Right);
+        k.Key(VirtualKeys.LShift);
+        k.Press(VirtualKeys.Right);
+        Assert.Equal("vrchat|ter", string.Join("|", k.Host.View.Clauses!), "日本語の文節の次の英語は、元ローマ字ごとまとめて英語の 1 文節にする");
+        k.Key(VirtualKeys.LShift, up: true);
+        k.Press(VirtualKeys.Right);
+        k.Key(VirtualKeys.LShift);
+        k.Press(VirtualKeys.Right);
+        k.Key(VirtualKeys.LShift, up: true);
+        k.Press(VirtualKeys.Return);
+        Assert.Equal("vrchatter", k.Host.Output.Single(), "全部英語に寄せて確定すると、打ったままの英字で入る");
+    }
+
+    [Test]
     public static void Clauses_ShiftArrowKeepsEnglishWhenItCannotMove()
     {
         // 区切りを動かせないときは、選んだ英語の文節を日本語に読み直さない (日本語の文節と同じく何も変えない)

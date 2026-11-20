@@ -1032,6 +1032,18 @@ public sealed class CompositionText
     public string AllKana(bool final) => string.Concat(_units.Select(u => u.Kana)) + PendingText(final);
 
     /// <summary>
+    /// 打った音の列 (かなと元ローマ字)。末尾の入力途中の部分も 1 つの音にして含める。
+    /// 読み直せない英語の文節との区切りを動かすのに使う (変換後の文節の元ローマ字と、打った音との対応を取る)。
+    /// </summary>
+    public IReadOnlyList<(string Kana, string Raw)> FinalUnits()
+    {
+        var list = new List<(string, string)>();
+        foreach (var unit in _units) list.Add((unit.Kana, unit.Raw));
+        if (_pending.Length > 0) list.Add((PendingText(final: true), _pending.ToString()));
+        return list;
+    }
+
+    /// <summary>
     /// 日本語の部分の読みに書き間違い (ブレスレッド) があれば、その位置 (単位の範囲) と正しい読みを返す。
     /// 英語として見せている部分や、入力途中の子音は見ない。読みの区切りが単位の区切りと合わないときも null。
     /// </summary>

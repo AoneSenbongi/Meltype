@@ -1,18 +1,34 @@
 # 現在の状態
 
-## 現在タスク: PC適用済みrc.9と同じ本体で2.0.1正式公開
+## 現在タスク: 読み直せない英語の文節をShift+矢印で動かす修正を2.0.2-rc.1としてPC適用（完了・公開は保留）
 
-利用者が公開を依頼し、公開対象は現在の2.0.1-rc.9と同じ本体で、正式版番号2.0.1としてGitHub公開すると明示した。公開済み2.0.0からの入力機能統合は行わない。公開先はAoneSenbongi/Meltype、予定タグnative-google-2.0.1、正式版。既存のgoogle-native-imeブランチを巻き戻さず、新しいタグのみ公開する。利用者が本体をそのまま2.0.1正式版として公開すると明示承認した。Setup・本文・検証結果を最終提示し、承認済みの内容で公開する。
+2026年11月17日、利用者からWindows IMEで`VRChatter`が`VRCはってr`になってもAndroidと同じくShift+→で`VRChatter`へ戻せるように依頼された。適用先はこのPCに入っている2.0.1系（本作業先、本家コア1.3.0）と判明。`Windows`ツリーの別系統（コア1.2.1）には適用していない。
+
+実装はAndroidの`Resize`を移植し、かなに読み直せない英語の文節（vrc、r）も打った元ローマ字の1音ずつで区切りを移動できるようにした。区切りを動かした文節の元ローマ字を保つため`ReconvertKeepingRaw`を追加し、最後の文節やかなに読めない英語が続く場合は従来どおり何もしない。仕様と検証はdocs/RELEASE_2_0_2_RC_1.md。版番号は公開済み2.0.1と同じ番号で差し替えないため2.0.2-rc.1とし、管理画面・登録・インストーラー・更新メッセージで一致させた。Test-NativeVersion.ps1通過。
+
+検証: Shift+矢印5件（新規回帰試験を含む）5/5、共通598/598、Windows 638/639（失敗1件はこの実行環境でクリップボード操作が使えない既存試験で、変更と無関係）。新しい`Meltype.Core.dll`のみをパッケージングし、配置7/7・管理スクリプト7/7・設定3/3のハッシュを確認。broker36160が新しい登録先で稼働。証跡experimental-build/shift-arrow-unreadable-english-applied.jsonとupdate-2.0.2-rc.1.log。公開はしていない。実アプリの入力欄での手入力確認は残る。
+
+## 過去タスク: PC適用済みrc.9と同じ本体で2.0.1正式公開（完了）
+
+利用者が公開を依頼し、公開対象は現在の2.0.1-rc.9と同じ本体で、正式版番号2.0.1としてGitHub公開すると明示した。公開済み2.0.0からの入力機能統合は行わない。公開先はAoneSenbongi/Meltype、タグnative-google-2.0.1、正式版。既存のgoogle-native-imeブランチを巻き戻さず、新しいタグのみ公開する。利用者が本体をそのまま2.0.1正式版として公開すると明示承認した。Setup・本文・検証結果を最終提示し、承認済みの内容で公開済み。
 
 配布するIMEの6ファイルは導入済みrc.9と一致させる。モデルは同じ既存資産を相対配置で同梱し、梱包用ツールとモデル読込ヘルパーには公開済み9af8545の処理を使用する。これは別PCでのSetup導入に必要な配置対応であり、IME本体は再ビルド・変更しない。公開本文docs/RELEASE_2_0_1.md、案内README.txt。
 
-2026年10月29日、利用者がWindows版で文章末尾の「」を確定したら内側へ移動し、内側の文字列を確定したら外側へ移動する動作を依頼。導入済みソースf9cdc5eを基点とする専用作業先で、既存の括弧内移動設定を拡張する。候補番号2.0.1-rc.9、本家基準1.3.0。仕様docs/BRACKET_COMMIT_NAVIGATION.md。2026年10月29日10:21JSTに通常更新でPC適用済み。外部公開は行っていない。
+2026年10月29日、利用者がWindows版で文章末尾の「」を確定したら内側へ移動し、内側の文字列を確定したら外側へ移動する動作を依頼。導入済みソースf9cdc5eを基点とする専用作業先で、既存の括弧内移動設定を拡張する。候補番号2.0.1-rc.9、本家基準1.3.0。仕様docs/BRACKET_COMMIT_NAVIGATION.md。2026年10月29日10:21JSTに通常更新でPC適用済み。IME本体はそのまま2.0.1正式版としてGitHub公開済み。
 
 実装: 確定文字列末尾の空ペアを検出し、Nativeでは末尾2文字へ範囲を限定。閉じ括弧をTSF範囲として追跡し、同じ文書でその直前の文字列を確定した場合だけ外へ移動。明示移動・Esc・フォーカス変更で追跡解除。実アプリのComputer UseやCLIによる画面操作は行わない。
 
 検証: 旧条件で追加Core試験が1/3失敗、修正後3/3通過。SDK apphost全体638/638通過。隔離broker＋実TSF文書で文章末尾のペア→内側入力→確定→外側の続き、既存括弧内編集の維持、連続入力、Esc解除、アプリ側選択リセット、自身の合成矢印を識別して追跡を維持することを確認。既存のプライバシー・数値・英語・再変換・Tab・保護欄の試験も通過。証跡experimental-build/bracket-navigation-{red,core,full,final-tsf,final-privacy,final-upstream}.log。
 
 PC適用: NativeVersion2.0.1-rc.9、BaseVersion1.3.0、登録先C:/Program Files/MeltypeNativeGoogle/package-bee22138da3a43d29d717cd9a3541942。導入済み7ファイルのうちMeltypeNative64.dllとMeltype.Core.dllのみ変更し、変換エンジン・broker等5点を保持。配置7/7、管理スクリプト7/7、設定3/3不変、backups/20261029-102032の退避15/15ハッシュ一致。更新元終了後にbroker4024の本人SID・ジョブ外稼働、model19144のhealth okを確認した（PIDは検証時点）。証跡experimental-build/bracket-navigation-applied.jsonとapply.log、verification.log。入力アプリを開き直す必要がある。ユーザーが使用する実アプリでの手入力は未確認。
+
+## 正式公開と配布検証
+
+2026年10月29日10:37JST、GitHub Release https://github.com/AoneSenbongi/Meltype/releases/tag/native-google-2.0.1 を正式公開。draft=false、prerelease=false、latestの一致を匿名APIで確認した。ソースd785c0faf47daf7e6d34f540dde219c4fb80f51bをタグのみpushし、既存google-native-imeブランチは巻き戻していない。
+
+Setup.exeは159,362,562バイト、SHA-256 D822BA3089F53C0E77FA8FE87773547F85BCD3E36E18E8B815A5C9A7AEEC17C1。Setup・.sha256・README.txtの3点を添付し、GitHub側の全サイズ・SHA-256と一致。IME本体6ファイルはPC適用済みrc.9とハッシュ一致。モデル込み17点manifest、相対モデル配置、対応ソース、版番号、アイコン、資料と管理スクリプトを検証。モデルの実推論・終了・移動後起動・不正パスと改ざん拒否・AVX2無効時の通常変換維持、同梱モデル→broker→TSF、Setup隔離契約が通過。新Setupの別PC導入は未確認。PCの表示番号はrc.9のままで、公開準備ではPC登録を変更していない。
+
+証跡experimental-build/stable-package-verified.json、stable-published.json、stable-public-verified.json、stable-publish.log。公開Setupはdistributions/Meltype-Native-Google-2.0.1-Setup.exe。状態資料の公開後更新はローカルのみで、公開タグと対応ソースは上記コミットを保持する。
 
 ## 前回タスクと適用履歴
 

@@ -8,6 +8,8 @@
 
 検証: Meltype.Core.Tests 604/604、Meltype.Tests 645/645、Test-NativeVersion.ps1 -ExpectedVersion '2.0.2-rc.2' 通過。分野辞書は国名辞書を除いて取り込み、上流の全差分マージはしていない。push・tag作成・Release公開はユーザー承認待ちで未実施。
 
+配布物はソースコミット`6268dc9d73016e69661eb458f16382b2d807e8c6`から構築した。転送ZIP `Meltype-Native-Google-windows-x64-20261120-133936.zip`のSHA256は`9C05EDE1369CFA3C0207721CA3C1B29F56D5138B9594A75DB0CD1A15DA376126`。Setup `Meltype-Native-Google-2.0.2-rc.2-Setup.exe`は160,653,872バイト、SHA256は`4529D643AE554F67DFD27EF0AAA207BF567B7BD60B673E444206013414029169`。添付予定はSetup・.sha256・README.txtの3点。SOURCE_VERSIONとHEAD、同梱READMEとリポジトリのREADME、同梱RELEASE_2_0_2.mdとリポジトリの資料の一致を確認済み。旧2.0.2のSetupは内容が異なるため上書きせず残している。
+
 ### 2.0.2-rc.1のPC適用（2026年11月17日）
 
 2026年11月17日、利用者からWindows IMEで`VRChatter`が`VRCはってr`になってもAndroidと同じくShift+→で`VRChatter`へ戻せるように依頼された。適用先はこのPCに入っている2.0.1系（本作業先、本家コア1.3.0）と判明。`Windows`ツリーの別系統（コア1.2.1）には適用していない。

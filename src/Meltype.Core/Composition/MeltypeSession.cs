@@ -205,6 +205,7 @@ public sealed class MeltypeSession
                 Candidates = CandidateDictionary.Load(userDirectory),
                 ContextRules = ContextRules.Load(userDirectory),
                 History = new ConversionHistory(Path.Combine(dataDirectory, "conversions.json")),
+                ClauseBoundaries = new ClauseBoundaryHistory(Path.Combine(dataDirectory, "clause-boundaries.json")),
                 Misspellings = MisspellingDictionary.Load(userDirectory),
                 Languages = languages,
                 Translations = TranslationDictionary.Load(),

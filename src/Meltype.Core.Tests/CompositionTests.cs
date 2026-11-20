@@ -244,7 +244,7 @@ internal static class CompositionTests
             Func<string, IReadOnlyList<string>>? moreCandidates = null, UserDictionary? userDictionary = null, LanguageMemory? languages = null,
             TranslationDictionary? translations = null, TranslationHistory? translationHistory = null, bool fullWidthCommaPeriod = false,
             char? comma = null, char? period = null, bool slashAsMiddleDot = false, Predictor? predictor = null, bool legacyGoogleConversion = false, Func<DateTime>? now = null, bool showTypedKeys = false, bool tabConversion = false,
-            IContextEvaluator? contextEvaluator = null, bool englishNamePredictions = false)
+            IContextEvaluator? contextEvaluator = null, bool englishNamePredictions = false, ClauseBoundaryHistory? clauseBoundaries = null)
         {
             var detector = legacyGoogleConversion ? CompositionDetector.CreateDefault(legacyGoogleConversion: true) : Detector;
             Direct = direct;
@@ -262,6 +262,7 @@ internal static class CompositionTests
                 Candidates = Candidates,
                 ContextRules = Rules,
                 History = history ?? new ConversionHistory(null),
+                ClauseBoundaries = clauseBoundaries,
                 MoreCandidates = moreCandidates,
                 UserDictionary = userDictionary,
                 Level = () => Level,
@@ -3541,16 +3542,17 @@ internal static class CompositionTests
     }
 
     [Test]
-    public static void Commit_TeachesTheConverter()
+    public static void Commit_DoesNotTeachTheConverterClauseBoundaries()
     {
-        // Mozc の学習: 確定した文節 (区切りと文字列) を変換エンジンに覚えさせる。
+        // 本家 issue #2014: 確定した文節の区切りを Mozc / Google に覚えさせると、誤った区切りが固定される。
+        // 区切りは Meltype 側にだけ覚える (Shift+矢印で動かしたとき)。変換エンジンには送らない。
         var converter = new LearningConverter();
-        var k = new Keyboard(converter: converter);
+        var boundaries = new ClauseBoundaryHistory(null);
+        var k = new Keyboard(converter: converter, clauseBoundaries: boundaries);
         k.Type("tanniwotoru ");
         k.Press(VirtualKeys.Return);
-        // 覚えさせるのは裏で行うので、少し待つ。
-        for (var i = 0; i < 100 && converter.Learned.Count == 0; i++) Thread.Sleep(10);
-        Assert.Equal("たんいを=単位を|とる=取る", converter.Learned.SingleOrDefault() ?? "(なし)");
+        Assert.Equal(0, converter.Learned.Count, "Google / Mozc には区切りを学習させない");
+        Assert.Equal(0, boundaries.Count, "区切りを動かしていないので Meltype 側にも覚えない");
     }
 
     /// <summary>わたしのことがすき・しのがきた を区切る変換エンジン (ユーザー辞書の語が文節の途中に入るテスト用)。</summary>
@@ -3815,6 +3817,39 @@ internal static class CompositionTests
         k.Key(VirtualKeys.LShift, up: true);
         k.Press(VirtualKeys.Return);
         Assert.Equal("vrchatter", k.Host.Output.Single(), "全部英語に寄せて確定すると、打ったままの英字で入る");
+    }
+
+    [Test]
+    public static void ClauseBoundaries_LearnsOnlyResizedClause_AndNeverTellsGoogle()
+    {
+        // 本家 issue #2014 の誤区切り固定を避けるため、変換エンジンには区切りを学習させない。
+        // ユーザーが Shift+矢印で動かした区切りだけを Meltype 側に覚え、次回の変換に効かせる。
+        var boundaries = new ClauseBoundaryHistory(null);
+        var learning = new LearningConverter();
+
+        // 区切りを動かさずに確定したときは覚えない
+        var k = new Keyboard(legacyGoogleConversion: true, clauseBoundaries: boundaries, converter: learning);
+        k.Type("vrchatter ");
+        k.Press(VirtualKeys.Return);
+        Assert.Equal(0, boundaries.Count);
+        Assert.Equal(0, learning.Learned.Count);
+
+        // 区切りを動かして確定すると、その区切りだけを覚える
+        k = new Keyboard(legacyGoogleConversion: true, clauseBoundaries: boundaries, converter: learning);
+        k.Type("vrchatter ");
+        k.Press(VirtualKeys.Left);
+        k.Key(VirtualKeys.LShift);
+        k.Press(VirtualKeys.Right);
+        Assert.Equal("vrcha|って|r", string.Join("|", k.Host.View!.Clauses!));
+        k.Key(VirtualKeys.LShift, up: true);
+        k.Press(VirtualKeys.Return);
+        Assert.Equal(1, boundaries.Count);
+        Assert.Equal(0, learning.Learned.Count, "Google / Mozc には区切りを学習させない");
+
+        // 次回は学習済みの区切りで変換が始まる
+        k = new Keyboard(legacyGoogleConversion: true, clauseBoundaries: boundaries, converter: learning);
+        k.Type("vrchatter ");
+        Assert.Equal("vrcha|って|r", string.Join("|", k.Host.View!.Clauses!));
     }
 
     [Test]

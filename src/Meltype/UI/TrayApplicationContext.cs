@@ -658,11 +658,12 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ResetLearning()
     {
-        var answer = MessageBox.Show("学習データ (自動切替の学習 model.json、選び直した変換 conversions.json、英字 / かなに直した語 languages.json、予測変換の語句 phrases.txt、選んだ英訳 translations.json) をすべて削除します。よろしいですか？\n\nユーザー辞書 (userdict.txt) と設定は消えません。", "Meltype", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+        var answer = MessageBox.Show("学習データ (自動切替の学習 model.json、選び直した変換 conversions.json、動かした文節の区切り clause-boundaries.json、英字 / かなに直した語 languages.json、予測変換の語句 phrases.txt、選んだ英訳 translations.json) をすべて削除します。よろしいですか？\n\nユーザー辞書 (userdict.txt) と設定は消えません。", "Meltype", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
         if (answer == DialogResult.OK)
         {
             _engine.ResetLearning();
             _composition.History.Clear();
+            _composition.ClauseBoundaries?.Clear();
             _composition.Languages.Clear();
             _composition.Phrases?.Clear();
             _composition.TranslationHistory?.Clear();
@@ -675,9 +676,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     /// </summary>
     private void ForgetRecentLearning(DateTime sinceUtc, string label)
     {
-        var answer = MessageBox.Show($"{label}に覚えた学習データ (選び直した変換・英字 / かなに直した語・予測変換の語句) を削除します。よろしいですか？", "Meltype", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+        var answer = MessageBox.Show($"{label}に覚えた学習データ (選び直した変換・動かした文節の区切り・英字 / かなに直した語・予測変換の語句) を削除します。よろしいですか？", "Meltype", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
         if (answer != DialogResult.OK) return;
-        var count = _composition.History.ForgetSince(sinceUtc) + _composition.Languages.ForgetSince(sinceUtc) + (_composition.Phrases?.ForgetSince(sinceUtc) ?? 0);
+        var count = _composition.History.ForgetSince(sinceUtc) + (_composition.ClauseBoundaries?.ForgetSince(sinceUtc) ?? 0) + _composition.Languages.ForgetSince(sinceUtc) + (_composition.Phrases?.ForgetSince(sinceUtc) ?? 0);
         Diagnostics.Log.Info($"{label}に覚えた学習データを削除しました ({count} 件)。");
         MessageBox.Show(count > 0 ? $"{count} 件削除しました。" : "削除するものはありませんでした。", "Meltype", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }

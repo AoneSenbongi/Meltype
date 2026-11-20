@@ -140,6 +140,9 @@ public sealed record CompositionOptions
     /// <summary>ユーザーが選び直した変換の記録 (次から最初の候補にする)。</summary>
     public ConversionHistory? History { get; init; }
 
+    /// <summary>ユーザーが Shift+矢印で動かした文節の区切りの記録 (次から同じ区切りで変換する)。</summary>
+    public ClauseBoundaryHistory? ClauseBoundaries { get; init; }
+
     /// <summary>
     /// 読みに対する変換候補の一覧 (Windows の変換候補 API)。時間がかかることがあるので、
     /// 候補を切り替え始めたときだけ呼ぶ。null なら補助辞書の候補だけ。
@@ -368,6 +371,9 @@ public sealed class CompositionController
 
         /// <summary>ユーザーが候補を選び直したか (確定時に学習する)。</summary>
         public bool Changed { get; set; }
+
+        /// <summary>ユーザーが Shift+矢印で区切りを動かしたか (確定時に文節区切りとして学習する)。</summary>
+        public bool Resized { get; set; }
 
         /// <summary>Windows の変換候補 API の候補を足したか。</summary>
         public bool Expanded { get; set; }
@@ -1681,9 +1687,31 @@ public sealed class CompositionController
         // 変換したあとに続けて打っていたら、前に選んでいた候補を同じ読みの文節で使う
         foreach (var clause in clauses)
             if (_keptChoices.TryGetValue(clause.Reading, out var kept) && clause.Candidates.Contains(kept)) Prefer(clause, kept);
+        // ユーザーが Shift+矢印で動かして覚えた区切りがあれば、その区切りで文節を組み直す (Google / Mozc には送らない)。
+        if (_options.ClauseBoundaries?.Find(_text.Raw) is { } learned) ApplyLearnedBoundaries(clauses, learned);
         _clauses = clauses;
         _selectedClause = 0;
         _converting = true;
+    }
+
+    /// <summary>前にユーザーが動かして覚えた区切りで文節を組み直す。元ローマ字が一致しないときは何もしない。</summary>
+    private void ApplyLearnedBoundaries(List<Clause> clauses, IReadOnlyList<ClauseBoundaryHistory.Part> learned)
+    {
+        if (string.Concat(learned.Select(p => p.Raw)) != _text.Raw) return;
+        var rebuilt = new List<Clause>(learned.Count);
+        foreach (var part in learned)
+        {
+            var candidates = part.IsEnglish
+                ? Distinct([part.Text, part.Raw, .. EnglishCandidates(part.Raw)])
+                : Distinct([part.Text, part.Reading, part.Raw]);
+            rebuilt.Add(new Clause(part.Reading, part.IsEnglish, candidates)
+            {
+                Raw = part.Raw,
+                Kana = part.IsEnglish ? null : part.Reading,
+            });
+        }
+        clauses.Clear();
+        clauses.AddRange(rebuilt);
     }
 
     /// <summary>
@@ -2422,6 +2450,8 @@ public sealed class CompositionController
     /// </summary>
     private void Resize(int delta)
     {
+        // ユーザーが区切りに関与した文節として印をつける (確定時に、動かした区切りだけを Meltype 側で覚える)。
+        _clauses[_selectedClause].Resized = true;
         var current = _clauses[_selectedClause];
         var next = _selectedClause + 1 < _clauses.Count ? _clauses[_selectedClause + 1] : null;
         // 伸ばせない (最後の文節) ときは、英語の文節を読み直さずに何もしない
@@ -2670,7 +2700,7 @@ public sealed class CompositionController
         var liveLength = kana.Any(char.IsAsciiDigit) ? kana.Length :
             kana.Count(c => c is (>= 'ぁ' and <= 'ゖ') or (>= 'ァ' and <= 'ヺ') or 'ー');
         if (liveLength < LiveConversionMinLength) return kana;
-        var key = string.Join("\u0001", kana, _precedingText, _followingText, _options.History?.Version);
+        var key = string.Join("\u0001", kana, _precedingText, _followingText, _options.History?.Version, _options.ClauseBoundaries?.Version);
         if (_liveCache.TryGetValue(key, out var cached)) return cached;
         var clauses = ConvertJapanese(kana);
         var converted = string.Concat(clauses.Select(c => c.Text));
@@ -2680,7 +2710,7 @@ public sealed class CompositionController
         return converted;
     }
 
-    private string LiveSnapshotKey() => string.Join("\u0001", _text.Raw, _precedingText, _followingText, _options.History?.Version);
+    private string LiveSnapshotKey() => string.Join("\u0001", _text.Raw, _precedingText, _followingText, _options.History?.Version, _options.ClauseBoundaries?.Version);
 
     // Copy the actual live view, including model choices, without asking the engine to split it again.
     private void RememberLiveView(string display)
@@ -2700,7 +2730,7 @@ public sealed class CompositionController
                     { Raw = segment.Raw, Kana = segment.IsEnglish ? _text.KanaForSegment(s) : null });
                 continue;
             }
-            var key = string.Join("\u0001", segment.Kana, _precedingText, _followingText, _options.History?.Version);
+            var key = string.Join("\u0001", segment.Kana, _precedingText, _followingText, _options.History?.Version, _options.ClauseBoundaries?.Version);
             if (!_liveClauseCache.TryGetValue(key, out var cached)) return;
             converted = true;
             var offset = 0;
@@ -2767,7 +2797,7 @@ public sealed class CompositionController
         {
             if (segment.IsEnglish || segment.IsProtected || segment.Kana.Length < LiveConversionMinLength)
             { pieces.Add(new(segment.IsEnglish ? segment.Raw : segment.Kana, [segment.IsEnglish ? segment.Raw : segment.Kana])); continue; }
-            var liveKey = string.Join("\u0001", segment.Kana, _precedingText, _followingText, _options.History?.Version);
+            var liveKey = string.Join("\u0001", segment.Kana, _precedingText, _followingText, _options.History?.Version, _options.ClauseBoundaries?.Version);
             if (!_liveClauseCache.TryGetValue(liveKey, out var liveClauses))
             { _contextEvaluation.Reset(); return; }
             foreach (var clause in liveClauses)
@@ -3055,7 +3085,7 @@ public sealed class CompositionController
         {
             _options.TranslationHistory?.Remember(clause.Reading, clause.Text);
         }
-        LearnConversion();
+        LearnClauseBoundaries();
         if (_options.History is not { } history) return;
         // 1 文字の読み (き → 記) を覚えると、関係ない変換 (き + ごうとう) まで巻き込むので 2 文字以上だけ。
         // ただし数字・記号の 1 文字 (1 → ①、( → （) は、かなの途中に巻き込まれないので覚える (issue #672)。
@@ -3072,32 +3102,23 @@ public sealed class CompositionController
     }
 
     /// <summary>
-    /// 変換エンジン (Mozc) にも、確定した文節を覚えさせる。英語の文節・打ったままの英字で区切った、日本語の文節のまとまりごとに。
-    /// 変換エンジンとのやり取りで入力を待たせないよう、裏で行う。
+    /// ユーザーが Shift+矢印で動かした文節の区切りを、打った元ローマ字ごとに Meltype 側へ覚える。
+    /// 変換エンジン (Google / Mozc) には送らない (本家 issue #2014 の誤区切り固定を避けるため)。
+    /// 動かしていない文節は覚えない。
     /// </summary>
-    private void LearnConversion()
+    private void LearnClauseBoundaries()
     {
-        if (!(_options.LearningEnabled() && _options.Learning())) return;
-        if (_converter is not ILearningConverter learner) return;
-        var context = ConversionContext();
-        var run = new List<ConversionClause>();
-        void Flush()
-        {
-            if (run.Count == 0) return;
-            var clauses = run.ToList();
-            run.Clear();
-            ThreadPool.QueueUserWorkItem(_ => { if ((_options.LearningEnabled() && _options.Learning())) learner.Learn(context, clauses); });
-        }
+        if (_options.ClauseBoundaries is not { } boundaries) return;
+        if (_text.Raw.Length == 0 || !_clauses.Any(c => c.Resized)) return;
+        var parts = new List<ClauseBoundaryHistory.Part>();
         foreach (var clause in _clauses)
         {
-            if (clause.IsEnglish || clause.Text == clause.Raw || clause.Translations.Contains(clause.Text) || clause.Reading.Any(char.IsAsciiLetterOrDigit) || IsDateTimeChoice(clause) || IsMathSymbolChoice(clause))
-            {
-                Flush();
-                continue;
-            }
-            run.Add(new ConversionClause(clause.Reading, clause.Text));
+            var raw = ClauseRaw(clause);
+            if (raw is null) return;
+            parts.Add(new ClauseBoundaryHistory.Part(clause.Reading, raw, clause.Text, clause.IsEnglish));
         }
-        Flush();
+        if (string.Concat(parts.Select(p => p.Raw)) != _text.Raw) return;
+        boundaries.Remember(_text.Raw, parts);
     }
 
     /// <summary>カッコの組 (設定「カッコを打ったら中にカーソルを移動」で、確定したら中に入る)。</summary>

@@ -57,6 +57,7 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
             Candidates = options.Candidates ?? CandidateDictionary.Load(userDirectory),
             ContextRules = options.ContextRules ?? ContextRules.Load(userDirectory),
             History = History,
+            ClauseBoundaries = options.ClauseBoundaries ?? new ClauseBoundaryHistory(Config.AppPaths.ClauseBoundaryFile),
             UserDictionary = UserDictionary,
             MoreCandidates = options.MoreCandidates ?? (reading => _engine() == Config.ConversionEngine.Google ? _google.Candidates(reading) : _hybrid.Candidates(reading)),
             AutoCorrect = options.AutoCorrect,
@@ -126,6 +127,9 @@ internal sealed class CompositionService : ICompositionHost, IDisposable
         }
     }
     private readonly CompositionOptions _resolved;
+
+    /// <summary>トレイの「学習データを消す」から使う文節区切りの記録。</summary>
+    internal ClauseBoundaryHistory? ClauseBoundaries => _resolved.ClauseBoundaries;
 
     /// <summary>
     /// Meltype IME (TSF) の入力欄 1 つ分の入力の本体を作る。辞書・学習データ・変換エンジンは変換ボックスと共有する

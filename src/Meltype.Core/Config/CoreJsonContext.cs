@@ -34,6 +34,11 @@ internal sealed partial class ConversionJsonContext : JsonSerializerContext;
 [JsonSerializable(typeof(List<ContextBoundaryMemory.Entry>), TypeInfoPropertyName = "Entries")]
 internal sealed partial class BoundaryJsonContext : JsonSerializerContext;
 
+/// <summary>文節区切りの学習 (clause-boundaries.json) の JSON の読み書き。</summary>
+[JsonSerializable(typeof(Dictionary<string, ClauseBoundaryHistory.Entry>), TypeInfoPropertyName = "Boundaries")]
+[JsonSerializable(typeof(ClauseBoundaryHistory.Part))]
+internal sealed partial class ClauseBoundaryJsonContext : JsonSerializerContext;
+
 /// <summary>model.json は字下げして書く。</summary>
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(UserModel.ModelFile))]

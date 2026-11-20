@@ -56,14 +56,15 @@ internal static class InputPreferenceTests
     }
 
     [Test]
-    public static void Learning_StopThenResume()
+    public static void LearningEnabled_DoesNotSendClauseBoundariesToConverter()
     {
-        var enabled = false;
+        // 本家 issue #2014: 確定した文節の区切りを変換エンジンに覚えさせると、誤った区切りが固定される。
+        // 学習が ON でも、区切りは Meltype 側にだけ覚える (Shift+矢印で動かしたとき)。変換エンジンには送らない。
         var gate = new CaptureGate(() => { });
         var host = new CompositionTests.FakeHost();
         var learner = new LearningSpy();
         var controller = new CompositionController(gate, CompositionDetector.CreateDefault(), learner, host,
-            new CompositionOptions { LearningEnabled = () => enabled });
+            new CompositionOptions { LearningEnabled = () => true });
         void Key(int code)
         {
             foreach (var up in new[] { false, true })
@@ -72,17 +73,10 @@ internal static class InputPreferenceTests
                 controller.Pump();
             }
         }
-        void TypeAndCommit()
-        {
-            foreach (var c in "nihongo") Key(char.ToUpperInvariant(c));
-            Key(0x20); Key(0x0d);
-        }
-        TypeAndCommit();
-        Assert.Equal(0, learner.Calls);
+        foreach (var c in "nihongo") Key(char.ToUpperInvariant(c));
+        Key(0x20); Key(0x0d);
+        Assert.Equal(0, learner.Calls, "Google / Mozc には文節の区切りを学習させない");
         Assert.Equal("日本語", host.Document);
-        enabled = true; TypeAndCommit();
-        Assert.True(SpinWait.SpinUntil(() => learner.Calls == 1, 2000), "Resuming learning must learn the new conversion");
-        Assert.Equal("日本語日本語", host.Document);
     }
     private sealed class LearningSpy : IKanjiConverter, ILearningConverter
     {

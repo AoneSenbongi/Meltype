@@ -56,6 +56,8 @@ internal static class AppPaths
     // 独自Windows本体の判定エンジンが引き続き使用する。
     public static string ModelFile => Path.Combine(DataDirectory, "model.json");
     public static string ConversionHistoryFile => Path.Combine(DataDirectory, "conversions.json");
+    /// <summary>ユーザーが Shift+矢印で動かした文節の区切り (clause-boundaries.json)。</summary>
+    public static string ClauseBoundaryFile => Path.Combine(DataDirectory, "clause-boundaries.json");
     public static string TranslationHistoryFile => Path.Combine(DataDirectory, "translations.json");
     public static string LanguageMemoryFile => Path.Combine(DataDirectory, "languages.json");
     public static string PhraseHistoryFile => Path.Combine(DataDirectory, "phrases.txt");

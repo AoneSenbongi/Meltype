@@ -1,10 +1,12 @@
 # 現在の状態
 
-## 現在タスク: 2.0.2正式版の公開準備（完了・公開は保留）
+## 現在タスク: 2.0.2-rc.2の公開準備（公開は保留）
 
-2026年11月20日、利用者からMeltype-Windowsの公開を依頼され、対象を2.0.2-rc.1（PC適用済み）と確認した。公開先AoneSenbongi/Meltype、タグnative-google-2.0.2、正式版、版番号2.0.2で準備。README.txtとdocs/RELEASE_2_0_2.mdに「本家Meltypeの非公式Fork」「2.0.1からの更新」「2.0.1から引き継いだ機能」を明記し、修正版の文言を利用者へ提示した。
+2026年11月20日、利用者からMeltype-Windowsの公開を依頼され、公開先をAoneSenbongi/Meltype、タグをnative-google-2.0.2と確認した。いったん2.0.2-rc.1と同じ本体で正式版2.0.2の配布物を準備し、README.txtとdocs/RELEASE_2_0_2.mdに「本家Meltypeの非公式Fork」「2.0.1からの更新」「2.0.1から引き継いだ機能」を明記したが、最終提示に対し利用者が「まだ公開しない」と判断した。GitHubへのpushとRelease公開は未実施。
 
-対応ソースは3110a4600d8bc188a36545c61988b8676afef27b。転送パッケージMeltype-Native-Google-windows-x64-20261120-100745.zip（SHA256 CA5C202F5F372234A344542EB2D46054E3F94E2286F5E41D04BBD70CBFEB88BF）からSetupを構築。Meltype-Native-Google-2.0.2-Setup.exeは159,348,811バイト、SHA256 65DF1C7DF6BEF2A77C60335E5F37B81A0A84F48442939DED5B74025505F2301E。添付はSetup・.sha256・README.txtの3点。版番号一致性、アイコン一致、EXE/ZIPのSHA256、同梱READMEとリリースノートのバイト一致を確認済み。最終提示に対し利用者が「まだ公開しない」と判断したため、GitHubへのpushとRelease公開は未実施。公開指示があれば即実行可能な状態で保留。
+その後、利用者から「Google／Mozcの区切り学習とは切り離し、Shift+矢印で明示的に変更した文節区切りだけをMeltype側で学習させる」「本家1.6.0の学習まわりと辞書・判定の改善を適用する」と指示があった。`db2f3f34`（区切り学習）、`fa42cfb8`（バックアップ対象）、`fa194e8a`（分野辞書・候補順・BackSpace再判定）にローカルコミット済み。旧2.0.2の配布物（Setup SHA256 65DF1C7DF6BEF2A77C60335E5F37B81A0A84F48442939DED5B74025505F2301E）は内容が一致しなくなったため公開しない。AGENTS.mdに従い、公開前候補として版番号を2.0.2-rc.2へ戻した。
+
+検証: Meltype.Core.Tests 604/604、Meltype.Tests 645/645、Test-NativeVersion.ps1 -ExpectedVersion '2.0.2-rc.2' 通過。分野辞書は国名辞書を除いて取り込み、上流の全差分マージはしていない。push・tag作成・Release公開はユーザー承認待ちで未実施。
 
 ### 2.0.2-rc.1のPC適用（2026年11月17日）
 

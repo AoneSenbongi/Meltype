@@ -55,6 +55,35 @@ internal static class MemoryPersistenceTests
     }
 
     [Test]
+    public static void ClauseBoundaries_SurviveSaveLoad_AndForgetSince()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "meltype-clause-boundaries-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "clause-boundaries.json");
+            var boundaries = new ClauseBoundaryHistory(path);
+            var parts = new[]
+            {
+                new ClauseBoundaryHistory.Part("vrc", "vrc", "VRC", true),
+                new ClauseBoundaryHistory.Part("はって", "hatte", "はって", false),
+                new ClauseBoundaryHistory.Part("r", "r", "r", true),
+            };
+            boundaries.Remember("vrchatter", parts);
+            Assert.Equal(1, boundaries.Count);
+            Assert.True(File.Exists(path), "学習した区切りをファイルに保存する");
+
+            var reloaded = new ClauseBoundaryHistory(path);
+            Assert.Equal(3, reloaded.Find("vrchatter")!.Count);
+            Assert.Equal("VRC", reloaded.Find("vrchatter")![0].Text);
+            Assert.Equal("hatte", reloaded.Find("vrchatter")![1].Raw);
+            Assert.Equal(1, reloaded.ForgetSince(DateTime.UtcNow.AddMinutes(-1)));
+            Assert.Equal(0, new ClauseBoundaryHistory(path).Count, "忘れた区切りは読み込み直しても戻らない");
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Test]
     public static void BrokenMemoryFiles_AreCopiedToBroken_AndKeptAfterSaving()
     {
         // 読めないファイルは .broken に残す。読めないまま空で動き、次の保存で上書きしても元の中身は .broken に残る。

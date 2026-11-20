@@ -47,7 +47,7 @@ $stageDocs=Join-Path $stage 'docs'
 New-Item -ItemType Directory -Path $stageDocs -Force|Out-Null
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_SEARCH.md') -Destination (Join-Path $stageDocs 'NATIVE_SEARCH.md')
 Copy-Item -LiteralPath (Join-Path $workspace 'docs/NATIVE_RELEASE_UPDATE.md') -Destination (Join-Path $stageDocs 'NATIVE_RELEASE_UPDATE.md')
-foreach($docName in @('BRACKET_COMMIT_NAVIGATION.md','RELEASE_2_0_1.md')){
+foreach($docName in @('BRACKET_COMMIT_NAVIGATION.md','RELEASE_2_0_2.md')){
     Copy-Item -LiteralPath (Join-Path $workspace ('docs/'+$docName)) -Destination (Join-Path $stageDocs $docName)
 }
 Set-Content (Join-Path $stage 'SOURCE_VERSION.txt') $version -Encoding ASCII

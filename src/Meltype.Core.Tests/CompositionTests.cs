@@ -1717,6 +1717,33 @@ internal static class CompositionTests
     }
 
     [Test]
+    public static void Issue1650_DomainDictionariesOfferTerms()
+    {
+        // #1861, #1866: 分野の辞書 (医療・情報・駅名・人名・一般語・法令名) の語を候補に出す
+        var dictionary = CandidateDictionary.Load(null);
+        Assert.True(dictionary.LookupDomain("せんたんきょだいしょう").Contains("先端巨大症"), "医療 (JMED-DICT)");
+        Assert.True(dictionary.LookupDomain("いくせいしゃけん").Contains("育成者権"), "情報 (IDiME)");
+        Assert.True(dictionary.LookupDomain("あいづかのうえき").Contains("会津加納駅"), "駅名 (SKK)");
+        Assert.True(dictionary.LookupDomain("せんたんきょだいしょうの").Contains("先端巨大症の"), "助詞が付いても");
+        Assert.True(dictionary.LookupDomain("どくにんせい").Contains("独任制"), "一般の語 (SudachiDict)");
+        Assert.True(dictionary.LookupDomain("ちゅうえつぱるぷ").Contains("中越パルプ"), "固有名詞 (SudachiDict)");
+        Assert.True(dictionary.LookupDomain("あまみぐんとうしんこうかいはつとくべつそちほう").Contains("奄美群島振興開発特別措置法"), "法令名 (e-Gov)");
+        // 逆向き: よく使う語の読みには分野の語を足さない (文節の区切りを壊さないため)
+        Assert.Equal(0, dictionary.LookupDomain("きょう").Count);
+        Assert.Equal(0, dictionary.LookupDomain("あい").Count);
+    }
+
+    [Test]
+    public static void Issue1650_DomainTermsComeAfterEverydayCandidates()
+    {
+        // 分野の語は、使わない人には要らない候補なので、ふだんの候補 (変換エンジンの答え・ひらがな・カタカナ) を後ろに押さない
+        var k = new Keyboard();
+        k.Type("sentankyodaishou ");
+        var shown = k.Host.View!.Candidates.ToList();
+        Assert.Equal("せんたんきょだいしょう,センタンキョダイショウ,ｾﾝﾀﾝｷｮﾀﾞｲｼｮｳ,先端巨大症", string.Join(",", shown.Take(4)), string.Join(" ", shown));
+    }
+
+    [Test]
     public static void Issue409_TanomeOffersBirthdaySlang()
     {
         var dictionary = CandidateDictionary.Load(null);
@@ -3465,6 +3492,54 @@ internal static class CompositionTests
         var k = new Keyboard(live: true, converter: new YahoConverter(), userDictionary: new UserDictionary(null));
         k.Type("yahoyaho\n");
         Assert.Equal("やほやほ", k.Host.Document);
+    }
+
+    /// <summary>さいき を 再起 にする変換エンジン (issue #1681)。</summary>
+    private sealed class SaikiConverter : IKanjiConverter
+    {
+        public string? Convert(string hiragana) => hiragana == "さいき" ? "再起" : null;
+
+        public IReadOnlyList<ConversionClause>? ConvertClauses(string hiragana, string? context = null) =>
+            hiragana == "さいき" ? [new("さいき", "再起")] : null;
+    }
+
+    [Test]
+    public static void Issue1636_BackspaceAfterADoubledConsonant_LeavesTheConsonant()
+    {
+        // #1636: ff (っf) の f・tch (っch) の ch を消したら、っ ではなく打ちかけの子音に戻す。
+        // っ に限らず、後ろのキーを見て決めた単位 (nk の ん) も、そのキーを消したら決め直す。
+        foreach (var (keys, expected) in new[]
+        {
+            ("ff\buronto\n", "ふろんと"),
+            ("kk\bakkou\n", "かっこう"),
+            ("tt\betoka\n", "てとか"),
+            ("tch\b\ba\n", "た"),
+            ("nk\ba\n", "な"),
+            ("kank\bi\n", "かに"),
+        })
+        {
+            var k = new Keyboard();
+            k.Type(keys);
+            Assert.Equal(expected, k.Host.Document, keys);
+        }
+    }
+
+    [Test]
+    public static void Issue1681_DictionaryWordsComeBeforeTheEngineCandidates()
+    {
+        // #1681: 変換エンジンが知っている読みでは、同梱・ユーザー辞書の語がエンジンの 2 次候補の後ろに押しやられていた。
+        // 最初の候補 (この Fork ではユーザー辞書語) は変えず、辞書語の後ろからエンジンの候補を並べる。
+        string[] engine = ["再帰", "最期", "才気", "佐伯", "催奇"];
+        var user = new UserDictionary(null);
+        user.Add("さいき", "PSYQUI");
+        user.Add("さいき", "サイキ");
+        var k = new Keyboard(converter: new SaikiConverter(), moreCandidates: reading => reading == "さいき" ? engine : [], userDictionary: user);
+        k.Type("saiki ");
+        var candidates = k.Host.View!.Candidates;
+        Assert.Equal("サイキ", candidates[0], "ユーザー辞書の語は最初のまま: " + string.Join(" ", candidates));
+        Assert.Equal("PSYQUI", candidates[1], "もう 1 つの辞書語も前に残る");
+        Assert.Equal("再帰", candidates[2], "エンジンの候補は辞書語の次から");
+        Assert.True(candidates.ToList().IndexOf("再起") > 2, "エンジンの答えは 2 次候補と一緒に後ろへ");
     }
 
     [Test]

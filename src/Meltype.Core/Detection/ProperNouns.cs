@@ -16,6 +16,7 @@ public sealed class ProperNouns
     {
         var nouns = new ProperNouns();
         nouns.AddText(DictionarySource.ReadEmbedded("propernouns.txt"));
+        // 上流 1.6.0 の国名辞書 (countries.txt) は、この Fork の Google 判定では ast などの子音略入力と衝突したため入れない。
         if (userDirectory is not null)
         {
             var path = Path.Combine(userDirectory, "propernouns.txt");

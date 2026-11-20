@@ -2126,6 +2126,12 @@ public sealed class CompositionController
         {
             if (!candidates.Contains(time)) candidates.Add(time);
         }
+        // 分野の辞書 (病名・駅名・人名など) は、いつもの候補・時刻の後ろに出す (#1861)。
+        // 候補の数が多いので、結果を 1 つ決める変換には使わない。Space で候補を開いたときに並ぶ。
+        foreach (var domain in _detector.LegacyGoogleConversion ? [] : _options.Candidates?.LookupDomain(reading) ?? [])
+        {
+            if (!candidates.Contains(domain)) candidates.Add(domain);
+        }
         foreach (var emoji in _detector.LegacyGoogleConversion ? [] : EmojiBlock(reading))
         {
             if (!candidates.Contains(emoji)) candidates.Add(emoji);
@@ -2404,16 +2410,32 @@ public sealed class CompositionController
     }
 
     /// <summary>
-    /// 変換中に文節を選んだときに、変換エンジンの候補の一覧 (はし → 橋 端 箸 …) を 2 番目以降に足す。
+    /// 候補の一覧で、ユーザー辞書・同梱辞書の語のうち、読み (かな) の候補より前にある最後のものの位置。
+    /// 無ければ 0 (最初の候補)。読みより後ろに回した語 (記号の 「、」など) は数えない。
+    /// </summary>
+    private int DictionaryWordsEnd(Clause clause)
+    {
+        var reading = clause.Reading;
+        var kana = clause.Candidates.IndexOf(reading);
+        var limit = kana < 0 ? clause.Candidates.Count : kana;
+        var words = (_options.UserDictionary?.Lookup(reading) ?? []).Concat(_options.Candidates?.LookupWords(reading) ?? []);
+        return Math.Max(0, words.Select(word => clause.Candidates.IndexOf(word)).Where(index => index < limit).DefaultIfEmpty(-1).Max());
+    }
+
+    /// <summary>
+    /// 変換中に文節を選んだときに、変換エンジンの候補の一覧 (はし → 橋 端 箸 …) を足す。
+    /// 日本語の文節では、最初の候補とユーザー辞書・同梱辞書の語の後ろに足す (#1681)。
+    /// 最初の候補のすぐ後ろに入れると、変換エンジンが知っている読みでは辞書の語が後ろに押しやられる。
     /// 打つたびには呼ばない (時間がかかることがあるため。ライブ変換では呼ばない)。今選んでいる候補はそのまま選んだ状態にする。
     /// </summary>
     private void Expand(Clause clause)
     {
         clause.Expanded = true;
         if (_options.MoreCandidates is not { } more) return;
+        var anchor = DictionaryWordsEnd(clause);
         var current = clause.Text;
-        var merged = new List<string> { clause.Candidates[0] };
-        foreach (var candidate in more(clause.Reading).Select(c => NormalizeHalfWidth(c, clause.Reading)).Concat(clause.Candidates.Skip(1)))
+        var merged = clause.Candidates.Take(anchor + 1).ToList();
+        foreach (var candidate in more(clause.Reading).Select(c => NormalizeHalfWidth(c, clause.Reading)).Concat(clause.Candidates.Skip(anchor + 1)))
         {
             if (!merged.Contains(candidate)) merged.Add(candidate);
         }

@@ -492,7 +492,16 @@ public sealed class CompositionText
                 return;
             }
         }
-        if (_pending.Length > 0) _pending.Length--;
+        if (_pending.Length > 0 && KanaInput) _pending.Length--;
+        else if (_pending.Length > 0)
+        {
+            // 打ちかけの子音を 1 文字消し、残った原文を打ち直す。後ろのキーを見て決めた単位 (ff の っ、nk の ん) は、
+            // そのキーを消したら決め直す (ff + BackSpace + uronto が っうろんと、nk + BackSpace + a が んあ になっていた: issue #1636)。
+            var truncated = Raw[..^1];
+            _units.Clear();
+            _pending.Clear();
+            foreach (var c in truncated) Append(c);
+        }
         else if (_units.Count > 0)
         {
             var englishTail = Mode is DisplayMode.HalfWidthAlphanumeric or DisplayMode.FullWidthAlphanumeric ||

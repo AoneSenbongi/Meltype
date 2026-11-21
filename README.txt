@@ -1,4 +1,4 @@
-Meltype Native Google 2.0.2-rc.2（公開候補）
+Meltype Native Google 2.0.2
 
 本家Meltypeの非公式Forkです。Windows 10／11 x64向けで、Google日本語入力が別途必要です。
 
@@ -14,11 +14,11 @@ Meltype Native Google 2.0.2-rc.2（公開候補）
 - Google日本語入力の辞書と学習履歴を使う変換、Google変換での文節編集に対応しています。
 - 文脈に応じた候補選択でzenzモデルを使います。AVX2対応CPUが必要で、非対応CPUでは通常変換を使用します。
 
-この配布物は、PC適用済み2.0.2-rc.1に上記の学習・辞書・判定の改善を追加した公開候補です。
-版番号は2.0.2-rc.2です。公開はしていません。
+この配布物は、PC適用済み2.0.2-rc.1に上記の学習・辞書・判定の改善を追加した正式版です。
+版番号は2.0.2です。
 
 導入
-Meltype-Native-Google-2.0.2-rc.2-Setup.exeを実行してください。
+Meltype-Native-Google-2.0.2-Setup.exeを実行してください。
 更新後は入力先のアプリを開き直してください。
 
 検証と制限
